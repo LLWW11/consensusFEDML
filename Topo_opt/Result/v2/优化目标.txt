@@ -1,0 +1,1 @@
+while (optim_obj_pre < optim_obj_current  &&  pre_client_num < current_client_num) || last_round == 1

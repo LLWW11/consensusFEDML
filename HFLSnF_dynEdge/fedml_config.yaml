@@ -1,0 +1,60 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 0
+
+data_args:
+  dataset: "mnist"
+  data_cache_dir: MNIST
+  partition_method: "hetero"
+  partition_alpha: 0.5
+  split_policy: "non-iid"
+
+model_args:
+  model: "cnn"
+
+train_args:
+  federated_optimizer: "HierarchicalFL"
+  client_id_list: "[]"
+  client_num_in_total: 200
+  client_num_per_round: 37
+  comm_round: 200
+  epochs: 1
+  batch_size: 20
+  client_optimizer: sgd
+  learning_rate: 0.03
+  weight_decay: 0.001
+  group_method: "matlab"  # 使用正式 MAT 中保存的真实客户端 ID
+  group_num: 6
+  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200.mat"
+  topology_architecture: "hfl"
+  topology_snf: true
+  topology_edge_mode: "fixed"
+  topology_util: 0.5
+  experiment_tag: "full200"
+  group_comm_round: 1
+  model_distribution_scope: "active"  # active 仅向二次采样客户端下发；all 向全部 200 个客户端下发
+  lr: 0.001
+
+validation_args:
+  frequency_of_the_test: 1
+  enable_consensus_probe: true
+  probe_source: "test"
+  probe_client_pre_file: "probe_client_pre.csv"
+  probe_edge_post_file: "probe_edge_post.csv"
+  probe_cloud_post_file: "probe_cloud_post.csv"
+
+device_args:
+  using_gpu: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+   # When running on MLOps platform(open.fedml.ai), the default log path is at ~/fedml-client/fedml/logs/ and ~/fedml-server/fedml/logs/
+  enable_wandb: false
+  wandb_key: ee0b5f53d949c84cee7decbe7a629e63fb2f8408
+  wandb_entity: fedml-ai
+  wandb_project: simulation
+  run_name: fedml_torch_hierachicalfl_mnist_lr
+  using_mlops: false

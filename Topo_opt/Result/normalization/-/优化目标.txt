@@ -1,0 +1,1 @@
+归一化 value = α*client_number_/max_possible_clients - β*time/max_possible_time
