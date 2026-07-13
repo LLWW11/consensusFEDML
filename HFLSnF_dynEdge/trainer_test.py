@@ -1,3 +1,4 @@
+import copy
 import csv
 from datetime import datetime
 import json
@@ -29,8 +30,9 @@ class HierarchicalTrainer(FedAvgAPI):
         """
         self.topology_schedule = None
         self.current_round_topology = None
+        self.fixed_candidate_client_indexes = None
         self.model_distribution_scope = str(
-            getattr(args, "model_distribution_scope", "active")
+            getattr(args, "model_distribution_scope", "all")
         ).strip().lower()
         if self.model_distribution_scope not in {"active", "all"}:
             raise ValueError(
@@ -69,6 +71,8 @@ class HierarchicalTrainer(FedAvgAPI):
             args.group_num = self.topology_schedule.group_capacity
             logging.info("MATLAB topology metadata = %s", self.topology_schedule.to_metadata())
         super().__init__(args, device, dataset, model)
+        if self.topology_schedule is not None:
+            self._initialize_fixed_candidate_clients()
 
     @staticmethod
     def _resolve_matlab_topology_path(args):
@@ -346,27 +350,39 @@ class HierarchicalTrainer(FedAvgAPI):
             active_client_indexes.extend(client_indexes)
         return sorted(set(active_client_indexes))
 
-    def _create_sampling_rng(self, global_epoch, stream_id):
-        """为指定 epoch 和采样阶段创建独立、可复现的局部随机数生成器。"""
-        base_seed = int(getattr(self.args, "random_seed", 0))
-        # 两个采样阶段使用相邻但互不共享状态的种子，避免调用顺序影响结果。
-        seed = (base_seed + int(global_epoch) * 2 + int(stream_id)) % (2 ** 32 - 1)
-        return np.random.RandomState(seed)
+    def _initialize_fixed_candidate_clients(self):
+        """
+        按 random_seed 从真实客户端池中无放回抽取一次固定候选客户端。
 
-    def _sample_epoch_candidates(self, global_epoch):
-        """从真实客户端池中均匀、无放回抽取本 epoch 的候选客户端。"""
-        rng = self._create_sampling_rng(global_epoch, stream_id=0)
-        candidate_indexes = rng.choice(
-            self.args.client_num_in_total,
-            size=self.args.client_num_per_round,
-            replace=False,
-        ).astype(int).tolist()
-        logging.info(
-            "global_epoch=%d candidate_clients=%s",
-            global_epoch,
-            candidate_indexes,
-        )
-        return candidate_indexes
+        返回顺序同时作为 MAT 候选槽位 0..N-1 与客户端探针 CSV 的列顺序，
+        整次实验不再随 global_epoch 改变。
+        """
+        client_num_in_total = int(self.args.client_num_in_total)
+        candidate_client_count = int(self.args.client_num_per_round)
+        if candidate_client_count <= 0:
+            raise ValueError("client_num_per_round 必须大于 0")
+        if candidate_client_count > client_num_in_total:
+            raise ValueError(
+                "client_num_per_round={} 不能超过 client_num_in_total={}".format(
+                    candidate_client_count, client_num_in_total
+                )
+            )
+
+        if candidate_client_count == client_num_in_total:
+            candidate_indexes = list(range(client_num_in_total))
+        else:
+            rng = np.random.RandomState(int(getattr(self.args, "random_seed", 0)))
+            candidate_indexes = rng.choice(
+                client_num_in_total,
+                size=candidate_client_count,
+                replace=False,
+            ).astype(int).tolist()
+
+        if len(set(candidate_indexes)) != candidate_client_count:
+            raise ValueError("固定候选客户端中存在重复编号")
+        self.fixed_candidate_client_indexes = candidate_indexes
+        logging.info("fixed candidate clients = %s", candidate_indexes)
+        return list(candidate_indexes)
 
     def _get_mat_group_client_counts(self, round_topology):
         """读取 MAT 当前 epoch 的各边缘组人数，并补齐人数为零的边缘槽位。"""
@@ -389,10 +405,13 @@ class HierarchicalTrainer(FedAvgAPI):
             )
         return group_client_counts
 
-    def _sample_groups_from_candidates(
-            self, global_epoch, candidate_client_indexes, round_topology
-    ):
-        """按 MAT 各组人数随机排列并切分候选客户端，生成最终真实分组。"""
+    def _map_mat_slots_to_clients(self, candidate_client_indexes, round_topology):
+        """
+        将 MAT 当前 epoch 的候选槽位分组映射为固定候选池中的真实客户端。
+
+        candidate_client_indexes 的位置就是 MAT 槽位编号，因此该映射不会再随机
+        打乱候选客户端，也不会仅按各组人数重新切片。
+        """
         if len(candidate_client_indexes) != self.args.client_num_per_round:
             raise ValueError(
                 "候选客户端数量 {} 与 client_num_per_round={} 不一致".format(
@@ -401,25 +420,41 @@ class HierarchicalTrainer(FedAvgAPI):
             )
         if len(set(candidate_client_indexes)) != len(candidate_client_indexes):
             raise ValueError("候选客户端中存在重复编号")
+        if any(
+                client_idx < 0 or client_idx >= self.args.client_num_in_total
+                for client_idx in candidate_client_indexes
+        ):
+            raise ValueError("固定候选客户端编号超出真实客户端池范围")
 
-        group_client_counts = self._get_mat_group_client_counts(round_topology)
-        rng = self._create_sampling_rng(global_epoch, stream_id=1)
-        shuffled_candidates = rng.permutation(candidate_client_indexes).astype(int).tolist()
         group_to_client_indexes = {}
-        next_index = 0
-        for group_idx, client_count in sorted(group_client_counts.items()):
-            group_clients = shuffled_candidates[next_index: next_index + client_count]
-            next_index += client_count
-            # 人数为零的组不进入聚合，但仍会在运行时调度日志中记录配额。
+        for group_idx, candidate_slots in round_topology.copy_groups().items():
+            group_clients = []
+            for candidate_slot in candidate_slots:
+                if candidate_slot < 0 or candidate_slot >= len(candidate_client_indexes):
+                    raise ValueError(
+                        "MAT 候选槽位 {} 超出 0..{} 范围".format(
+                            candidate_slot, len(candidate_client_indexes) - 1
+                        )
+                    )
+                group_clients.append(candidate_client_indexes[candidate_slot])
             if group_clients:
-                group_to_client_indexes[group_idx] = group_clients
+                group_to_client_indexes[int(group_idx)] = group_clients
+
+        active_client_indexes = self._get_active_client_indexes(group_to_client_indexes)
+        if len(active_client_indexes) != int(round_topology.participant_count):
+            raise ValueError(
+                "MAT 映射得到 {} 个真实客户端，但 participant_count={}".format(
+                    len(active_client_indexes), round_topology.participant_count
+                )
+            )
         return group_to_client_indexes
 
-    def _build_round_groups(self, global_epoch, candidate_client_indexes=None):
+    def _build_round_groups(self, global_epoch):
         """
         根据当前分组策略生成本地 epoch 的 group -> client_indexes 映射。
 
-        matlab 模式只使用正式 MAT 的组人数；旧 dynamic、random 和 average 模式保持兼容。
+        matlab 模式严格使用正式 MAT 的候选槽位身份与分组；旧 dynamic、random 和
+        average 模式保持原有采样行为。
         """
         if self.args.group_method == "random":
             return self._client_sampling(
@@ -443,12 +478,11 @@ class HierarchicalTrainer(FedAvgAPI):
                 each_group_num_index,
             )
         if self.args.group_method == "matlab":
-            if candidate_client_indexes is None:
-                raise ValueError("matlab 模式必须提供本 epoch 的候选客户端")
+            if self.fixed_candidate_client_indexes is None:
+                self._initialize_fixed_candidate_clients()
             self.current_round_topology = self.topology_schedule.get_round(global_epoch)
-            group_to_client_indexes = self._sample_groups_from_candidates(
-                global_epoch,
-                candidate_client_indexes,
+            group_to_client_indexes = self._map_mat_slots_to_clients(
+                self.fixed_candidate_client_indexes,
                 self.current_round_topology,
             )
             logging.info(
@@ -463,37 +497,62 @@ class HierarchicalTrainer(FedAvgAPI):
             return group_to_client_indexes
         raise Exception(self.args.group_method)
 
-    def _train_one_epoch_all_clients(self, global_round_idx, group_round_idx, epoch_idx):
+    def _calculate_global_epoch(self, global_round_idx, group_round_idx, epoch_idx):
         """
-        让所有客户端各训练一个本地 epoch，并返回对应的全局 epoch 编号。
+        将通信轮、组内通信轮和本地 epoch 展平为 MAT 使用的全局 epoch 编号。
+        """
+        return (
+            global_round_idx * self.args.group_comm_round * self.args.epochs
+            + group_round_idx * self.args.epochs
+            + epoch_idx
+        )
 
-        该步骤发生在边缘/云聚合之前，保证探针记录的是聚合前各客户端自己的输出概率。
+    def _train_active_clients_one_epoch(
+            self,
+            global_round_idx,
+            group_round_idx,
+            epoch_idx,
+            active_client_indexes,
+    ):
         """
-        latest_global_epoch = None
-        for client_idx in range(self.args.client_num_in_total):
+        仅让指定活跃客户端各训练一个本地 epoch，并返回全局 epoch 编号。
+
+        空参与 epoch 不调用任何客户端训练方法，但仍返回可用于读取 MAT 和写指标的
+        展平编号。
+        """
+        global_epoch = self._calculate_global_epoch(
+            global_round_idx, group_round_idx, epoch_idx
+        )
+        if len(set(active_client_indexes)) != len(active_client_indexes):
+            raise ValueError("活跃客户端列表中存在重复编号")
+        for client_idx in active_client_indexes:
+            if client_idx < 0 or client_idx >= self.args.client_num_in_total:
+                raise ValueError("活跃客户端编号 {} 超出范围".format(client_idx))
             client = self.client_registry[client_idx]
-            latest_global_epoch, _ = client.train_one_epoch(global_round_idx, group_round_idx, epoch_idx)
-        if latest_global_epoch is None:
-            raise ValueError("No local epoch was trained in round {}.".format(global_round_idx))
-        logging.info("all clients have finished one local epoch {}".format(latest_global_epoch))
-        return latest_global_epoch
-
-    def _train_all_clients(self, global_round_idx):
-        """
-        训练所有客户端一轮，并返回本轮最后一个 global_epoch。
-
-        该步骤发生在读取 .mat 选择参与聚合客户端之前，保证每个客户端都先得到自己的 w_i,k。
-        """
-        latest_global_epoch = None
-        for group_round_idx in range(self.args.group_comm_round):
-            for epoch_idx in range(self.args.epochs):
-                latest_global_epoch = self._train_one_epoch_all_clients(
-                    global_round_idx, group_round_idx, epoch_idx
+            trained_global_epoch, _ = client.train_one_epoch(
+                global_round_idx, group_round_idx, epoch_idx
+            )
+            if trained_global_epoch != global_epoch:
+                raise ValueError(
+                    "客户端 {} 返回 global_epoch={}，期望 {}".format(
+                        client_idx, trained_global_epoch, global_epoch
+                    )
                 )
-        if latest_global_epoch is None:
-            raise ValueError("No local epoch was trained in round {}.".format(global_round_idx))
-        logging.info("all clients have finished local training")
-        return latest_global_epoch
+        logging.info(
+            "active clients have finished global_epoch=%d clients=%s",
+            global_epoch,
+            list(active_client_indexes),
+        )
+        return global_epoch
+
+    def _train_one_epoch_all_clients(self, global_round_idx, group_round_idx, epoch_idx):
+        """保留旧分组模式兼容性，让全部真实客户端训练一个本地 epoch。"""
+        return self._train_active_clients_one_epoch(
+            global_round_idx,
+            group_round_idx,
+            epoch_idx,
+            list(range(self.args.client_num_in_total)),
+        )
 
     def _is_consensus_probe_enabled(self):
         """
@@ -564,6 +623,15 @@ class HierarchicalTrainer(FedAvgAPI):
             "client_num_in_total": int(self.args.client_num_in_total),
             "client_num_per_round": int(self.args.client_num_per_round),
             "model_distribution_scope": self.model_distribution_scope,
+            "candidate_sampling_mode": "fixed_once_by_random_seed",
+            "fixed_candidate_client_indexes": [
+                int(value) for value in self.fixed_candidate_client_indexes
+            ],
+            "mat_candidate_slot_to_client_index": {
+                str(candidate_slot): int(client_idx)
+                for candidate_slot, client_idx
+                in enumerate(self.fixed_candidate_client_indexes)
+            },
             "total_local_epochs": (
                 int(self.args.comm_round)
                 * int(self.args.group_comm_round)
@@ -577,7 +645,7 @@ class HierarchicalTrainer(FedAvgAPI):
         self.topology_schedule_output_path = os.path.join(
             result_dir, "topology_schedule.jsonl"
         )
-        # 真实客户端映射需要等待每个 epoch 的两级采样完成，因此这里只清空旧文件。
+        # 每个 epoch 的 MAT 活跃槽位仍不同，因此运行时映射继续逐行写入 JSONL。
         with open(self.topology_schedule_output_path, "w", encoding="utf-8"):
             pass
 
@@ -593,7 +661,7 @@ class HierarchicalTrainer(FedAvgAPI):
             distributed_client_indexes,
             aggregated,
     ):
-        """追加一条可审计的两级采样、聚合和参数下发记录。"""
+        """追加一条可审计的固定候选映射、聚合和参数下发记录。"""
         if self.topology_schedule is None:
             return
         round_topology = self.current_round_topology
@@ -610,6 +678,14 @@ class HierarchicalTrainer(FedAvgAPI):
                 str(group_index): int(client_count)
                 for group_index, client_count in group_client_counts.items()
             },
+            "mat_group_to_candidate_slots": {
+                str(group_index): [int(value) for value in candidate_slots]
+                for group_index, candidate_slots
+                in round_topology.copy_groups().items()
+            },
+            "mat_active_candidate_slots": [
+                int(value) for value in round_topology.active_candidate_slots
+            ],
             "group_to_client_indexes": {
                 str(group_index): [int(value) for value in client_indexes]
                 for group_index, client_indexes in group_to_client_indexes.items()
@@ -752,8 +828,23 @@ class HierarchicalTrainer(FedAvgAPI):
         """
         构造聚合前客户端探针 CSV 的一行数据。
 
-        行内固定包含首次无放回采样得到的 37 个候选客户端，每列保存一个概率向量。
+        MATLAB 模式行内固定包含实验开始时抽取的 37 个候选客户端，
+        每列在全部 epoch 中始终对应同一个真实客户端。
         """
+        if (
+                self.args.group_method == "matlab"
+                and len(candidate_client_indexes) != self.args.client_num_per_round
+        ):
+            raise ValueError(
+                "客户端探针列数 {} 与 client_num_per_round={} 不一致".format(
+                    len(candidate_client_indexes), self.args.client_num_per_round
+                )
+            )
+        if (
+                self.args.group_method == "matlab"
+                and list(candidate_client_indexes) != self.fixed_candidate_client_indexes
+        ):
+            raise ValueError("MATLAB 客户端探针必须使用固定候选顺序")
         row = []
         for client_idx in candidate_client_indexes:
             probabilities = self.client_registry[client_idx].predict_proba(probe_x)
@@ -783,10 +874,10 @@ class HierarchicalTrainer(FedAvgAPI):
 
     def _get_distribution_client_indexes(self, active_client_indexes):
         """根据 YAML 下发范围返回需要同步云模型的真实客户端编号。"""
-        if not active_client_indexes:
-            return []
         if self.model_distribution_scope == "all":
             return list(range(self.args.client_num_in_total))
+        if not active_client_indexes:
+            return []
         return list(active_client_indexes)
 
     def _sync_clients_to_global(self, client_indexes, w_global):
@@ -794,12 +885,38 @@ class HierarchicalTrainer(FedAvgAPI):
         for client_idx in client_indexes:
             self.client_registry[client_idx].set_local_model_state(w_global)
 
-    def _evaluate_global_model_on_all_clients(self, global_epoch, w_global):
-        """使用最终云模型在全部客户端训练和测试分区上计算加权指标。"""
-        self.model.load_state_dict(w_global)
-        # 显式同步模型训练器，避免测试阶段误用最后一次客户端推理留下的模型参数。
-        self.model_trainer.set_model_params(w_global)
-        self._local_test_on_all_clients(global_epoch)
+    def _evaluate_all_client_local_models(self, global_epoch):
+        """
+        使用全部真实客户端各自的持久模型和数据分区计算总体指标。
+
+        主训练流程会在全量下发后调用本方法。每个客户端评估前都会显式加载自己的
+        local_model_state，最终准确率由父类统一按总正确数除以总样本数计算。
+        """
+        logging.info(
+            "################evaluate_all_client_local_models : %s",
+            global_epoch,
+        )
+        train_metrics = {"num_samples": [], "num_correct": [], "losses": []}
+        test_metrics = {"num_samples": [], "num_correct": [], "losses": []}
+
+        for client_idx in range(self.args.client_num_in_total):
+            client = self.client_registry[client_idx]
+            if client.local_test_data is None:
+                continue
+
+            # 分别用该真实客户端自己的模型评估自己的训练集和测试集。
+            train_local_metrics = client.evaluate_local_model(False)
+            test_local_metrics = client.evaluate_local_model(True)
+            train_metrics["num_samples"].append(train_local_metrics["test_total"])
+            train_metrics["num_correct"].append(train_local_metrics["test_correct"])
+            train_metrics["losses"].append(train_local_metrics["test_loss"])
+            test_metrics["num_samples"].append(test_local_metrics["test_total"])
+            test_metrics["num_correct"].append(test_local_metrics["test_correct"])
+            test_metrics["losses"].append(test_local_metrics["test_loss"])
+
+        return self._summarize_local_test_metrics(
+            global_epoch, train_metrics, test_metrics
+        )
 
     def _uses_direct_cloud_aggregation(self):
         """判断当前 MATLAB 场景是否为无边缘层的普通 FL。"""
@@ -831,11 +948,11 @@ class HierarchicalTrainer(FedAvgAPI):
 
     def train(self):
         """
-        执行“全员训练、两级采样、层级聚合、按范围下发”的训练流程。
+        执行“固定候选、MAT 活跃训练、层级聚合、全量下发与客户端评估”的流程。
 
         每个展平后的本地 epoch 都单独读取一行 MAT 拓扑并完成一次评估。
         """
-        w_global = self.model.state_dict()
+        w_global = copy.deepcopy(self.model.state_dict())
         self._setup_result_dir()
         self._initialize_metric_output_files()
         probe_enabled = self._is_consensus_probe_enabled()
@@ -849,17 +966,15 @@ class HierarchicalTrainer(FedAvgAPI):
                 logging.info("################Global Communication Round : {}".format(global_round_idx))
                 for group_round_idx in range(self.args.group_comm_round):
                     for epoch_idx in range(self.args.epochs):
-                        # 第一步始终让全部真实客户端各完成一个本地 epoch。
-                        global_epoch = self._train_one_epoch_all_clients(
+                        global_epoch = self._calculate_global_epoch(
                             global_round_idx, group_round_idx, epoch_idx
                         )
-
                         if self.args.group_method == "matlab":
-                            # 第二步从 200 人中无放回抽 37 人，第三步再按 MAT 组人数切分。
-                            candidate_client_indexes = self._sample_epoch_candidates(global_epoch)
-                            group_to_client_indexes = self._build_round_groups(
-                                global_epoch, candidate_client_indexes
+                            candidate_client_indexes = list(
+                                self.fixed_candidate_client_indexes
                             )
+                            # MAT 槽位直接映射固定候选，不再进行任何 epoch 级随机采样。
+                            group_to_client_indexes = self._build_round_groups(global_epoch)
                         else:
                             group_to_client_indexes = self._build_round_groups(global_epoch)
                             candidate_client_indexes = self._get_active_client_indexes(
@@ -868,6 +983,19 @@ class HierarchicalTrainer(FedAvgAPI):
                         active_client_indexes = self._get_active_client_indexes(
                             group_to_client_indexes
                         )
+                        if self.args.group_method == "matlab":
+                            # 正式 MATLAB 模式只训练当前行实际启用的固定候选客户端。
+                            self._train_active_clients_one_epoch(
+                                global_round_idx,
+                                group_round_idx,
+                                epoch_idx,
+                                active_client_indexes,
+                            )
+                        else:
+                            # 旧分组模式继续保持全部真实客户端先训练的原有行为。
+                            self._train_one_epoch_all_clients(
+                                global_round_idx, group_round_idx, epoch_idx
+                            )
 
                         if probe_enabled:
                             probe_x, probe_label = self._get_probe_sample(global_epoch)
@@ -893,7 +1021,7 @@ class HierarchicalTrainer(FedAvgAPI):
 
                         if not cloud_inputs:
                             logging.warning(
-                                "Global epoch {} has no active model weights; skip aggregation and distribution.".format(
+                                "Global epoch {} has no active model weights; keep previous global model.".format(
                                     global_epoch
                                 )
                             )
@@ -903,8 +1031,14 @@ class HierarchicalTrainer(FedAvgAPI):
                                 # 云模型沿用上一轮 w_global，使云 CSV 在每个全局 epoch 都有一行。
                                 probe_writers["cloud"].writerow(self._build_cloud_probe_row(probe_x, w_global))
                                 self._flush_probe_outputs(probe_files)
-                            # 空参与 epoch 沿用上一云模型，但仍生成一条完整准确率记录。
-                            self._evaluate_global_model_on_all_clients(global_epoch, w_global)
+                            # 空参与 epoch 沿用上一云模型，仍按配置向全部客户端下发并逐客户端评估。
+                            distributed_client_indexes = self._get_distribution_client_indexes(
+                                active_client_indexes
+                            )
+                            self._sync_clients_to_global(
+                                distributed_client_indexes, w_global
+                            )
+                            self._evaluate_all_client_local_models(global_epoch)
                             self._append_runtime_topology_record(
                                 global_round_idx,
                                 group_round_idx,
@@ -913,7 +1047,7 @@ class HierarchicalTrainer(FedAvgAPI):
                                 candidate_client_indexes,
                                 group_to_client_indexes,
                                 active_client_indexes,
-                                distributed_client_indexes=[],
+                                distributed_client_indexes=distributed_client_indexes,
                                 aggregated=False,
                             )
                             continue
@@ -929,7 +1063,7 @@ class HierarchicalTrainer(FedAvgAPI):
                                     self._build_edge_probe_row(probe_x, edge_model_states)
                                 )
 
-                        # 云端只聚合 MAT 二次采样后真实参与客户端贡献的模型。
+                        # 云端只聚合 MAT 当前行实际启用客户端贡献的模型。
                         w_global = self._aggregate(cloud_inputs)
 
                         if probe_enabled:
@@ -941,7 +1075,7 @@ class HierarchicalTrainer(FedAvgAPI):
                         )
                         self._sync_clients_to_global(distributed_client_indexes, w_global)
 
-                        self._evaluate_global_model_on_all_clients(global_epoch, w_global)
+                        self._evaluate_all_client_local_models(global_epoch)
                         self._append_runtime_topology_record(
                             global_round_idx,
                             group_round_idx,

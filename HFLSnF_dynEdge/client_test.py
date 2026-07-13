@@ -56,6 +56,20 @@ class HFLClient(Client):
         """
         self.local_model_state = self._clone_model_state(model_state)
 
+    def evaluate_local_model(self, use_test_dataset):
+        """
+        使用当前客户端持久本地模型评估自己的训练分区或测试分区。
+
+        use_test_dataset 为 True 时评估本地测试集，否则评估本地训练集。
+        评估前会显式把该客户端的持久状态加载到共享模型和模型训练器，
+        避免误用上一个客户端或云端评估遗留的参数。
+        """
+        model_state = self.get_local_model_state()
+        # HFLClient 与 FedML 模型训练器共享同一模型，但两处都显式同步可避免状态歧义。
+        self.model.load_state_dict(model_state)
+        self.model_trainer.set_model_params(model_state)
+        return self.local_test(use_test_dataset)
+
     def _create_optimizer(self):
         """
         根据配置创建客户端本地训练优化器。

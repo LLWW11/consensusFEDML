@@ -32,7 +32,7 @@ train_args:
   topology_util: 0.5
   experiment_tag: "full200"
   group_comm_round: 1
-  model_distribution_scope: "active"  # active 仅向二次采样客户端下发；all 向全部 200 个客户端下发
+  model_distribution_scope: "all"  # 每个 epoch 都向全部 200 个客户端下发当前云模型
   lr: 0.001
 
 validation_args:

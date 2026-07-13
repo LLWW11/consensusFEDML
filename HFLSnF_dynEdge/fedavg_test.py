@@ -235,7 +235,59 @@ class FedAvgAPI(object):
             f.write(str(value))
             f.write("\n")
 
+    def _summarize_local_test_metrics(self, round_idx, train_metrics, test_metrics):
+        """
+        按总正确数和总样本数汇总客户端指标，并完成日志与文件写入。
+
+        train_metrics 和 test_metrics 均需包含 num_samples、num_correct 与 losses。
+        返回值保留四个汇总指标，便于层次训练器和单元测试复用同一计算口径。
+        """
+        train_sample_total = sum(train_metrics["num_samples"])
+        test_sample_total = sum(test_metrics["num_samples"])
+        if train_sample_total <= 0 or test_sample_total <= 0:
+            raise ValueError("客户端评估样本总数必须大于 0")
+
+        # 准确率必须按全体样本加权，不能先求各客户端准确率再做算术平均。
+        train_acc = sum(train_metrics["num_correct"]) / train_sample_total
+        train_loss = sum(train_metrics["losses"]) / train_sample_total
+        test_acc = sum(test_metrics["num_correct"]) / test_sample_total
+        test_loss = sum(test_metrics["losses"]) / test_sample_total
+
+        train_stats = {"training_acc": train_acc, "training_loss": train_loss}
+        if self.args.enable_wandb:
+            wandb.log({"Train/Acc": train_acc, "round": round_idx})
+            wandb.log({"Train/Loss": train_loss, "round": round_idx})
+
+        mlops.log({"Train/Acc": train_acc, "round": round_idx})
+        mlops.log({"Train/Loss": train_loss, "round": round_idx})
+        logging.info(train_stats)
+
+        test_stats = {"test_acc": test_acc, "test_loss": test_loss}
+        if self.args.enable_wandb:
+            wandb.log({"Test/Acc": test_acc, "round": round_idx})
+            wandb.log({"Test/Loss": test_loss, "round": round_idx})
+
+        mlops.log({"Test/Acc": test_acc, "round": round_idx})
+        mlops.log({"Test/Loss": test_loss, "round": round_idx})
+        logging.info(test_stats)
+        self._append_metric_value("train_acc.txt", train_acc)
+        self._append_metric_value("train_loss.txt", train_loss)
+        self._append_metric_value("test_acc.txt", test_acc)
+        self._append_metric_value("test_loss.txt", test_loss)
+        return {
+            "train_acc": train_acc,
+            "train_loss": train_loss,
+            "test_acc": test_acc,
+            "test_loss": test_loss,
+        }
+
     def _local_test_on_all_clients(self, round_idx):
+        """
+        使用当前共享模型遍历全部客户端数据分区，并按样本总量汇总指标。
+
+        层次训练器的新流程不会用该方法替代真实客户端评估；本方法继续服务普通
+        FedAvg 及旧调用路径。
+        """
 
         logging.info("################local_test_on_all_clients : {}".format(round_idx))
 
@@ -270,35 +322,7 @@ class FedAvgAPI(object):
             test_metrics["num_correct"].append(copy.deepcopy(test_local_metrics["test_correct"]))
             test_metrics["losses"].append(copy.deepcopy(test_local_metrics["test_loss"]))
 
-        # test on training dataset
-        train_acc = sum(train_metrics["num_correct"]) / sum(train_metrics["num_samples"])
-        train_loss = sum(train_metrics["losses"]) / sum(train_metrics["num_samples"])
-
-        # test on test dataset
-        test_acc = sum(test_metrics["num_correct"]) / sum(test_metrics["num_samples"])
-        test_loss = sum(test_metrics["losses"]) / sum(test_metrics["num_samples"])
-
-        stats = {"training_acc": train_acc, "training_loss": train_loss}
-        if self.args.enable_wandb:
-            wandb.log({"Train/Acc": train_acc, "round": round_idx})
-            wandb.log({"Train/Loss": train_loss, "round": round_idx})
-
-        mlops.log({"Train/Acc": train_acc, "round": round_idx})
-        mlops.log({"Train/Loss": train_loss, "round": round_idx})
-        logging.info(stats)
-
-        stats = {"test_acc": test_acc, "test_loss": test_loss}
-        if self.args.enable_wandb:
-            wandb.log({"Test/Acc": test_acc, "round": round_idx})
-            wandb.log({"Test/Loss": test_loss, "round": round_idx})
-
-        mlops.log({"Test/Acc": test_acc, "round": round_idx})
-        mlops.log({"Test/Loss": test_loss, "round": round_idx})
-        logging.info(stats)
-        self._append_metric_value("train_acc.txt", train_acc)
-        self._append_metric_value("train_loss.txt", train_loss)
-        self._append_metric_value("test_acc.txt", test_acc)
-        self._append_metric_value("test_loss.txt", test_loss)
+        return self._summarize_local_test_metrics(round_idx, train_metrics, test_metrics)
 
     def _local_test_on_validation_set(self, round_idx):
 
