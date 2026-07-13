@@ -4,3 +4,6 @@
 *.json
 *.jsonl
 *.html
+
+
+/result
