@@ -4,6 +4,12 @@
 *.json
 *.jsonl
 *.html
+*.zip
+*.rar
+*.7z
+*.ps1
+*.pyc
 
 
 /result
+/idea
