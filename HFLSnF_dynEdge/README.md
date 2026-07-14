@@ -72,6 +72,56 @@ FL-noSnF 的 1 轮直接云聚合验证配置：
   torch_hierarchicalfl_mnist_lr_step_by_step_example.py --cf configs/fedml_config_smoke_fl_no_snf_u05.yaml
 ```
 
+## 生成四组实验分析报告
+
+分析相关代码统一放在 `result/originalData` 中，与项目根目录的训练和实验代码分开。`result/originalData/analyze_experiment_suite.py` 会从一个指定批次中识别且只识别以下四组完整实验：HFL-SnF、HFL-noSnF、FL-SnF 和 FL-noSnF。说明文件和其他非实验目录会被忽略；场景缺失、重复、轮数不一致或概率探针非法时会输出明确错误，不生成不完整报告。
+
+### 在终端中运行
+
+从项目目录执行：
+
+```powershell
+python result\originalData\analyze_experiment_suite.py `
+  --input-dir "result\originalData\1"
+```
+
+可选参数如下：
+
+- `--smooth-window 10`：设置趋势和共识曲线的尾随平滑窗口；
+- `--output-root "result\1结果和分析"`：指定自动生成报告目录的根目录；
+- `--output-dir "D:\temp\本次分析"`：直接指定本次输出目录，该目录必须不存在或为空；
+- `--result-root`：旧命令的兼容参数，作用等同于 `--input-dir`；
+- `--experiment-dir`：需要恰好重复四次，用于显式指定四个实验目录。
+
+默认输出目录格式为：
+
+```text
+result\1结果和分析\analysis_<批次名>_<实际轮数>rounds_<数据日期>
+```
+
+若同名分析目录已经存在，脚本会自动追加序号，避免覆盖旧报告。完整分析包包括简体中文 `分析报告.md`、8张300 DPI图片、逐轮和汇总CSV、数据质量检查及带SHA-256来源哈希的 `analysis_manifest.json`。
+
+### 在 VS Code 中点击运行
+
+1. 打开 `result/originalData/run_report_from_ide.py`。
+2. 在文件顶部“只需修改这里”区域设置 `INPUT_BATCH_FOLDER`，例如 `"1"` 或 `"2"`。
+3. 点击编辑器右上角的“运行 Python 文件”按钮。
+4. 在控制台查看输入目录、输出目录、报告绝对路径和四组实验主要指标。
+
+### 在 PyCharm 中点击运行
+
+1. 打开 `result/originalData/run_report_from_ide.py`。
+2. 修改顶部的 `INPUT_BATCH_FOLDER`；需要时同时修改 `SMOOTH_WINDOW`。
+3. 右键文件并选择“运行”，或点击编辑器旁的绿色运行按钮。
+
+IDE入口根据脚本在 `result/originalData` 中的固定位置推导项目根目录，不依赖 VS Code、PyCharm 的当前工作目录，也不读取命令行参数。因此不需要个人化的 `.vscode/launch.json` 或 `.idea/workspace.xml`。
+
+分析脚本测试可通过以下命令运行：
+
+```powershell
+python result\originalData\test_analyze_experiment_suite.py
+```
+
 ## 单元测试
 
 ```powershell

@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,7 +17,6 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import matplotlib
 
-# 服务器运行时通常没有图形界面，固定使用非交互式后端。
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
@@ -67,6 +67,13 @@ REQUIRED_RESULT_FILES = [
 SUMMARY_THRESHOLDS = (0.80, 0.85, 0.88)
 
 
+def locate_project_root() -> Path:
+    """根据分析脚本的新固定位置返回训练项目根目录。"""
+
+    # 当前文件位于“项目根目录/result/originalData”，向上两级即项目根目录。
+    return Path(__file__).resolve().parent.parent.parent
+
+
 @dataclass
 class ExperimentData:
     """保存一组实验的元数据、逐轮指标、调度记录和三层探针。"""
@@ -85,21 +92,43 @@ class ExperimentData:
     cloud_probe: List[List[Optional[np.ndarray]]]
 
 
-def parse_args() -> argparse.Namespace:
-    """解析结果根目录、显式实验目录、输出目录和共识平滑窗口。"""
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    """解析输入批次、兼容参数、输出位置和共识平滑窗口。"""
 
     parser = argparse.ArgumentParser(description="分析四组联邦学习实验并生成中文报告")
-    parser.add_argument("--result-root", type=Path, default=Path("result"), help="实验结果根目录")
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=None,
+        help="包含四个实验目录的批次目录，例如 result/originalData/1",
+    )
+    parser.add_argument(
+        "--result-root",
+        type=Path,
+        default=None,
+        help="兼容旧命令的实验结果根目录；请优先使用 --input-dir",
+    )
     parser.add_argument(
         "--experiment-dir",
         action="append",
         type=Path,
         default=None,
-        help="显式指定实验目录；可重复四次，未指定时从 result-root 自动发现",
+        help="显式指定实验目录；可重复四次，未指定时从输入批次目录自动发现",
     )
     parser.add_argument("--output-dir", type=Path, default=None, help="分析输出目录")
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=None,
+        help="自动生成分析目录时使用的输出根目录",
+    )
     parser.add_argument("--smooth-window", type=int, default=10, help="共识和趋势的尾随平滑窗口")
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.input_dir is not None and args.result_root is not None:
+        parser.error("--input-dir 与 --result-root 不能同时使用")
+    if args.output_dir is not None and args.output_root is not None:
+        parser.error("--output-dir 与 --output-root 不能同时使用")
+    return args
 
 
 def read_json(path: Path) -> Dict[str, object]:
@@ -171,24 +200,28 @@ def nonempty_probability_vectors(
 
 
 def discover_experiment_dirs(result_root: Path) -> List[Path]:
-    """从结果根目录发现恰好覆盖四个目标场景的完整实验目录。"""
+    """从指定批次目录发现恰好覆盖四个目标场景的完整实验目录。"""
 
+    result_root = result_root.resolve()
+    if not result_root.is_dir():
+        raise FileNotFoundError("输入批次目录不存在：{}".format(result_root))
     scenario_to_paths = {scenario: [] for scenario in SCENARIO_ORDER}
+    incomplete_directories = []
     for directory in sorted(result_root.iterdir()):
         if not directory.is_dir() or not (directory / "topology_metadata.json").is_file():
-            continue
-        if not all((directory / filename).is_file() for filename in REQUIRED_RESULT_FILES):
             continue
         metadata = read_json(directory / "topology_metadata.json")
         scenario = str(metadata.get("scenario", ""))
         if scenario not in scenario_to_paths:
             continue
-        # 本分析只自动选择计划中的 alpha=0.2、U=0.5、full200 标签实验。
-        if float(metadata.get("partition_alpha", -1.0)) != 0.2:
-            continue
-        if float(metadata.get("topology_util", -1.0)) != 0.5:
-            continue
-        if str(metadata.get("experiment_tag", "")) != "full200":
+        missing = [
+            filename for filename in REQUIRED_RESULT_FILES
+            if not (directory / filename).is_file()
+        ]
+        if missing:
+            incomplete_directories.append(
+                "{} 缺少 {}".format(directory.name, "、".join(missing))
+            )
             continue
         scenario_to_paths[scenario].append(directory)
 
@@ -197,8 +230,12 @@ def discover_experiment_dirs(result_root: Path) -> List[Path]:
         count = len(scenario_to_paths[scenario])
         if count != 1:
             problems.append("{} 匹配到 {} 个目录".format(scenario, count))
+    problems.extend(incomplete_directories)
     if problems:
-        raise ValueError("自动发现实验失败：{}；请使用 --experiment-dir 显式指定".format("；".join(problems)))
+        raise ValueError(
+            "自动发现实验失败：{}；可修正批次目录，或使用 --experiment-dir 显式指定"
+            .format("；".join(problems))
+        )
     return [scenario_to_paths[scenario][0] for scenario in SCENARIO_ORDER]
 
 
@@ -251,8 +288,126 @@ def load_experiment(path: Path) -> ExperimentData:
     )
 
 
+def infer_probability_class_count(experiment: ExperimentData) -> int:
+    """从首个非空探针向量推导类别数，并拒绝无法识别的输入。"""
+
+    for probe_rows in (
+            experiment.client_probe, experiment.edge_probe, experiment.cloud_probe
+    ):
+        for row in probe_rows:
+            for vector in row:
+                if vector is None:
+                    continue
+                values = np.asarray(vector)
+                if values.ndim != 1 or values.size < 2:
+                    raise ValueError("无法从探针推导有效类别数：{}".format(experiment.path))
+                return int(values.size)
+    raise ValueError("实验没有任何非空概率探针：{}".format(experiment.path))
+
+
+def build_batch_profile(
+        input_dir: Path, experiments: Sequence[ExperimentData]
+) -> Dict[str, object]:
+    """汇总批次公共元数据，并在四方案关键比较口径不一致时终止。"""
+
+    if len(experiments) != len(SCENARIO_ORDER):
+        raise ValueError("批次必须包含四个目标实验")
+    profile_fields = {
+        "client_num_in_total": [
+            int(experiment.metadata.get("client_num_in_total", -1))
+            for experiment in experiments
+        ],
+        "client_num_per_round": [
+            int(experiment.metadata.get("client_num_per_round", -1))
+            for experiment in experiments
+        ],
+        "configured_comm_round": [
+            int(experiment.metadata.get("configured_comm_round", -1))
+            for experiment in experiments
+        ],
+        "partition_alpha": [
+            experiment.metadata.get("partition_alpha") for experiment in experiments
+        ],
+        "topology_util": [
+            experiment.metadata.get("topology_util") for experiment in experiments
+        ],
+        "random_seed": [
+            experiment.metadata.get("random_seed") for experiment in experiments
+        ],
+        "model_distribution_scope": [
+            experiment.metadata.get("model_distribution_scope") for experiment in experiments
+        ],
+        "experiment_tag": [
+            experiment.metadata.get("experiment_tag") for experiment in experiments
+        ],
+        "probability_class_count": [
+            infer_probability_class_count(experiment) for experiment in experiments
+        ],
+        "actual_rounds": [len(experiment.schedule) for experiment in experiments],
+    }
+    inconsistent = {
+        key: values for key, values in profile_fields.items() if len(set(values)) != 1
+    }
+    if inconsistent:
+        raise ValueError("四方案关键元数据不一致：{}".format(inconsistent))
+
+    hfl_edge_slots = {
+        int(experiment.metadata.get("group_capacity", len(experiment.edge_probe[0])))
+        for experiment in experiments
+        if experiment.scenario.startswith("hfl_") and experiment.edge_probe
+    }
+    if len(hfl_edge_slots) != 1:
+        raise ValueError("两个HFL方案的边缘槽位数不一致：{}".format(sorted(hfl_edge_slots)))
+    fl_edge_slots = {
+        len(experiment.edge_probe[0])
+        for experiment in experiments
+        if experiment.scenario.startswith("fl_") and experiment.edge_probe
+    }
+    if len(fl_edge_slots) != 1:
+        raise ValueError("两个FL方案的边缘探针槽位数不一致：{}".format(sorted(fl_edge_slots)))
+
+    profile = {key: values[0] for key, values in profile_fields.items()}
+    profile.update(
+        {
+            "input_dir": str(input_dir.resolve()),
+            "batch_name": input_dir.resolve().name,
+            "hfl_edge_slot_count": next(iter(hfl_edge_slots)),
+            "fl_edge_slot_count": next(iter(fl_edge_slots)),
+        }
+    )
+    return profile
+
+
+def add_batch_name_check(
+        quality_checks: List[Dict[str, object]], profile: Dict[str, object]
+) -> None:
+    """核对批次名中可明确识别的客户端数和利用率，不猜测含糊的变量含义。"""
+
+    batch_name = str(profile["batch_name"])
+    mismatches = []
+    client_match = re.search(r"client(\d+)", batch_name, flags=re.IGNORECASE)
+    if client_match and int(client_match.group(1)) != int(profile["client_num_in_total"]):
+        mismatches.append(
+            "目录名client{}，元数据client_num_in_total={}"
+            .format(client_match.group(1), profile["client_num_in_total"])
+        )
+    util_match = re.search(r"util(\d+(?:p\d+)?)", batch_name, flags=re.IGNORECASE)
+    if util_match:
+        name_util = float(util_match.group(1).replace("p", "."))
+        if not math.isclose(name_util, float(profile["topology_util"]), rel_tol=0.0, abs_tol=1e-12):
+            mismatches.append(
+                "目录名util{}，元数据topology_util={}"
+                .format(util_match.group(1), profile["topology_util"])
+            )
+    if mismatches:
+        add_quality_check(
+            quality_checks, "跨实验", "批次目录名与结构化元数据一致",
+            "注意", "；".join(mismatches), "中",
+        )
+
+
 def normalized_entropy(probabilities: np.ndarray) -> np.ndarray:
-    """沿最后一维计算归一化熵，十分类均匀分布为 1，one-hot 为 0。"""
+    """沿最后一维计算归一化熵，均匀分布为1，one-hot分布为0。"""
 
     values = np.asarray(probabilities, dtype=np.float64)
     if values.ndim == 0 or values.shape[-1] < 2:
@@ -379,7 +534,7 @@ def map_client_ids_to_slots(record: Dict[str, object], client_ids: Sequence[int]
     return slots
 
 
-def validate_probability_vector(vector: np.ndarray, class_count: int = 10) -> bool:
+def validate_probability_vector(vector: np.ndarray, class_count: int) -> bool:
     """检查概率向量的维度、有限性、取值范围和归一化误差。"""
 
     values = np.asarray(vector, dtype=np.float64)
@@ -446,8 +601,14 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
     fixed_mapping_ok = True
     zero_rounds = 0
     candidate_sets = []
-    client_total = int(experiment.metadata.get("client_num_in_total", 200))
-    candidate_total = int(experiment.metadata.get("client_num_per_round", 37))
+    client_total = int(experiment.metadata.get("client_num_in_total", -1))
+    candidate_total = int(experiment.metadata.get("client_num_per_round", -1))
+    class_count = infer_probability_class_count(experiment)
+    hfl_edge_slot_count = int(
+        experiment.metadata.get(
+            "group_capacity", len(experiment.edge_probe[0]) if experiment.edge_probe else 0
+        )
+    )
     distribution_scope = str(experiment.metadata.get("model_distribution_scope", "active"))
     metadata_candidates = [
         int(value) for value in experiment.metadata.get(
@@ -524,16 +685,16 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
         probability_ok = probability_ok and all(vector is not None for vector in client_vectors)
         probability_ok = probability_ok and all(vector is not None for vector in cloud_vectors)
         probability_ok = probability_ok and all(
-            validate_probability_vector(vector)
+            validate_probability_vector(vector, class_count)
             for vector in client_vectors + edge_vectors + cloud_vectors
             if vector is not None
         )
         nonempty_group_count = sum(1 for client_ids in group_mapping.values() if client_ids)
         if experiment.scenario.startswith("hfl_"):
-            edge_ok = edge_ok and len(edge_vectors) == 6
+            edge_ok = edge_ok and len(edge_vectors) == hfl_edge_slot_count
             edge_ok = edge_ok and all(
                 (edge_vectors[group_id] is not None) == bool(group_mapping.get(group_id, []))
-                for group_id in range(6)
+                for group_id in range(hfl_edge_slot_count)
             )
             edge_ok = edge_ok and len(nonempty_probability_vectors(edge_vectors)) == nonempty_group_count
         else:
@@ -544,7 +705,9 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
         "期望 0..{}".format(round_count - 1), "关键",
     )
     add_quality_check(
-        checks, experiment.label, "一级采样为200中37个唯一客户端", "通过" if candidate_ok else "未通过",
+        checks, experiment.label,
+        "一级采样为{}中{}个唯一客户端".format(client_total, candidate_total),
+        "通过" if candidate_ok else "未通过",
         "共 {} 轮；候选集合出现 {} 种".format(round_count, len(set(candidate_sets))), "关键",
     )
     add_quality_check(
@@ -569,7 +732,10 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
     )
     add_quality_check(
         checks, experiment.label, "探针概率合法且层级列数匹配", "通过" if probability_ok and edge_ok else "未通过",
-        "客户端37列、云端1列；HFL边缘列数等于非空组，FL边缘为空", "关键",
+        "客户端{}列、概率{}维、云端1列；HFL边缘{}槽位，FL边缘为空".format(
+            candidate_total, class_count, hfl_edge_slot_count
+            if experiment.scenario.startswith("hfl_") else 0
+        ), "关键",
     )
     add_quality_check(
         checks, experiment.label, "实际训练调用严格等于MAT活跃集合", "无法独立验证",
@@ -890,7 +1056,7 @@ def summarize_experiment(
 
 
 def build_client_statistics(experiments: Sequence[ExperimentData]) -> List[Dict[str, object]]:
-    """按实验和固定MAT槽位统计37个候选客户端的实际参与频率。"""
+    """按实验和固定MAT槽位统计候选客户端的实际参与频率。"""
 
     rows = []
     for experiment in experiments:
@@ -1091,6 +1257,19 @@ def save_figure(figure: plt.Figure, path: Path) -> None:
     plt.close(figure)
 
 
+def draw_compatible_boxplot(
+        axis: plt.Axes, distributions: Sequence[Sequence[float]], labels: Sequence[str],
+        **kwargs: object
+) -> Dict[str, object]:
+    """兼容新旧Matplotlib的箱线图标签参数并返回图形对象。"""
+
+    try:
+        # Matplotlib 3.9及以后使用tick_labels，旧版仍使用labels。
+        return axis.boxplot(distributions, tick_labels=labels, **kwargs)
+    except TypeError:
+        return axis.boxplot(distributions, labels=labels, **kwargs)
+
+
 def plot_metric_line(
         axis: plt.Axes, rows: Sequence[Dict[str, object]], scenario: str,
         field: str, smooth_field: str, label: Optional[str] = None
@@ -1162,7 +1341,13 @@ def plot_participation(
             linestyle=SCENARIO_LINESTYLES[scenario], linewidth=2.0,
             label=SCENARIO_LABELS[scenario],
         )
-    style_axis(axes[0, 0], "实际参与聚合客户端数", (0, 39))
+    max_active = max(
+        int(row["active_count"])
+        for rows in rows_by_scenario.values()
+        for row in rows
+    )
+    active_upper = max(1.0, max_active * 1.08)
+    style_axis(axes[0, 0], "实际参与聚合客户端数", (0, active_upper))
     style_axis(axes[0, 1], "累计聚合客户端次")
     axes[0, 0].set_title("每轮实际参与人数", loc="left", fontweight="bold")
     axes[0, 1].set_title("累计有效聚合贡献", loc="left", fontweight="bold")
@@ -1172,8 +1357,9 @@ def plot_participation(
         [int(row["active_count"]) for row in rows_by_scenario[scenario]]
         for scenario in SCENARIO_ORDER
     ]
-    boxes = axes[1, 0].boxplot(
-        distributions, labels=[SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER],
+    boxes = draw_compatible_boxplot(
+        axes[1, 0], distributions,
+        [SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER],
         patch_artist=True, showmeans=True,
         meanprops={"marker": "D", "markerfacecolor": "white", "markeredgecolor": "#344054", "markersize": 5},
         medianprops={"color": "#101828", "linewidth": 1.4},
@@ -1202,7 +1388,7 @@ def plot_participation(
         )
     axes[1, 1].set_xticks(x_positions)
     axes[1, 1].set_xticklabels([SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER])
-    axes[1, 1].set_ylim(0, 40)
+    axes[1, 1].set_ylim(0, max(1.0, max(mean_active) * 1.25))
     axes[1, 1].set_ylabel("平均实际参与人数")
     axes[1, 1].set_title("参与均值与空聚合轮", loc="left", fontweight="bold")
     axes[1, 1].grid(True, axis="y", color="#EAECF0")
@@ -1287,9 +1473,10 @@ def plot_consensus_decomposition(
         style_axis(axis, "指标值", (0, 1.02))
         axis.set_title(SCENARIO_LABELS[scenario], loc="left", fontweight="bold")
     axes[0, 0].legend(frameon=False, loc="center right")
+    candidate_total = int(rows_by_scenario[SCENARIO_ORDER[0]][0]["candidate_count"])
     add_figure_header(
         figure,
-        "固定37候选与MAT活跃客户端的有效共识分解",
+        "固定{}候选与MAT活跃客户端的有效共识分解".format(candidate_total),
         "浅线为原始值，粗线为{}轮尾随均值；活跃共识排除未训练候选保留旧云模型造成的多数效应".format(smooth_window),
     )
     save_figure(figure, path)
@@ -1300,7 +1487,7 @@ def plot_candidate_consensus_comparison(
         rows_by_scenario: Dict[str, List[Dict[str, object]]],
         summaries: Dict[str, Dict[str, object]], figure_dir: Path, smooth_window: int
 ) -> Path:
-    """在统一坐标中直接比较四方案固定37候选的有效共识S。"""
+    """在统一坐标中直接比较四方案固定候选的有效共识S。"""
 
     path = figure_dir / "08_四方案候选有效共识S对比.png"
     figure, axes = plt.subplots(
@@ -1360,9 +1547,10 @@ def plot_candidate_consensus_comparison(
     axes[1].spines["right"].set_visible(False)
     axes[1].set_title("最后20轮均值与轮间标准差", loc="left", fontweight="bold")
 
+    candidate_total = int(rows_by_scenario[SCENARIO_ORDER[0]][0]["candidate_count"])
     add_figure_header(
         figure,
-        "四方案固定37候选的有效共识S对比",
+        "四方案固定{}候选的有效共识S对比".format(candidate_total),
         "左图浅线为逐轮值、粗线为{}轮尾随均值；右图误差线不是多种子置信区间".format(smooth_window),
     )
     save_figure(figure, path)
@@ -1473,7 +1661,7 @@ def plot_hierarchy_consensus(
 
 
 def build_fixed_candidate_activity_matrix(experiment: ExperimentData) -> np.ndarray:
-    """将每轮MAT活跃槽位展开为固定37槽位×轮数的0/1矩阵。"""
+    """将每轮MAT活跃槽位展开为固定候选槽位乘轮数的0/1矩阵。"""
 
     candidate_total = int(experiment.metadata["client_num_per_round"])
     matrix = np.zeros((candidate_total, len(experiment.schedule)), dtype=np.float64)
@@ -1487,12 +1675,13 @@ def plot_client_coverage_and_relationship(
         experiments: Sequence[ExperimentData], rows_by_scenario: Dict[str, List[Dict[str, object]]],
         summaries: Dict[str, Dict[str, object]], figure_dir: Path, smooth_window: int
 ) -> Path:
-    """绘制固定37槽位活跃热图及参与人数与测试准确率变化关系。"""
+    """绘制固定候选槽位活跃热图及参与人数与测试准确率变化关系。"""
 
     path = figure_dir / "07_固定候选活跃与精度波动.png"
     figure = plt.figure(figsize=(16, 12.5))
     grid = figure.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 1.25], hspace=0.48, wspace=0.18)
     experiment_by_scenario = {experiment.scenario: experiment for experiment in experiments}
+    candidate_total = int(experiments[0].metadata["client_num_per_round"])
 
     for index, scenario in enumerate(SCENARIO_ORDER):
         row = index // 2
@@ -1533,7 +1722,7 @@ def plot_client_coverage_and_relationship(
     relation_axis.axhline(0.0, color="#344054", linewidth=1.0, linestyle="--")
     relation_axis.set_xlabel("本轮MAT活跃客户端数")
     relation_axis.set_ylabel("相对上一轮的测试准确率变化")
-    relation_axis.set_xlim(-0.5, 37.5)
+    relation_axis.set_xlim(-0.5, candidate_total + 0.5)
     if all_changes:
         padding = max(0.02, 0.08 * (max(all_changes) - min(all_changes)))
         relation_axis.set_ylim(min(all_changes) - padding, max(all_changes) + padding)
@@ -1545,7 +1734,7 @@ def plot_client_coverage_and_relationship(
 
     add_figure_header(
         figure,
-        "固定37客户端的MAT活跃轨迹与精度波动",
+        "固定{}候选客户端的MAT活跃轨迹与精度波动".format(candidate_total),
         "热图深色表示该槽位实际训练并参与聚合；散点相关只描述同期关系，不构成因果证据",
     )
     save_figure(figure, path)
@@ -1774,9 +1963,10 @@ def add_cross_experiment_checks(
         [record["candidate_client_indexes"] for record in experiment.schedule] == reference
         for experiment in experiments[1:]
     )
+    candidate_total = int(experiments[0].metadata["client_num_per_round"])
     add_quality_check(
         quality_checks, "跨实验", "四方案固定候选顺序一致", "通过" if identical else "未通过",
-        "四方案全部epoch共享同一组、同一顺序的37个真实客户端", "关键",
+        "四方案全部epoch共享同一组、同一顺序的{}个真实客户端".format(candidate_total), "关键",
     )
     zero_model_hold = True
     evidence = []
@@ -1841,227 +2031,25 @@ def format_number(value: object, digits: int = 3) -> str:
     return ("{:." + str(digits) + "f}").format(float(value))
 
 
-def build_report_text(
-        experiments: Sequence[ExperimentData], summaries: Dict[str, Dict[str, object]],
-        contrasts: Sequence[Dict[str, object]], quality_checks: Sequence[Dict[str, object]],
-        drift: Dict[str, object], smooth_window: int
-) -> str:
-    """根据已复算指标生成回答优先、证据相邻的简体中文技术报告。"""
-
-    best_scenario = max(SCENARIO_ORDER, key=lambda key: summaries[key]["last10_test_acc_mean"])
-    stable_scenario = min(SCENARIO_ORDER, key=lambda key: summaries[key]["last10_test_acc_std"])
-    hfl_gain = next(row for row in contrasts if row["对比"] == "HFL中SnF增益")
-    fl_gain = next(row for row in contrasts if row["对比"] == "FL中SnF增益")
-
-    performance_rows = []
-    for scenario in SCENARIO_ORDER:
-        item = summaries[scenario]
-        performance_rows.append(
-            [
-                item["label"],
-                format_percent(item["final_test_acc"]),
-                format_percent(item["best_test_acc"]),
-                format_percent(item["last10_test_acc_mean"]),
-                "{:.2f}个百分点".format(100.0 * item["last10_test_acc_std"]),
-                item["stable_epoch_0.80"] or "未达到",
-                item["stable_epoch_0.85"] or "未达到",
-                item["stable_epoch_0.88"] or "未达到",
-            ]
-        )
-
-    participation_rows = []
-    consensus_rows = []
-    for scenario in SCENARIO_ORDER:
-        item = summaries[scenario]
-        participation_rows.append(
-            [
-                item["label"],
-                format_number(item["active_mean"], 2),
-                "{}–{}".format(item["active_min"], item["active_max"]),
-                item["active_total"],
-                item["zero_active_rounds"],
-                "{}/200".format(item["active_coverage"]),
-                item["distributed_total"],
-            ]
-        )
-        consensus_rows.append(
-            [
-                item["label"],
-                format_number(item["agreement_first10"], 4),
-                format_number(item["certainty_first10"], 4),
-                format_number(item["effective_first10"], 4),
-                format_number(item["effective_last10"], 4),
-                format_number(item["effective_ma_best"], 4),
-                format_number(item["consensus_accuracy_level_corr"], 3),
-                format_number(item["consensus_accuracy_diff_corr"], 3),
-                item["strongest_lag"],
-                format_number(item["strongest_lag_corr"], 3),
-            ]
-        )
-
-    contrast_rows = [
-        [
-            row["对比"],
-            "{:+.3f}".format(row["后10轮准确率差_百分点"]),
-            "{:+.3f}".format(row["最终准确率差_百分点"]),
-            "{:+.2f}".format(row["平均活跃人数差"]),
-        ]
-        for row in contrasts
-    ]
-    quality_status_counts = {}
-    for row in quality_checks:
-        quality_status_counts[row["状态"]] = quality_status_counts.get(row["状态"], 0) + 1
-
-    result_rounds = sorted(set(int(item["rounds"]) for item in summaries.values()))
-    yaml_rounds = sorted(set(value for value in drift["current_yaml_comm_round"].values() if value is not None))
-    text = """# 四组联邦学习实验结果分析报告
-
-## 技术摘要
-
-- **后期效果最好的方案是 {best_label}。** 它在最后10轮的平均测试准确率为 **{best_acc}**；后期最稳定的方案是 {stable_label}，最后10轮标准差为 **{stable_std:.2f} 个百分点**。
-- **SnF方案在两种架构下都表现出更高的后10轮准确率，但不能解释成纯SnF因果效果。** HFL内差值为 **{hfl_gain:+.3f} 个百分点**，FL内差值为 **{fl_gain:+.3f} 个百分点**；与此同时四场景平均参与聚合人数差异很大。
-- **有效共识修正了“共同乱猜”的误判。** 四组前10轮的一致性A约为0.998，但确定性C只有约0.003，因此有效共识S接近0；后10轮S上升到约0.65。
-- **证据评级：可分享但附带限制。** 600条调度记录和概率数据通过关键一致性检查，但只有单随机种子，结果没有运行代码哈希、模型快照或探针真值，而且当前代码与生成结果时的采样语义已经发生漂移。
-
-## 1. 数据完整，但实际运行是150轮而不是200轮
-
-四个结果目录的调度、四项模型指标和三份探针均为 **{rounds}轮**。元数据中的 `round_count=200` 表示MAT可用拓扑容量，`configured_comm_round=150` 和实际文件行数才是本次运行范围。目录名中的 `full200` 是实验标签，不能当成实际轮数。
-
-数据质量检查共记录 {quality_total} 项：{quality_counts}。所有关键不变量均通过；“每轮全部200人完成本地训练”由于没有 `trained_client_indexes`，被标记为无法验证。
-
-## 2. HFL-SnF后期准确率最高，本次运行中SnF同时降低后期波动
-
-下表以最后10轮均值作为主要后期指标，同时保留最终值、峰值和基于5轮尾随均值的稳定达标轮次。单个最终epoch容易受当轮拓扑影响，因此不能只看最终一行。
-
-{performance_table}
-
-四组都没有稳定达到90%。HFL-SnF最后10轮平均准确率最高，且后期标准差最小；FL-noSnF的后期准确率最低，HFL-noSnF的后期波动最大。训练准确率与测试准确率非常接近，未观察到明显过拟合证据。
-
-![四方案模型指标趋势](figures/01_模型效果趋势.png)
-
-图中粗线为{smooth_window}轮尾随均值。SnF两条曲线的后期波动明显小于对应noSnF曲线，但参与规模不同仍是重要替代解释。
-
-## 3. 四场景的有效聚合预算差异很大
-
-{participation_table}
-
-如果PLAN中的“每轮200人本地训练”约定成立，四组本地训练工作量相同；上表统计的是**真正进入聚合的客户端状态数量**和下发次数。HFL-SnF在150轮累计聚合5216个客户端状态，而FL-noSnF只有951个，因此按轮次得到的性能差异同时包含拓扑、聚合层次和参与预算差异。
-
-![参与强度与累计贡献](figures/02_参与强度与累计贡献.png)
-
-![聚合预算效率](figures/03_聚合预算效率.png)
-
-按轮次看，更多参与通常带来更快、更稳定的全局学习；按累计参与量看，FL-noSnF用更少的聚合客户端次达到较高准确率。后者不代表其总体方案更优，而是说明“每轮效果”和“单位上行聚合贡献效率”是两个不同问题。
-
-## 4. 有效共识避免把均匀输出当成高共识
-
-定义候选客户端平均概率为 $\\bar p_t$，归一化熵为 $h(p)$。本报告使用：
-
-$$A_t=1-\\left[h(\\bar p_t)-\\frac1{{37}}\\sum_i h(p_i^t)\\right],\\quad C_t=1-\\frac1{{37}}\\sum_i h(p_i^t),\\quad S_t=A_tC_t.$$
-
-{consensus_table}
-
-训练初期A接近1并不意味着模型已经形成有意义共识，而是所有客户端都输出接近均匀分布；C和S正确保持在接近0。四方案后10轮S都约为0.65，差异远小于参与规模差异，因此S更适合描述“当前预测是否既一致又确定”，不应单独用作算法优劣排名。
-
-正滞后表示共识领先准确率；四组绝对相关最大值都落在搜索边界 -10 轮，即准确率领先共识约10轮的描述性信号。由于最优点卡在边界且两条序列都随训练时间上升，这一结果不能用于判断因果方向；一阶差分相关接近0也说明同期相关主要包含共同时间趋势。完整的 -10 至 +10 轮结果见 `共识准确率相关.csv`。
-
-![有效共识分解](figures/04_有效共识分解.png)
-
-![平滑共识与历史最佳](figures/05_平滑共识与历史最佳.png)
-
-“历史最佳平滑共识”是截至当前轮的累计最高值，所以天然单调不降；它反映达成过的最好水平，却不会在模型退化时下降，必须和当前平滑S一起阅读。
-
-## 5. HFL层级传播提高输出集中度，但不能证明预测正确
-
-![HFL层级共识传播](figures/06_HFL层级共识传播.png)
-
-层级图按每轮JSONL的真实分组将37列候选探针映射到最终参与客户端，再与相同顺序的非空边缘探针对齐。边缘和云模型通常比客户端输出更集中，边缘—云JS分歧也较小；但是结果目录没有保存探针真实标签，因此高确定性和高共识仍可能是“共同预测错误”。
-
-## 6. 一级采样公平覆盖200人，但二级参与覆盖随场景变化
-
-![客户端覆盖与共识准确率关系](figures/07_客户端覆盖与共识准确率关系.png)
-
-四方案同一轮使用完全相同的37人候选顺序，150轮候选并集覆盖全部200个客户端；FL-noSnF最终只覆盖197人，其余三组覆盖200人。右下散点的同期相关包含共同时间趋势；报告同时计算一阶差分相关，避免把“都随轮次上升”直接解释成即时驱动关系。
-
-## 7. 2×2比较只能作为端到端场景描述
-
-{contrast_table}
-
-差分中的差分为描述性结果，不是受控因果估计。原因是SnF/noSnF场景的MAT参与人数、非空边缘数量和累计聚合客户端次并不相同，而且每个方案只有一个随机种子。
-
-## 8. 运行语义和可复现性限制
-
-- 结果记录每个epoch重新抽取37人；当前 `trainer_test.py` 已改为实验开始时只抽一次固定候选，并且MAT模式只训练最终活跃客户端。
-- 当前四份YAML配置为 {yaml_rounds} 轮，而本批结果元数据和文件均为 {rounds} 轮；当前配置不能直接复现这批结果。
-- topology_metadata.json 的参与均值覆盖MAT全部200行；本报告改用JSONL实际150行重新计算。
-- 结果没有保存完整运行配置快照、Git提交或代码哈希，也没有保存模型参数，无法独立复算“指标一定来自最终云模型”。
-- 运行时MAT绝对路径已失效且没有文件哈希。本报告因此以JSONL中的实际分组为准，而不假设本地MAT与服务器文件字节一致。
-- 每轮探针样本随epoch变化，共识曲线混合了模型学习进展与样本难度变化。
-- 没有探针标签，不能区分正确共识和错误共识；没有可靠时间日志，不能比较训练耗时。
-- 单随机种子不支持显著性检验、置信区间或稳定性外推。
-
-## 9. 建议的下一步
-
-1. 固化下一批实验的代码提交、完整YAML和MAT哈希，并为每轮日志增加 `trained_client_indexes`，消除训练语义无法验证的问题。
-2. 使用相同候选序列、相同最终参与人数预算和至少5个随机种子重跑2×2消融，分别识别SnF、HFL层级和参与规模的影响。
-3. 将探针改为固定的小批量样本并保存真实标签，分别报告正确共识、错误共识和样本难度分层结果。
-4. 同时保留当前平滑有效共识S与历史最佳平滑共识，前者监控退化，后者记录达成进度。
-5. 若目标是比较通信效率，应保存模型字节数、上行/下行次数和真实耗时；当前“累计客户端次”只能作为代理量。
-
-## 10. 仍需进一步回答的问题
-
-- 在严格匹配每轮参与人数后，SnF是否仍能带来1–3个百分点的后期准确率优势？
-- HFL的提升来自边缘层聚合本身，还是来自更高的有效参与覆盖？
-- 有效共识S在固定探针集上的变化是否仍与准确率同步，还是当前相关主要由样本难度和共同时间趋势造成？
-- 当前代码的固定候选版本与本批每轮重采版本相比，会如何影响客户端公平性和最终精度？
-
-本报告由 `analyze_experiment_suite.py` 从原始结果重新计算；可审计明细见同目录CSV和 `analysis_manifest.json`。
-""".format(
-        best_label=summaries[best_scenario]["label"],
-        best_acc=format_percent(summaries[best_scenario]["last10_test_acc_mean"]),
-        stable_label=summaries[stable_scenario]["label"],
-        stable_std=100.0 * summaries[stable_scenario]["last10_test_acc_std"],
-        hfl_gain=hfl_gain["后10轮准确率差_百分点"],
-        fl_gain=fl_gain["后10轮准确率差_百分点"],
-        rounds="、".join(str(value) for value in result_rounds),
-        yaml_rounds="、".join(str(value) for value in yaml_rounds) or "未知",
-        quality_total=len(quality_checks),
-        quality_counts="，".join("{}{}项".format(key, value) for key, value in sorted(quality_status_counts.items())),
-        performance_table=markdown_table(
-            ["方案", "最终准确率", "峰值", "后10轮均值", "后10轮标准差", "稳定80%", "稳定85%", "稳定88%"],
-            performance_rows,
-        ),
-        participation_table=markdown_table(
-            ["方案", "平均参与", "范围", "累计参与客户端次", "零参与轮", "最终参与覆盖", "累计下发客户端次"],
-            participation_rows,
-        ),
-        consensus_table=markdown_table(
-            [
-                "方案", "前10轮A", "前10轮C", "前10轮S", "后10轮S", "最高MA10",
-                "同期相关", "差分相关", "最强滞后", "最强滞后相关",
-            ],
-            consensus_rows,
-        ),
-        contrast_table=markdown_table(
-            ["对比", "后10轮准确率差/百分点", "最终差/百分点", "平均参与人数差"], contrast_rows,
-        ),
-        smooth_window=smooth_window,
-    )
-    return text
 
 
 def build_current_report_text(
         experiments: Sequence[ExperimentData], summaries: Dict[str, Dict[str, object]],
         contrasts: Sequence[Dict[str, object]], quality_checks: Sequence[Dict[str, object]],
-        drift: Dict[str, object], smooth_window: int
+        drift: Dict[str, object], profile: Dict[str, object], smooth_window: int
 ) -> str:
-    """为固定37候选、200轮全量下发实验生成简体中文分析报告。"""
+    """根据批次元数据和实际结果生成简体中文分析报告。"""
 
     best_scenario = max(SCENARIO_ORDER, key=lambda key: summaries[key]["last20_test_acc_mean"])
     stable_scenario = min(SCENARIO_ORDER, key=lambda key: summaries[key]["last20_test_acc_std"])
     hfl_gain = next(row for row in contrasts if row["对比"] == "HFL中SnF增益")
     fl_gain = next(row for row in contrasts if row["对比"] == "FL中SnF增益")
 
+    candidate_total = int(profile["client_num_per_round"])
+    client_total = int(profile["client_num_in_total"])
+    class_count = int(profile["probability_class_count"])
+    hfl_edge_slot_count = int(profile["hfl_edge_slot_count"])
+    fl_edge_slot_count = int(profile["fl_edge_slot_count"])
     performance_rows = []
     participation_rows = []
     consensus_rows = []
@@ -2083,7 +2071,7 @@ def build_current_report_text(
             item["label"], format_number(item["active_mean"], 2),
             "{}–{}".format(item["active_min"], item["active_max"]),
             item["active_total"], item["zero_active_rounds"],
-            "{}/37".format(item["active_coverage"]), item["distributed_total"],
+            "{}/{}".format(item["active_coverage"], candidate_total), item["distributed_total"],
         ])
         consensus_rows.append([
             item["label"], format_number(item["effective_last20"], 4),
@@ -2121,23 +2109,47 @@ def build_current_report_text(
             SCENARIO_ORDER, key=lambda key: summaries[key]["effective_last20"], reverse=True
         )
     )
+    candidate_top_label = summaries[
+        max(SCENARIO_ORDER, key=lambda key: summaries[key]["effective_last20"])
+    ]["label"]
+    if len(missing_mat_scenarios) == len(SCENARIO_ORDER):
+        mat_path_statement = (
+            "运行元数据中的MAT绝对路径在当前工作区均不可访问（{}）"
+            .format("、".join(missing_mat_scenarios))
+        )
+    elif missing_mat_scenarios:
+        mat_path_statement = (
+            "部分运行元数据中的MAT绝对路径在当前工作区不可访问（{}）"
+            .format("、".join(missing_mat_scenarios))
+        )
+    else:
+        mat_path_statement = "四方案运行元数据中的MAT路径在当前工作区均可访问"
+    trainer_semantics_ok = bool(
+        drift["current_trainer_uses_fixed_candidate"]
+        and drift["current_trainer_matlab_trains_only_active"]
+    )
+    trainer_semantics_text = (
+        "当前 `trainer_test.py` 采用固定候选、仅训练MAT活跃客户端和全量下发语义"
+        if trainer_semantics_ok
+        else "当前 `trainer_test.py` 与结果记录的关键运行语义存在差异，详情见数据质量检查"
+    )
 
-    return """# `result\\1` 四组联邦学习实验分析报告
+    return """# 批次 `{batch_name}` 四组联邦学习实验分析报告
 
 ## 技术摘要
 
-- **后20轮效果最好且最稳定的是 {best_label}。** 后20轮平均测试准确率为 **{best_acc}**，标准差为 **{best_std:.2f} 个百分点**；稳定性最好的方案同样是 {stable_label}。
-- **SnF方案在两种架构中都取得更高的后20轮准确率，但这不是纯SnF因果效应。** HFL内差值为 **{hfl_gain:+.3f} 个百分点**，FL内差值为 **{fl_gain:+.3f} 个百分点**，同时两组对比的累计活跃客户端次数差异很大。
-- **四方案虽然都是200轮，但有效参与预算并不相同。** HFL-SnF、HFL-noSnF、FL-SnF、FL-noSnF累计活跃客户端次数分别为 **{hfl_snf_total}、{hfl_no_total}、{fl_snf_total}、{fl_no_total}**。
+- **后20轮效果最好的是 {best_label}，波动最小的是 {stable_label}。** 最佳方案的后20轮平均测试准确率为 **{best_acc}**，其标准差为 **{best_std:.2f} 个百分点**。
+- **本批SnF相对noSnF的后20轮差值在HFL内为 {hfl_gain:+.3f} 个百分点，在FL内为 {fl_gain:+.3f} 个百分点。** 这些差值不是纯SnF因果效应，因为对应方案的累计活跃客户端次数也可能不同。
+- **四方案均记录了{rounds}轮，但有效参与预算并不相同。** HFL-SnF、HFL-noSnF、FL-SnF、FL-noSnF累计活跃客户端次数分别为 **{hfl_snf_total}、{hfl_no_total}、{fl_snf_total}、{fl_no_total}**。
 - **证据评级：可分享但附带限制。** 结果完整且关键运行不变量通过检查，但只有单随机种子、探针每轮更换样本且没有真值标签，也没有可靠耗时和硬件日志。
 
 ## 1. 数据完整性与运行语义
 
-四个实验的调度、训练/测试准确率、训练/测试损失和三层概率探针均为 **{rounds}轮**。客户端探针逐轮固定37列；HFL边缘探针固定6个物理槽位并保留未启用组的空单元格；FL边缘探针固定1个空槽位；云探针固定1列。所有非空概率向量均为10维、数值有限且概率和接近1。
+四个实验的调度、训练/测试准确率、训练/测试损失和三层概率探针均为 **{rounds}轮**。客户端探针逐轮固定{candidate_total}列；HFL边缘探针固定{hfl_edge_slot_count}个物理槽位并保留未启用组的空单元格；FL边缘探针固定{fl_edge_slot_count}个槽位；云探针固定1列。所有非空概率向量均为{class_count}维、数值有限且概率和接近1。
 
-固定候选顺序为：`{fixed_candidates}`。四方案、全部epoch均使用同一顺序，MAT活跃槽位、真实客户端分组和人数之和逐轮一致。正常轮产生聚合，零参与轮不产生新聚合；两种情况下都向0至199号全部客户端下发当前云模型。
+固定候选顺序为：`{fixed_candidates}`。四方案、全部epoch均使用同一顺序，MAT活跃槽位、真实客户端分组和人数之和逐轮一致。正常轮产生聚合，零参与轮不产生新聚合；两种情况下都向0至{last_client_id}号全部客户端下发当前云模型。
 
-数据质量检查共 {quality_total} 项：{quality_counts}。运行元数据中的MAT绝对路径在当前工作区均不可访问（{missing_mat}），因此本报告以 `topology_schedule.jsonl` 的实际运行记录为控制来源，不使用本地MAT重新推测分组。
+数据质量检查共 {quality_total} 项：{quality_counts}。{mat_path_statement}，因此本报告以 `topology_schedule.jsonl` 的实际运行记录为控制来源，不使用本地MAT重新推测分组。
 
 ## 2. 模型效果与后期稳定性
 
@@ -2145,7 +2157,7 @@ def build_current_report_text(
 
 {performance_table}
 
-HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL-noSnF依次为 **{fl_snf_acc}、{hfl_no_acc}、{fl_no_acc}**。HFL-SnF的最大单轮下降仅为 {hfl_snf_drop:+.2f} 个百分点，明显小于其余三组，说明本次运行后期最平稳。
+HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL-noSnF依次为 **{fl_snf_acc}、{hfl_no_acc}、{fl_no_acc}**。当前后20轮均值最高的方案是 **{best_label}**，后20轮标准差最小的方案是 **{stable_label}**。
 
 ![四方案模型效果趋势](figures/01_模型效果趋势.png)
 
@@ -2161,7 +2173,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 ![累计参与预算效率](figures/03_聚合预算效率.png)
 
-按通信轮次比较时，SnF场景通常拥有更多活跃客户端并表现出更快、更稳定的收敛；按共同累计参与量比较时，排序会发生变化。因此SnF/noSnF差值同时包含拓扑保留、参与规模和聚合路径的综合影响。
+按通信轮次和按共同累计参与量比较时，方案排序可能不同。因此SnF/noSnF差值同时包含拓扑保留、参与规模和聚合路径的综合影响。
 
 ## 4. 固定候选、活跃客户端与有效共识
 
@@ -2169,13 +2181,13 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 {consensus_table}
 
-全部37候选的共识和MAT活跃客户端的共识必须分开解释。noSnF场景每轮只有少量候选训练，其余候选在上轮全量下发后保留相同云模型，容易形成较高的多数一致；活跃客户端指标更能反映当轮真正贡献聚合的模型差异。
+全部{candidate_total}个候选的共识和MAT活跃客户端的共识必须分开解释。noSnF场景每轮只有少量候选训练，其余候选在上轮全量下发后保留相同云模型，容易形成较高的多数一致；活跃客户端指标更能反映当轮真正贡献聚合的模型差异。
 
 ![候选与活跃客户端有效共识](figures/04_有效共识分解.png)
 
 ![四方案候选有效共识S对比](figures/08_四方案候选有效共识S对比.png)
 
-按候选有效共识S的最后20轮均值排序为：**{candidate_consensus_ranking}**。这里HFL-noSnF的候选S最高，但noSnF轮内未训练候选更容易保留相同旧云模型，因此该排序不能直接解释成真实参与客户端之间形成了更强共识；应与同表中的活跃客户端S一起阅读。
+按候选有效共识S的最后20轮均值排序为：**{candidate_consensus_ranking}**。当前排序第一的是{candidate_top_label}；候选S会受到轮内未训练候选保留旧云模型的影响，因此该排序不能直接解释成真实参与客户端之间形成了更强共识，应与同表中的活跃客户端S一起阅读。
 
 ![当前平滑共识与历史最佳](figures/05_平滑共识与历史最佳.png)
 
@@ -2187,11 +2199,11 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 层级指标直接使用JSONL的MAT槽位到边缘组映射，组内指标按实际组人数加权；边缘空槽位不会被压缩后错误对应到其他组。边缘和云输出更集中并不自动表示预测正确，因为结果没有保存探针真实标签，无法区分正确共识和集体错误。
 
-## 6. 固定37人的活跃公平性与精度波动
+## 6. 固定{candidate_total}人的活跃公平性与精度波动
 
 ![固定候选活跃轨迹与精度波动](figures/07_固定候选活跃与精度波动.png)
 
-热图纵轴同时给出MAT槽位和真实客户端ID，可检查37列身份是否稳定以及不同拓扑对候选参与频率的影响。散点图展示本轮活跃人数与相对上一轮测试准确率变化的同期关系；相关系数仅作描述性证据，不支持“增加参与人数必然导致当轮精度提升”的因果结论。
+热图纵轴同时给出MAT槽位和真实客户端ID，可检查{candidate_total}列身份是否稳定以及不同拓扑对候选参与频率的影响。散点图展示本轮活跃人数与相对上一轮测试准确率变化的同期关系；相关系数仅作描述性证据，不支持“增加参与人数必然导致当轮精度提升”的因果结论。
 
 ## 7. 2×2端到端方案对比
 
@@ -2201,7 +2213,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 ## 8. 可复现性和解释限制
 
-- 当前四份YAML配置为 {yaml_rounds} 轮，与本批结果的 {rounds} 轮一致；当前 `trainer_test.py` 也采用固定候选、仅训练MAT活跃客户端和全量下发语义。
+- 当前工作区四份YAML配置轮数为 {yaml_rounds}，本批实际结果轮数为 {rounds}；两者是否一致见数据质量检查。{trainer_semantics_text}。
 - 结果没有保存Git提交、完整运行环境、模型快照和逐客户端训练事件，因此不能从结果文件独立证明每一次本地训练调用确实发生。
 - 运行时MAT绝对路径已失效，但JSONL保存了逐轮真实槽位、分组和下发对象，足以完成本报告的运行后分析。
 - 探针每轮样本不同且没有真实标签，不能计算正确共识、错误共识或固定样本的纵向变化。
@@ -2217,6 +2229,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 本报告由 `analyze_experiment_suite.py` 从原始结果重新计算；逐轮证据、质量检查和来源哈希见同目录CSV及 `analysis_manifest.json`。
 """.format(
+        batch_name=profile["batch_name"],
         best_label=summaries[best_scenario]["label"],
         best_acc=format_percent(summaries[best_scenario]["last20_test_acc_mean"]),
         best_std=100.0 * summaries[best_scenario]["last20_test_acc_std"],
@@ -2229,11 +2242,16 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
         fl_no_total=summaries["fl_no_snf"]["active_total"],
         rounds="、".join(str(value) for value in round_counts),
         fixed_candidates=json.dumps(fixed_candidates, ensure_ascii=False),
+        candidate_total=candidate_total,
+        hfl_edge_slot_count=hfl_edge_slot_count,
+        fl_edge_slot_count=fl_edge_slot_count,
+        class_count=class_count,
+        last_client_id=client_total - 1,
         quality_total=len(quality_checks),
         quality_counts="，".join(
             "{}{}项".format(key, value) for key, value in sorted(quality_status_counts.items())
         ),
-        missing_mat="、".join(missing_mat_scenarios) or "无",
+        mat_path_statement=mat_path_statement,
         performance_table=markdown_table(
             ["方案", "最终准确率", "峰值", "后20轮均值", "后20轮标准差", "最大单轮下降", "稳定80%", "稳定85%", "稳定88%"],
             performance_rows,
@@ -2242,10 +2260,9 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
         fl_snf_acc=format_percent(summaries["fl_snf"]["last20_test_acc_mean"]),
         hfl_no_acc=format_percent(summaries["hfl_no_snf_fixed"]["last20_test_acc_mean"]),
         fl_no_acc=format_percent(summaries["fl_no_snf"]["last20_test_acc_mean"]),
-        hfl_snf_drop=100.0 * summaries["hfl_snf_fixed"]["max_single_round_drop"],
         smooth_window=smooth_window,
         participation_table=markdown_table(
-            ["方案", "平均活跃人数", "范围", "累计活跃客户端次", "零参与轮", "37人中活跃覆盖", "累计下发客户端次"],
+            ["方案", "平均活跃人数", "范围", "累计活跃客户端次", "零参与轮", "{}人中活跃覆盖".format(candidate_total), "累计下发客户端次"],
             participation_rows,
         ),
         consensus_table=markdown_table(
@@ -2253,18 +2270,21 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
             consensus_rows,
         ),
         candidate_consensus_ranking=candidate_consensus_ranking,
+        candidate_top_label=candidate_top_label,
         contrast_table=markdown_table(
             ["对比", "后20轮准确率差/百分点", "最终差/百分点", "平均活跃人数差"],
             contrast_rows,
         ),
         yaml_rounds="、".join(str(value) for value in yaml_rounds) or "未知",
+        trainer_semantics_text=trainer_semantics_text,
     )
 
 
 def build_manifest(
         experiments: Sequence[ExperimentData], summaries: Dict[str, Dict[str, object]],
         quality_checks: Sequence[Dict[str, object]], figure_paths: Sequence[Path],
-        output_dir: Path, smooth_window: int, drift: Dict[str, object]
+        output_dir: Path, smooth_window: int, drift: Dict[str, object],
+        profile: Dict[str, object]
 ) -> Dict[str, object]:
     """构建包含来源哈希、分析参数、图表地图、限制和输出清单的JSON清单。"""
 
@@ -2280,6 +2300,7 @@ def build_manifest(
             "rounds": len(experiment.schedule),
             "hashes": hashes,
         }
+    candidate_total = int(profile["client_num_per_round"])
     chart_questions = [
         "四方案的准确率、损失与后期波动如何变化？",
         "实际参与强度和累计聚合贡献有多大差异？",
@@ -2287,8 +2308,8 @@ def build_manifest(
         "一致性、确定性和有效共识如何共同变化？",
         "当前平滑共识与单调历史最佳值有什么区别？",
         "HFL中客户端、边缘和云端的确定性及分歧如何传播？",
-        "固定37槽位如何活跃，参与人数与当轮准确率变化有什么关系？",
-        "四种方案的固定37候选有效共识S如何变化，后20轮水平有何差异？",
+        "固定{}槽位如何活跃，参与人数与当轮准确率变化有什么关系？".format(candidate_total),
+        "四种方案的固定{}候选有效共识S如何变化，后20轮水平有何差异？".format(candidate_total),
     ]
     chart_map = []
     for index, path in enumerate(figure_paths):
@@ -2301,7 +2322,7 @@ def build_manifest(
             }
         )
     return {
-        "schema_version": "2.0",
+        "schema_version": "3.0",
         "generated_at": datetime.now().astimezone().isoformat(),
         "confidence": "可分享但附带限制",
         "source_precedence": [
@@ -2315,6 +2336,7 @@ def build_manifest(
             "thresholds": list(SUMMARY_THRESHOLDS),
             "lag_range": [-10, 10],
         },
+        "batch_profile": profile,
         "sources": sources,
         "summaries": summaries,
         "quality_checks": list(quality_checks),
@@ -2341,8 +2363,18 @@ def build_manifest(
     }
 
 
-def derive_output_dir(result_root: Path, experiments: Sequence[ExperimentData]) -> Path:
-    """根据实际轮数和目录日期生成稳定、可读且不覆盖原实验的输出目录。"""
+def sanitize_path_component(value: str) -> str:
+    """把批次名转换为可安全用于Windows目录名的短文本。"""
+
+    # 保留中文、字母、数字、点、下划线和连字符，其他字符统一替换为下划线。
+    sanitized = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", value, flags=re.UNICODE).strip("._")
+    return sanitized or "未命名批次"
+
+
+def derive_output_dir(
+        output_root: Path, input_dir: Path, experiments: Sequence[ExperimentData]
+) -> Path:
+    """根据批次名、实际轮数和数据日期生成不含实验参数猜测的输出目录。"""
 
     round_counts = {len(experiment.schedule) for experiment in experiments}
     if len(round_counts) != 1:
@@ -2352,35 +2384,89 @@ def derive_output_dir(result_root: Path, experiments: Sequence[ExperimentData]) 
         match = re.search(r"(\d{8})$", experiment.path.name)
         if match:
             date_values.append(match.group(1))
-    date_label = date_values[0] if date_values and len(set(date_values)) == 1 else datetime.now().strftime("%Y%m%d")
+    date_label = (
+        date_values[0]
+        if date_values and len(set(date_values)) == 1
+        else datetime.now().strftime("%Y%m%d")
+    )
     rounds = next(iter(round_counts))
-    return result_root.resolve() / "analysis_alpha0p2_u0p5_{}rounds_{}".format(rounds, date_label)
+    batch_name = sanitize_path_component(input_dir.resolve().name)
+    return output_root.resolve() / "analysis_{}_{}rounds_{}".format(
+        batch_name, rounds, date_label
+    )
 
 
-def main() -> None:
-    """执行发现、校验、计算、绘图、导出和中文技术报告生成全流程。"""
+def choose_available_output_dir(candidate: Path) -> Path:
+    """在自动输出目录已存在时追加序号，避免覆盖任何旧分析包。"""
 
-    args = parse_args()
-    if args.smooth_window < 2:
-        raise ValueError("--smooth-window 至少为2")
-    workspace = Path(__file__).resolve().parent
-    result_root = args.result_root.resolve()
-    experiment_dirs = resolve_experiment_dirs(result_root, args.experiment_dir)
+    candidate = candidate.resolve()
+    if not candidate.exists():
+        return candidate
+    for sequence in range(2, 10000):
+        alternative = candidate.with_name("{}_{}".format(candidate.name, sequence))
+        if not alternative.exists():
+            return alternative
+    raise RuntimeError("无法为分析结果找到可用输出目录：{}".format(candidate.parent))
+
+
+def validate_explicit_output_dir(output_dir: Path) -> Path:
+    """允许新目录或空目录作为显式输出，拒绝覆盖已有文件。"""
+
+    output_dir = output_dir.resolve()
+    if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
+        raise FileExistsError("输出目录已存在且非空，为避免覆盖已停止：{}".format(output_dir))
+    return output_dir
+
+
+def _run_analysis(
+        input_dir: Path, output_dir: Optional[Path], smooth_window: int,
+        output_root: Optional[Path] = None,
+        explicit_dirs: Optional[Sequence[Path]] = None
+) -> Path:
+    """执行共享分析流程，并支持终端入口传入额外的输出根目录和实验目录。"""
+
+    if smooth_window < 2:
+        raise ValueError("平滑窗口至少为2")
+    workspace = locate_project_root()
+    input_dir = input_dir.resolve()
+    experiment_dirs = resolve_experiment_dirs(input_dir, explicit_dirs)
     experiments = [load_experiment(path) for path in experiment_dirs]
     experiment_by_scenario = {experiment.scenario: experiment for experiment in experiments}
     experiments = [experiment_by_scenario[scenario] for scenario in SCENARIO_ORDER]
+    profile = build_batch_profile(input_dir, experiments)
 
     quality_checks = []
     for experiment in experiments:
         quality_checks.extend(validate_experiment(experiment))
+    critical_failures = [
+        check for check in quality_checks
+        if check["严重级别"] == "关键" and check["状态"] == "未通过"
+    ]
+    if critical_failures:
+        # 非法概率、轮次错位、候选/下发异常等关键问题不能只写入报告后继续运行。
+        failure_text = "；".join(
+            "{}：{}（{}）".format(check["实验"], check["检查项"], check["证据"])
+            for check in critical_failures
+        )
+        raise ValueError("关键数据校验未通过：{}".format(failure_text))
+    add_quality_check(
+        quality_checks, "跨实验", "四方案关键元数据一致", "通过",
+        "客户端总数{}、每轮候选{}、实际轮数{}、类别数{}"
+        .format(
+            profile["client_num_in_total"], profile["client_num_per_round"],
+            profile["actual_rounds"], profile["probability_class_count"],
+        ),
+        "关键",
+    )
+    add_batch_name_check(quality_checks, profile)
 
     rows_by_scenario = {
-        experiment.scenario: build_round_metrics(experiment, args.smooth_window)
+        experiment.scenario: build_round_metrics(experiment, smooth_window)
         for experiment in experiments
     }
     summaries = {
         experiment.scenario: summarize_experiment(
-            experiment, rows_by_scenario[experiment.scenario], args.smooth_window
+            experiment, rows_by_scenario[experiment.scenario], smooth_window
         )
         for experiment in experiments
     }
@@ -2390,23 +2476,34 @@ def main() -> None:
     drift = detect_workspace_drift(workspace, experiments)
     add_cross_experiment_checks(quality_checks, experiments, rows_by_scenario, drift)
 
-    output_dir = (args.output_dir.resolve() if args.output_dir else derive_output_dir(result_root, experiments))
+    if output_dir is not None:
+        resolved_output_dir = validate_explicit_output_dir(output_dir)
+    else:
+        resolved_output_root = (
+            output_root.resolve()
+            if output_root is not None
+            else workspace / "result" / "1结果和分析"
+        )
+        resolved_output_dir = choose_available_output_dir(
+            derive_output_dir(resolved_output_root, input_dir, experiments)
+        )
+    output_dir = resolved_output_dir
     figure_dir = output_dir / "figures"
     figure_dir.mkdir(parents=True, exist_ok=True)
     configure_plot_style()
 
     figure_paths = [
-        plot_model_metrics(rows_by_scenario, figure_dir, args.smooth_window),
+        plot_model_metrics(rows_by_scenario, figure_dir, smooth_window),
         plot_participation(rows_by_scenario, summaries, figure_dir),
         plot_aggregation_efficiency(rows_by_scenario, summaries, figure_dir),
-        plot_consensus_decomposition(rows_by_scenario, figure_dir, args.smooth_window),
-        plot_consensus_attainment(rows_by_scenario, figure_dir, args.smooth_window),
-        plot_hierarchy_consensus(rows_by_scenario, figure_dir, args.smooth_window),
+        plot_consensus_decomposition(rows_by_scenario, figure_dir, smooth_window),
+        plot_consensus_attainment(rows_by_scenario, figure_dir, smooth_window),
+        plot_hierarchy_consensus(rows_by_scenario, figure_dir, smooth_window),
         plot_client_coverage_and_relationship(
-            experiments, rows_by_scenario, summaries, figure_dir, args.smooth_window
+            experiments, rows_by_scenario, summaries, figure_dir, smooth_window
         ),
         plot_candidate_consensus_comparison(
-            rows_by_scenario, summaries, figure_dir, args.smooth_window
+            rows_by_scenario, summaries, figure_dir, smooth_window
         ),
     ]
 
@@ -2434,17 +2531,19 @@ def main() -> None:
 
     manifest = build_manifest(
         experiments, summaries, quality_checks, figure_paths,
-        output_dir, args.smooth_window, drift,
+        output_dir, smooth_window, drift, profile,
     )
     (output_dir / "analysis_manifest.json").write_text(
         json.dumps(json_safe(manifest), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     report_text = build_current_report_text(
-        experiments, summaries, contrasts, quality_checks, drift, args.smooth_window
+        experiments, summaries, contrasts, quality_checks, drift, profile, smooth_window
     )
     (output_dir / "分析报告.md").write_text(report_text, encoding="utf-8")
 
-    print("分析完成：{}".format(output_dir))
+    print("输入目录：{}".format(input_dir))
+    print("输出目录：{}".format(output_dir))
+    print("报告路径：{}".format((output_dir / "分析报告.md").resolve()))
     print("实际轮数：{}；逐轮指标行数：{}".format(len(experiments[0].schedule), len(round_rows)))
     for scenario in SCENARIO_ORDER:
         item = summaries[scenario]
@@ -2454,7 +2553,36 @@ def main() -> None:
                 item["active_total"], item["active_effective_last20"],
             )
         )
+    return output_dir
+
+
+def run_analysis(
+        input_dir: Path, output_dir: Optional[Path] = None, smooth_window: int = 10
+) -> Path:
+    """从指定批次读取四组实验并生成完整分析包，返回输出目录。"""
+
+    return _run_analysis(Path(input_dir), output_dir, smooth_window)
+
+
+def main() -> None:
+    """解析终端参数并调用与IDE入口相同的共享分析流程。"""
+
+    args = parse_args()
+    workspace = locate_project_root()
+    ##修改这里尝试使用不同的数据
+    input_dir = args.input_dir or args.result_root or workspace / "result" / "originalData" / "varAlpha_0p1_client200_util0p6"
+    _run_analysis(
+        input_dir=Path(input_dir),
+        output_dir=args.output_dir,
+        smooth_window=args.smooth_window,
+        output_root=args.output_root,
+        explicit_dirs=args.experiment_dir,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:  # 终端入口将常见数据或路径异常压缩为一行明确错误。
+        print("分析失败：{}".format(exc), file=sys.stderr)
+        raise SystemExit(1)

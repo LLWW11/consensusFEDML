@@ -1,6 +1,7 @@
 """验证四组实验分析中的共识、平滑、客户端映射和结果审计逻辑。"""
 
 import csv
+from dataclasses import replace
 import json
 from pathlib import Path
 import tempfile
@@ -11,6 +12,8 @@ from PIL import Image
 
 from analyze_experiment_suite import (
     SCENARIO_ORDER,
+    REQUIRED_RESULT_FILES,
+    build_batch_profile,
     build_fixed_candidate_activity_matrix,
     consensus_components,
     discover_experiment_dirs,
@@ -20,9 +23,12 @@ from analyze_experiment_suite import (
     load_experiment,
     map_client_ids_to_slots,
     normalized_entropy,
+    parse_args,
     read_probability_csv,
+    run_analysis,
     trailing_mean,
     validate_experiment,
+    validate_probability_vector,
 )
 
 
@@ -150,17 +156,108 @@ class ProbabilityCsvTest(unittest.TestCase):
         self.assertIsNone(rows[0][2])
         self.assertIsNotNone(rows[0][3])
 
+    def test_illegal_probability_vector_is_rejected(self):
+        """确认维度错误、负概率和概率和错误不会通过合法性检查。"""
+
+        self.assertFalse(validate_probability_vector(np.asarray([0.5, 0.5]), 10))
+        self.assertFalse(validate_probability_vector(np.asarray([-0.1] + [1.1] + [0.0] * 8), 10))
+        self.assertFalse(validate_probability_vector(np.full(10, 0.2), 10))
+
+
+class CommandLineInterfaceTest(unittest.TestCase):
+    """验证新增终端参数与旧版兼容参数的解析行为。"""
+
+    def test_input_output_root_and_smooth_window_are_parsed(self):
+        """确认批次目录、输出根目录和平滑窗口可同时传入。"""
+
+        args = parse_args([
+            "--input-dir", "result/originalData/1",
+            "--output-root", "result/1结果和分析",
+            "--smooth-window", "12",
+        ])
+        self.assertEqual(args.input_dir, Path("result/originalData/1"))
+        self.assertEqual(args.output_root, Path("result/1结果和分析"))
+        self.assertEqual(args.smooth_window, 12)
+
+    def test_legacy_result_root_is_preserved(self):
+        """确认旧版result-root参数仍可单独使用。"""
+
+        args = parse_args(["--result-root", "result/originalData/1"])
+        self.assertEqual(args.result_root, Path("result/originalData/1"))
+
+    def test_conflicting_input_parameters_fail(self):
+        """确认两个输入目录参数不会被静默覆盖。"""
+
+        with self.assertRaises(SystemExit):
+            parse_args([
+                "--input-dir", "result/originalData/1",
+                "--result-root", "result/originalData/1",
+            ])
+
+    def test_empty_batch_has_clear_discovery_error(self):
+        """确认只有说明文件的空批次会明确报告四个场景缺失。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "自动发现实验失败"):
+                discover_experiment_dirs(Path(directory))
+
+
+class DiscoveryValidationTest(unittest.TestCase):
+    """验证不存在、缺文件和重复场景等批次发现失败路径。"""
+
+    @staticmethod
+    def _create_stub_experiment(parent: Path, name: str, scenario: str) -> Path:
+        """创建仅供目录发现测试使用的最小文件集合。"""
+
+        directory = parent / name
+        directory.mkdir()
+        # 发现阶段只读取元数据场景并检查文件是否存在，无需伪造具体实验内容。
+        for filename in REQUIRED_RESULT_FILES:
+            content = json.dumps({"scenario": scenario}) if filename == "topology_metadata.json" else ""
+            (directory / filename).write_text(content, encoding="utf-8")
+        return directory
+
+    def test_nonexistent_batch_is_rejected(self):
+        """确认不存在的批次目录会报告完整绝对路径。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "不存在"
+            with self.assertRaisesRegex(FileNotFoundError, "输入批次目录不存在"):
+                discover_experiment_dirs(missing)
+
+    def test_recognized_experiment_with_missing_files_is_rejected(self):
+        """确认已识别场景缺少结果文件时会列出缺失内容。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            experiment = Path(directory) / "incomplete"
+            experiment.mkdir()
+            (experiment / "topology_metadata.json").write_text(
+                json.dumps({"scenario": "hfl_snf_fixed"}), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValueError, "缺少"):
+                discover_experiment_dirs(Path(directory))
+
+    def test_duplicate_scenario_is_rejected(self):
+        """确认同一场景出现两组完整目录时不会任意选择其一。"""
+
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            self._create_stub_experiment(parent, "first", "hfl_snf_fixed")
+            self._create_stub_experiment(parent, "second", "hfl_snf_fixed")
+            with self.assertRaisesRegex(ValueError, "匹配到 2 个目录"):
+                discover_experiment_dirs(parent)
+
 
 class CurrentResultIntegrationTest(unittest.TestCase):
-    """使用result/1四组原始结果验证200轮调度与探针不变量。"""
+    """使用originalData/1四组原始结果验证200轮调度与探针不变量。"""
 
     @classmethod
     def setUpClass(cls):
-        """发现并加载result/1中的四组目标实验。"""
+        """发现并加载result/originalData/1中的四组目标实验。"""
 
-        cls.result_root = Path(__file__).resolve().parent / "result" / "1"
+        cls.result_root = Path(__file__).resolve().parent / "1"
         if not cls.result_root.is_dir():
-            raise unittest.SkipTest("当前工作区没有 result 目录")
+            raise unittest.SkipTest("当前工作区没有 result/originalData/1 目录")
         try:
             experiment_dirs = discover_experiment_dirs(cls.result_root)
         except ValueError as exc:
@@ -236,19 +333,36 @@ class CurrentResultIntegrationTest(unittest.TestCase):
             expected = [record["active_client_count"] for record in experiment.schedule]
             np.testing.assert_array_equal(matrix.sum(axis=0), expected)
 
+    def test_different_round_counts_are_rejected(self):
+        """确认四方案轮数不同时会在生成报告前终止。"""
+
+        shortened = replace(
+            self.experiments[-1], schedule=self.experiments[-1].schedule[:-1]
+        )
+        with self.assertRaisesRegex(ValueError, "关键元数据不一致"):
+            build_batch_profile(
+                self.result_root,
+                list(self.experiments[:-1]) + [shortened],
+            )
+
 
 class GeneratedArtifactTest(unittest.TestCase):
     """独立读取原始文件，复核已生成分析包的数字、行数和图片规格。"""
 
     @classmethod
     def setUpClass(cls):
-        """定位分析输出，并建立场景到原始实验目录的映射。"""
+        """在临时目录生成分析包，并建立场景到原始实验目录的映射。"""
 
-        cls.workspace = Path(__file__).resolve().parent
-        cls.result_root = cls.workspace / "result" / "1"
-        cls.output_dir = cls.result_root / "analysis_alpha0p2_u0p5_200rounds_20260713"
-        if not (cls.output_dir / "实验汇总.csv").is_file():
-            raise unittest.SkipTest("分析包尚未生成")
+        cls.workspace = Path(__file__).resolve().parent.parent.parent
+        cls.result_root = Path(__file__).resolve().parent / "1"
+        if not cls.result_root.is_dir():
+            raise unittest.SkipTest("当前工作区没有 result/originalData/1 目录")
+        cls.temporary_directory = tempfile.TemporaryDirectory()
+        cls.output_dir = run_analysis(
+            cls.result_root,
+            Path(cls.temporary_directory.name) / "analysis",
+            smooth_window=10,
+        )
         experiment_dirs = discover_experiment_dirs(cls.result_root)
         cls.source_by_scenario = {}
         for directory in experiment_dirs:
@@ -256,6 +370,13 @@ class GeneratedArtifactTest(unittest.TestCase):
                 (directory / "topology_metadata.json").read_text(encoding="utf-8")
             )
             cls.source_by_scenario[str(metadata["scenario"])] = directory
+
+    @classmethod
+    def tearDownClass(cls):
+        """删除集成测试生成的临时分析包。"""
+
+        if hasattr(cls, "temporary_directory"):
+            cls.temporary_directory.cleanup()
 
     def test_summary_numbers_match_raw_files(self):
         """从原始指标和JSONL独立复算最终值、峰值、后20轮和累计参与量。"""
@@ -384,13 +505,13 @@ class GeneratedArtifactTest(unittest.TestCase):
         report = (self.output_dir / "分析报告.md").read_text(encoding="utf-8")
         required_phrases = [
             "trainer_test.py",
-            "当前四份YAML配置为 200 轮",
+            "当前工作区四份YAML配置轮数为",
             "固定候选顺序",
             "MAT绝对路径",
             "单随机种子",
             "没有真实标签",
             "四方案候选有效共识S对比",
-            "HFL-noSnF的候选S最高",
+            "当前排序第一的是",
             "不能用于比较4090与4060训练速度",
         ]
         for phrase in required_phrases:
