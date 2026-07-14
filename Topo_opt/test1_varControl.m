@@ -121,7 +121,7 @@ parfor snapshot_index = 1:snapshot_count
     [i, j] = ind2sub([epoch_num, length(total_util)], snapshot_index);
     util = total_util(j);
     fprintf('epoch=%d, util=%.1f\n', i, util);
-    
+
     [local_group_num_HFLSnF, local_client_num_HFLSnF, local_max_layer_HFLSnF, ...
         local_actual_c2e_map_HFLSnF, local_DynEdgeSet_HFLSnF, ...
         local_client_num_FLnoSnF, local_max_layer_FLnoSnF, local_c2cmap_FLnoSnF, ...
@@ -133,7 +133,7 @@ parfor snapshot_index = 1:snapshot_count
         util, EdgeSet, Cloud, mean_time_interval, duration, ...
         topology_seed_matrix(snapshot_index), variance_control_mode, ...
         isControl, varAlpha);
-    
+
     % 第 1 项对应动态策略，第 3 项对应固定边缘策略。
     local_group_num_HFLSnF_los = local_group_num_HFLSnF{1,1};
     local_group_num_HFLSnF_fix = local_group_num_HFLSnF{1,3};
@@ -142,14 +142,14 @@ parfor snapshot_index = 1:snapshot_count
     local_client_num_HFLSnF_fix = local_client_num_sum_HFLSnF(3);
     local_max_layer_HFLSnF_los = local_max_layer_HFLSnF{1,1};
     local_max_layer_HFLSnF_fix = local_max_layer_HFLSnF{1,3};
-    
+
     local_group_num_HFLnoSnF_los = local_group_num_HFLnoSnF{1,1};
     local_group_num_HFLnoSnF_fix = local_group_num_HFLnoSnF{1,3};
     local_client_num_HFLnoSnF_los = sum(local_client_num_HFLnoSnF{1,1});
     local_client_num_HFLnoSnF_fix = sum(local_client_num_HFLnoSnF{1,3});
     local_max_layer_HFLnoSnF_los = local_max_layer_HFLnoSnF{1,1};
     local_max_layer_HFLnoSnF_fix = local_max_layer_HFLnoSnF{1,3};
-    
+
     % 四种 HFL 情况独立计算时间，空组也不能影响另一种策略。
     local_time_agg_HFLnoSnF_fix = calc_hfl_agg_time( ...
         local_client_num_HFLnoSnF{1,3}, local_group_num_HFLnoSnF_fix, agg_time_per_clients);
@@ -161,7 +161,7 @@ parfor snapshot_index = 1:snapshot_count
         local_client_num_HFLSnF{1,1}, local_group_num_HFLSnF_los, agg_time_per_clients);
     local_time_agg_FLnoSnF = local_client_num_FLnoSnF * agg_time_per_clients;
     local_time_agg_FLSnF = local_client_num_FLSnF * agg_time_per_clients;
-    
+
     % 对每种方法的真实参与映射执行逐轮完整性校验。
     validate_client_mapping(local_c2cmap_FLnoSnF, local_client_num_FLnoSnF, ...
         valid_client_ids, sprintf('FL-noSnF epoch=%d util=%.1f', i, util));
@@ -179,7 +179,7 @@ parfor snapshot_index = 1:snapshot_count
     validate_client_mapping(local_actual_c2e_map_HFLSnF{1,3}, ...
         local_client_num_HFLSnF_fix, valid_client_ids, ...
         sprintf('HFL-SnF-fixed epoch=%d util=%.1f', i, util));
-    
+
     % 所有结果均按 snapshot_index 写入，保持最终矩阵仍为 epoch×util。
     group_num_HFLSnF{snapshot_index} = local_group_num_HFLSnF;
     client_num_HFLSnF{snapshot_index} = local_client_num_HFLSnF;
@@ -194,7 +194,7 @@ parfor snapshot_index = 1:snapshot_count
     c2cmap_FLnoSnF_all{snapshot_index} = local_c2cmap_FLnoSnF;
     c2cmap_FLSnF_all{snapshot_index} = local_c2cmap_FLSnF;
     topology_sampling_info{snapshot_index} = local_topology_sampling_info;
-    
+
     group_num_HFLSnF_los(snapshot_index) = local_group_num_HFLSnF_los;
     group_num_HFLSnF_fix(snapshot_index) = local_group_num_HFLSnF_fix;
     client_num_HFLSnF_los(snapshot_index) = local_client_num_HFLSnF_los;
