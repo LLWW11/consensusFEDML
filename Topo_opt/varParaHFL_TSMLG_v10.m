@@ -1,11 +1,17 @@
 function [group_num_HFLSnF, client_num_HFLSnF, max_layer, actual_c2e_map, DynEdgeSet,...
      client_num_FLnoSnF, max_layer_FLnoSnF, c2cmap_FLnoSnF, client_num_FLSnF, max_layer_FLSnF, c2cmap_FLSnF,...
      group_num_HFLnoSnF, client_num_HFLnoSnF, max_layer_HFLnoSnF, actual_c2e_map_HFLnoSnF, ...
-     DynEdgeSet_HFLnoSnF] = varParaHFL_TSMLG_v10(TopoOption, ...
-    num_layers, num_of_nodes, num_wave, util, EdgeSet_fixed, Cloud, mean_time_interval, duration, topology_seed)
+     DynEdgeSet_HFLnoSnF, topology_sampling_info] = varParaHFL_TSMLG_v10(TopoOption, ...
+    num_layers, num_of_nodes, num_wave, util, EdgeSet_fixed, Cloud, mean_time_interval, ...
+    duration, topology_seed, variance_control_mode)
 %VARPARAHFL_TSMLG_V10 在同一动态拓扑上计算 FL/HFL 与 SnF/noSnF 对照。
 %   topology_seed 用于保证每个 (epoch, util) 网络快照可重复。返回的第 1 项策略
-%   表示动态选边，第 3 项策略表示固定边缘集合。
+%   表示动态选边，第 3 项策略表示固定边缘集合。variance_control_mode 可取
+%   legacy 或 paired_exact；省略时保持历史 legacy 行为。
+
+if nargin < 11 || isempty(variance_control_mode)
+    variance_control_mode = 'legacy';
+end
 
 if nargin >= 10 && ~isempty(topology_seed)
     rng(double(topology_seed), 'twister');
@@ -26,7 +32,9 @@ percent = 1- util;
 % Cost_of_TemporalLinks = inf;
 
 
-[TSML_BdwMat_orig, adj_mat, num_of_nodes] = gen_random_tsmlg_v3(TopoOption,num_of_nodes, num_layers, num_wave, percent);
+[TSML_BdwMat_orig, adj_mat, num_of_nodes, topology_sampling_info] = ...
+    gen_random_tsmlg_v3(TopoOption, num_of_nodes, num_layers, num_wave, ...
+    percent, variance_control_mode);
 % Cloud node cannot be a client or edge node
 % The other nodes can be a client and an edge node simultaneously
 ClientSet = 1:num_of_nodes;

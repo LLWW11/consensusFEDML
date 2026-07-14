@@ -20,7 +20,8 @@ EdgeSet = [7 8 9 12 20 27]; % 6节点
 % EdgeSet = [5 6 7 8 9 12 20 27];   % 8节点
 Cloud = 18;
 base_seed = 20260711;
-schema_version = '2.0';
+schema_version = '3.0-variance-controlled';
+variance_control_mode = 'paired_exact';
 source_script = [mfilename('fullpath'), '.m'];
 valid_client_ids = setdiff(1:num_of_nodes, Cloud);
 
@@ -31,9 +32,9 @@ if smoke_test_enabled
     total_util = [0.3 0.7];
 end
 
-% 每个 (epoch, util) 使用唯一且确定的拓扑种子，保证 parfor 调度不影响结果。
-topology_seed_matrix = base_seed + reshape(0:(epoch_num * length(total_util) - 1), ...
-    epoch_num, length(total_util));
+% 同一 epoch 的所有利用率复用相同种子，以便进行配对且单调嵌套的拓扑比较。
+epoch_seed_vector = base_seed + (0:(epoch_num - 1))';
+topology_seed_matrix = repmat(epoch_seed_vector, 1, length(total_util));
 trace_id = cell(epoch_num, length(total_util));
 for trace_util_index = 1:length(total_util)
     for trace_epoch_index = 1:epoch_num
@@ -66,6 +67,7 @@ DynEdgeSet_HFLSnF = cell(epoch_num,length(total_util));
 DynEdgeSet_HFLnoSnF = cell(epoch_num,length(total_util));
 c2cmap_FLnoSnF_all = cell(epoch_num,length(total_util));
 c2cmap_FLSnF_all = cell(epoch_num,length(total_util));
+topology_sampling_info = cell(epoch_num,length(total_util));
 
 group_num_HFLSnF_fix = zeros(epoch_num,length(total_util));
 client_num_HFLSnF_fix = zeros(epoch_num,length(total_util));
@@ -103,9 +105,11 @@ parfor snapshot_index = 1:snapshot_count
         local_client_num_FLnoSnF, local_max_layer_FLnoSnF, local_c2cmap_FLnoSnF, ...
         local_client_num_FLSnF, local_max_layer_FLSnF, local_c2cmap_FLSnF, ...
         local_group_num_HFLnoSnF, local_client_num_HFLnoSnF, local_max_layer_HFLnoSnF, ...
-        local_actual_c2e_map_HFLnoSnF, local_DynEdgeSet_HFLnoSnF] = ...
+        local_actual_c2e_map_HFLnoSnF, local_DynEdgeSet_HFLnoSnF, ...
+        local_topology_sampling_info] = ...
         varParaHFL_TSMLG_v10(TopoOption, num_layers, num_of_nodes, num_wave, ...
-        util, EdgeSet, Cloud, mean_time_interval, duration, topology_seed_matrix(snapshot_index));
+        util, EdgeSet, Cloud, mean_time_interval, duration, ...
+        topology_seed_matrix(snapshot_index), variance_control_mode);
 
     % 第 1 项对应动态策略，第 3 项对应固定边缘策略。
     local_group_num_HFLSnF_los = local_group_num_HFLSnF{1,1};
@@ -166,6 +170,7 @@ parfor snapshot_index = 1:snapshot_count
     DynEdgeSet_HFLnoSnF{snapshot_index} = local_DynEdgeSet_HFLnoSnF;
     c2cmap_FLnoSnF_all{snapshot_index} = local_c2cmap_FLnoSnF;
     c2cmap_FLSnF_all{snapshot_index} = local_c2cmap_FLSnF;
+    topology_sampling_info{snapshot_index} = local_topology_sampling_info;
 
     group_num_HFLSnF_los(snapshot_index) = local_group_num_HFLSnF_los;
     group_num_HFLSnF_fix(snapshot_index) = local_group_num_HFLSnF_fix;
@@ -248,16 +253,31 @@ assert(all(group_num_HFLSnF_fix(:) <= length(EdgeSet)), ...
 assert(all(group_num_HFLnoSnF_fix(:) <= length(EdgeSet)), ...
     'HFL-noSnF 固定边缘组数超过 EdgeSet 大小。');
 
+% 保存前验证配对种子和每层精确槽位配额，防止受控模式静默退化。
+assert(all(all(topology_seed_matrix == topology_seed_matrix(:, 1))), ...
+    '同一 epoch 的不同利用率未复用相同拓扑种子。');
+for sampling_index = 1:numel(topology_sampling_info)
+    [~, util_index] = ind2sub(size(topology_sampling_info), sampling_index);
+    sampling = topology_sampling_info{sampling_index};
+    expected_active_slots = round( ...
+        sampling.slot_count_per_layer * (1 - total_util(util_index)));
+    assert(all(sampling.active_slot_count_by_layer == expected_active_slots), ...
+        '受控拓扑的实际激活槽位数与目标配额不一致。');
+end
+
 created_at = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 if smoke_test_enabled
-    filename = sprintf('smoke-result-U-%dfixedge_epoch%d.mat', length(EdgeSet), epoch_num);
+    filename = sprintf('smoke-result-U-%dfixedge_epoch%d_variance_controlled.mat', ...
+        length(EdgeSet), epoch_num);
 else
-    filename = sprintf('result-U-%dfixedge_epoch%d.mat', length(EdgeSet), epoch_num);
+    filename = sprintf('result-U-%dfixedge_epoch%d_variance_controlled.mat', ...
+        length(EdgeSet), epoch_num);
 end
 
 % 显式保存分析和复现所需变量，避免把 parfor 临时变量混入结果文件。
 save(filename, 'schema_version', 'source_script', 'created_at', 'base_seed', ...
-    'smoke_test_enabled', 'topology_seed_matrix', 'trace_id', 'TopoOption', 'num_layers', ...
+    'variance_control_mode', 'smoke_test_enabled', 'topology_seed_matrix', ...
+    'topology_sampling_info', 'trace_id', 'TopoOption', 'num_layers', ...
     'num_of_nodes', 'num_wave', 'total_util', 'mean_time_interval', 'duration', ...
     'EdgeSet', 'Cloud', 'epoch_num', 'agg_time_per_clients', ...
     'group_num_HFLSnF', 'client_num_HFLSnF', 'max_layer_HFLSnF', ...

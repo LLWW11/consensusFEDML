@@ -15,9 +15,10 @@ EdgeSet = [7 8 9 12 20 27];
 Cloud = 18;
 agg_time_per_clients = 2;
 base_seed = 20260711;
+variance_control_mode = 'paired_exact';
 valid_client_ids = setdiff(1:num_of_nodes, Cloud);
-topology_seed_matrix = base_seed + reshape( ...
-    0:(epoch_num * numel(total_util) - 1), epoch_num, numel(total_util));
+topology_seed_matrix = repmat(base_seed + (0:(epoch_num - 1))', ...
+    1, numel(total_util));
 
 time_HFLSnF_fix = zeros(epoch_num, numel(total_util));
 time_HFLSnF_dynamic = zeros(epoch_num, numel(total_util));
@@ -30,9 +31,16 @@ for util_index = 1:numel(total_util)
         seed = topology_seed_matrix(epoch_index, util_index);
         [group_HFLSnF, clients_HFLSnF, ~, maps_HFLSnF, edges_HFLSnF, ...
             client_FLnoSnF, ~, map_FLnoSnF, client_FLSnF, ~, map_FLSnF, ...
-            group_HFLnoSnF, clients_HFLnoSnF, ~, maps_HFLnoSnF, edges_HFLnoSnF] = ...
+            group_HFLnoSnF, clients_HFLnoSnF, ~, maps_HFLnoSnF, edges_HFLnoSnF, ...
+            sampling_info] = ...
             varParaHFL_TSMLG_v10(TopoOption, num_layers, num_of_nodes, num_wave, ...
-            util, EdgeSet, Cloud, mean_time_interval, duration, seed);
+            util, EdgeSet, Cloud, mean_time_interval, duration, seed, ...
+            variance_control_mode);
+
+        expected_active_slots = round( ...
+            sampling_info.slot_count_per_layer * (1 - util));
+        assert(all(sampling_info.active_slot_count_by_layer == expected_active_slots), ...
+            '受控拓扑的激活槽位数与目标配额不一致。');
 
         % 策略 1 是动态边缘，策略 3 是固定边缘。
         dynamic_group_HFLSnF = group_HFLSnF{1,1};
@@ -92,6 +100,7 @@ summary.schema_version = '2.0-smoke';
 summary.epoch_num = epoch_num;
 summary.total_util = total_util;
 summary.EdgeSet = EdgeSet;
+summary.variance_control_mode = variance_control_mode;
 summary.topology_seed_matrix = topology_seed_matrix;
 summary.checked_snapshot_count = epoch_num * numel(total_util);
 summary.passed = true;

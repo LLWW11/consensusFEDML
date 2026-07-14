@@ -11,5 +11,7 @@
 *.pyc
 
 
-/result
+*/result/*
 /idea
+/.workbuddy
+/__pycache__
