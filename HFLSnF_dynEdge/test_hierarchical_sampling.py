@@ -2,11 +2,13 @@ import csv
 import io
 import json
 import os
+from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+from analyze_consensus import read_true_labels
 from client_test import HFLClient
 from topology_schedule import MatlabTopologySchedule
 from trainer_test import HierarchicalTrainer
@@ -326,6 +328,75 @@ class HierarchicalSamplingTest(unittest.TestCase):
         for column_index, client_idx in enumerate(fixed_candidates):
             probability_vector = json.loads(parsed_rows[0][column_index])
             self.assertEqual(probability_vector[0], float(client_idx))
+
+    def test_probe_metadata_csv_saves_structured_true_label(self):
+        """验证每轮探针真实标签、样本索引和训练坐标写入结构化 CSV。"""
+        trainer = self._create_sampling_trainer(seed=31)
+        trainer.args.probe_source = "test"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trainer.args.result_dir = temp_dir
+            probe_files, probe_writers = trainer._open_probe_outputs()
+            try:
+                # 模拟一个训练 epoch 完成后的标签元数据写入。
+                probe_writers["meta"].writerow(
+                    trainer._build_probe_metadata_row(
+                        global_epoch=5,
+                        global_round_idx=1,
+                        group_round_idx=2,
+                        local_epoch_idx=3,
+                        probe_index=5,
+                        probe_label=7,
+                    )
+                )
+                trainer._flush_probe_outputs(probe_files)
+            finally:
+                trainer._close_probe_outputs(probe_files)
+
+            metadata_path = os.path.join(temp_dir, "probe_meta.csv")
+            with open(metadata_path, "r", encoding="utf-8", newline="") as file_obj:
+                rows = list(csv.DictReader(file_obj))
+
+            self.assertEqual(
+                rows,
+                [
+                    {
+                        "global_epoch": "5",
+                        "global_round_idx": "1",
+                        "group_round_idx": "2",
+                        "local_epoch_idx": "3",
+                        "probe_source": "test",
+                        "probe_index": "5",
+                        "true_label": "7",
+                    }
+                ],
+            )
+            self.assertTrue(
+                all(
+                    os.path.isfile(os.path.join(temp_dir, filename))
+                    for filename in (
+                        "probe_client_pre.csv",
+                        "probe_edge_post.csv",
+                        "probe_cloud_post.csv",
+                        "probe_meta.csv",
+                    )
+                )
+            )
+
+    def test_true_labels_align_by_global_epoch_instead_of_row_order(self):
+        """验证分析端按 global_epoch 对齐结构化标签，而不是依赖文件行顺序。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            metadata_path = os.path.join(temp_dir, "probe_meta.csv")
+            with open(metadata_path, "w", encoding="utf-8", newline="") as file_obj:
+                writer = csv.DictWriter(file_obj, fieldnames=["global_epoch", "true_label"])
+                writer.writeheader()
+                # 故意逆序写入，证明显式轮次坐标能够稳定还原标签序列。
+                writer.writerow({"global_epoch": 1, "true_label": 2})
+                writer.writerow({"global_epoch": 0, "true_label": 7})
+
+            labels = read_true_labels(Path(metadata_path), round_count=2)
+
+        self.assertEqual(labels, [7, 2])
 
     def test_runtime_schedule_records_fixed_candidates_and_all_distribution(self):
         """验证运行时 JSONL 记录固定候选、MAT 活跃客户端和全量下发范围。"""

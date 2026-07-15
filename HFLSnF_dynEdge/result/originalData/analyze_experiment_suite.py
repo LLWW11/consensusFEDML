@@ -64,6 +64,11 @@ REQUIRED_RESULT_FILES = [
     "probe_cloud_post.csv",
 ]
 
+# 新训练会额外保存真实标签；旧批次没有该文件时仍可继续生成兼容报告。
+OPTIONAL_RESULT_FILES = [
+    "probe_meta.csv",
+]
+
 SUMMARY_THRESHOLDS = (0.80, 0.85, 0.88)
 
 
@@ -2291,13 +2296,15 @@ def build_manifest(
     sources = {}
     for experiment in experiments:
         hashes = {}
-        for filename in REQUIRED_RESULT_FILES:
+        for filename in REQUIRED_RESULT_FILES + OPTIONAL_RESULT_FILES:
             path = experiment.path / filename
-            hashes[filename] = sha256_file(path)
+            if path.is_file():
+                hashes[filename] = sha256_file(path)
         sources[experiment.scenario] = {
             "label": experiment.label,
             "path": str(experiment.path),
             "rounds": len(experiment.schedule),
+            "has_probe_meta": (experiment.path / "probe_meta.csv").is_file(),
             "hashes": hashes,
         }
     candidate_total = int(profile["client_num_per_round"])
@@ -2321,6 +2328,17 @@ def build_manifest(
                 "palette": "蓝、金、橙、中性色，并辅以线型区分",
             }
         )
+    limitations = [
+        "只有单随机种子，不能声明统计显著",
+        "没有逐客户端训练事件或更新哈希，不能从结果文件独立证明每次本地训练调用",
+        "没有模型快照，不能独立复算指标是否来自最终云模型",
+        "运行时MAT绝对路径在当前工作区失效，分析以JSONL为准",
+        "没有可靠运行时间和通信字节日志",
+    ]
+    if not all((experiment.path / "probe_meta.csv").is_file() for experiment in experiments):
+        # 历史批次仍需明确提示无法判断探针共识是否对应真实类别。
+        limitations.insert(3, "至少一组实验的探针样本每轮变化且没有保存真值标签")
+
     return {
         "schema_version": "3.0",
         "generated_at": datetime.now().astimezone().isoformat(),
@@ -2352,14 +2370,7 @@ def build_manifest(
             "方案对比.csv",
             "analysis_manifest.json",
         ] + [str(path.relative_to(output_dir)) for path in figure_paths],
-        "limitations": [
-            "只有单随机种子，不能声明统计显著",
-            "没有逐客户端训练事件或更新哈希，不能从结果文件独立证明每次本地训练调用",
-            "没有模型快照，不能独立复算指标是否来自最终云模型",
-            "探针样本每轮变化且没有保存真值标签",
-            "运行时MAT绝对路径在当前工作区失效，分析以JSONL为准",
-            "没有可靠运行时间和通信字节日志",
-        ],
+        "limitations": limitations,
     }
 
 

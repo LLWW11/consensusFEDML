@@ -1,4 +1,4 @@
-%%
+%
 clear;clc;
 tic;
 epoch_num =200;

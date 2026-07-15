@@ -619,6 +619,16 @@ class HierarchicalTrainer(FedAvgAPI):
             "partition_alpha": float(self.args.partition_alpha),
             "random_seed": int(getattr(self.args, "random_seed", 0)),
             "probe_source": getattr(self.args, "probe_source", "test"),
+            "probe_meta_file": getattr(self.args, "probe_meta_file", "probe_meta.csv"),
+            "probe_meta_columns": [
+                "global_epoch",
+                "global_round_idx",
+                "group_round_idx",
+                "local_epoch_idx",
+                "probe_source",
+                "probe_index",
+                "true_label",
+            ],
             "experiment_tag": getattr(self.args, "experiment_tag", ""),
             "client_num_in_total": int(self.args.client_num_in_total),
             "client_num_per_round": int(self.args.client_num_per_round),
@@ -737,7 +747,7 @@ class HierarchicalTrainer(FedAvgAPI):
 
     def _open_probe_outputs(self):
         """
-        打开三份探针 CSV 文件，并返回文件对象和 writer 对象。
+        打开三份概率探针和一份标签元数据 CSV，并返回文件对象和 writer 对象。
 
         文件以覆盖方式写入，保证每次训练得到的是当前实验的完整矩阵。
         """
@@ -745,6 +755,7 @@ class HierarchicalTrainer(FedAvgAPI):
             "client": self._get_probe_output_path("probe_client_pre_file", "probe_client_pre.csv"),
             "edge": self._get_probe_output_path("probe_edge_post_file", "probe_edge_post.csv"),
             "cloud": self._get_probe_output_path("probe_cloud_post_file", "probe_cloud_post.csv"),
+            "meta": self._get_probe_output_path("probe_meta_file", "probe_meta.csv"),
         }
         files = {}
         writers = {}
@@ -753,6 +764,16 @@ class HierarchicalTrainer(FedAvgAPI):
             files[key] = open(output_path, "w", newline="", encoding="utf-8")
             writers[key] = csv.writer(files[key])
             logging.info("consensus probe {} csv = {}".format(key, output_path))
+        # 标签元数据使用固定表头，便于按 global_epoch 与三份无表头概率 CSV 逐行对齐。
+        writers["meta"].writerow([
+            "global_epoch",
+            "global_round_idx",
+            "group_round_idx",
+            "local_epoch_idx",
+            "probe_source",
+            "probe_index",
+            "true_label",
+        ])
         return files, writers
 
     def _close_probe_outputs(self, files):
@@ -773,7 +794,7 @@ class HierarchicalTrainer(FedAvgAPI):
 
     def _get_probe_sample(self, global_epoch):
         """
-        从 MNIST 数据集中按全局 epoch 确定性抽取一张探针图片。
+        从 MNIST 数据集中按全局 epoch 确定性抽取探针图片、标签和样本索引。
 
         默认使用测试集；如果 probe_source 配置为 train，则改用训练集。
         """
@@ -805,9 +826,25 @@ class HierarchicalTrainer(FedAvgAPI):
             # 保留 batch 维度，确保后续模型推理形状与训练阶段一致。
             sample_x = x[local_index: local_index + 1]
             sample_label = int(labels[local_index].item())
-            return sample_x, sample_label
+            return sample_x, sample_label, target_index
 
         raise ValueError("Failed to fetch probe sample {} from {} data.".format(target_index, probe_source))
+
+    def _build_probe_metadata_row(
+            self, global_epoch, global_round_idx, group_round_idx, local_epoch_idx,
+            probe_index, probe_label
+    ):
+        """构造一行可与概率探针逐轮对齐的结构化真实标签元数据。"""
+
+        return [
+            int(global_epoch),
+            int(global_round_idx),
+            int(group_round_idx),
+            int(local_epoch_idx),
+            str(getattr(self.args, "probe_source", "test")),
+            int(probe_index),
+            int(probe_label),
+        ]
 
     def _format_probability_vector(self, probabilities):
         """
@@ -998,13 +1035,24 @@ class HierarchicalTrainer(FedAvgAPI):
                             )
 
                         if probe_enabled:
-                            probe_x, probe_label = self._get_probe_sample(global_epoch)
+                            probe_x, probe_label, probe_index = self._get_probe_sample(global_epoch)
                             logging.info(
                                 "consensus probe global_epoch = {}, label = {}".format(global_epoch, probe_label)
                             )
                             probe_writers["client"].writerow(
                                 self._build_client_probe_row(
                                     probe_x, candidate_client_indexes
+                                )
+                            )
+                            # 与客户端探针同轮写入，确保真实标签、样本索引和训练层级坐标可审计。
+                            probe_writers["meta"].writerow(
+                                self._build_probe_metadata_row(
+                                    global_epoch=global_epoch,
+                                    global_round_idx=global_round_idx,
+                                    group_round_idx=group_round_idx,
+                                    local_epoch_idx=epoch_idx,
+                                    probe_index=probe_index,
+                                    probe_label=probe_label,
                                 )
                             )
                         else:

@@ -26,6 +26,7 @@ PROBE_FILENAMES = {
     "edge": "probe_edge_post.csv",
     "cloud": "probe_cloud_post.csv",
 }
+PROBE_METADATA_FILENAME = "probe_meta.csv"
 
 METRIC_DEFINITIONS = [
     {
@@ -149,7 +150,10 @@ def parse_args() -> argparse.Namespace:
         "--metadata-file",
         type=Path,
         default=None,
-        help="可选探针元数据 CSV，需包含 true_label 列。",
+        help=(
+            "可选探针元数据 CSV，需包含 true_label 列；未指定时自动读取"
+            "结果目录中的 probe_meta.csv。"
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -279,7 +283,7 @@ def read_metric_series(path: Path, round_count: int) -> np.ndarray:
 
 
 def read_true_labels(path: Optional[Path], round_count: int) -> List[Optional[int]]:
-    """从可选元数据文件读取真实标签；缺失时返回全空标签列表。"""
+    """从可选元数据文件读取真实标签，并优先按 global_epoch 对齐探针轮次。"""
     labels: List[Optional[int]] = [None for _ in range(round_count)]
     if path is None or not path.exists():
         return labels
@@ -287,15 +291,34 @@ def read_true_labels(path: Optional[Path], round_count: int) -> List[Optional[in
         reader = csv.DictReader(file_obj)
         if reader.fieldnames is None or "true_label" not in reader.fieldnames:
             raise ValueError("{} 必须包含 true_label 列。".format(path))
+        has_global_epoch = "global_epoch" in reader.fieldnames
+        seen_global_epochs = set()
         for row_index, row in enumerate(reader):
-            if row_index >= round_count:
+            if not has_global_epoch and row_index >= round_count:
+                # 兼容只含 true_label 的旧元数据：多余行继续沿用原先的忽略行为。
                 break
+            target_index = row_index
+            if has_global_epoch:
+                # 新版结构化文件使用显式 global_epoch，避免依赖 CSV 的物理行顺序。
+                raw_global_epoch = (row.get("global_epoch") or "").strip()
+                if not raw_global_epoch:
+                    raise ValueError("{} 第 {} 行缺少 global_epoch。".format(path, row_index + 2))
+                target_index = int(raw_global_epoch)
+                if target_index in seen_global_epochs:
+                    raise ValueError("{} 存在重复 global_epoch：{}。".format(path, target_index))
+                seen_global_epochs.add(target_index)
+            if target_index < 0 or target_index >= round_count:
+                raise ValueError(
+                    "{} 的 global_epoch/行索引 {} 超出探针轮次范围 [0, {})。".format(
+                        path, target_index, round_count
+                    )
+                )
             raw_label = (row.get("true_label") or "").strip()
             if raw_label:
                 label = int(raw_label)
                 if label < 0 or label > 9:
                     raise ValueError("true_label 必须位于 0 到 9。")
-                labels[row_index] = label
+                labels[target_index] = label
     return labels
 
 
@@ -1021,9 +1044,12 @@ def main() -> None:
         else resolve_input_path(args.result_dir, script_dir)
     )
     mat_path = resolve_input_path(args.mat_file, script_dir)
-    metadata_path = (
-        None if args.metadata_file is None else resolve_input_path(args.metadata_file, script_dir)
-    )
+    if args.metadata_file is None:
+        # 新实验会自动生成 probe_meta.csv；旧实验缺少该文件时仍按无真值模式分析。
+        default_metadata_path = result_dir / PROBE_METADATA_FILENAME
+        metadata_path = default_metadata_path if default_metadata_path.is_file() else None
+    else:
+        metadata_path = resolve_input_path(args.metadata_file, script_dir)
     output_dir = (
         result_dir / "consensus_analysis"
         if args.output_dir is None

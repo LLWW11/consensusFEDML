@@ -138,10 +138,13 @@ python result\originalData\test_analyze_experiment_suite.py
 - `probe_client_pre.csv`
 - `probe_edge_post.csv`
 - `probe_cloud_post.csv`
+- `probe_meta.csv`
 - `topology_metadata.json`
 - `topology_schedule.jsonl`
 
 `probe_client_pre.csv` 每个 epoch 固定写入 37 列，第 `i` 列始终对应固定候选列表中的第 `i` 个真实客户端，不会因 epoch 改变客户端含义。HFL fixed 的 `probe_edge_post.csv` 每行为 6 个边缘槽位，`probe_cloud_post.csv` 每行为 1 个云模型输出；普通 FL 没有边缘模型，因此 edge CSV 保留 1 个空列用于保持 epoch 对齐。
+
+`probe_meta.csv` 每个 epoch 写入一行结构化探针元数据，字段包括 `global_epoch`、通信轮坐标、`probe_source`、`probe_index` 和 `true_label`。它与三份概率探针 CSV 的数据行一一对应，可用于计算“正确共识”和“错误共识”，而不只是判断客户端之间是否意见一致。
 
 `topology_schedule.jsonl` 每行对应一个展平后的本地 epoch，主要记录：
 
