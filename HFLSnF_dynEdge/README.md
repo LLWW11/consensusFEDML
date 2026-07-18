@@ -14,12 +14,29 @@ MATLAB 中的 37 个物理客户端表示固定候选槽位，不直接等同于
 1. 实验初始化时，按 `random_seed` 从 200 个真实客户端中无放回抽取 37 人，并按抽取顺序固定对应 MAT 的 37 个槽位。
 2. 每个 epoch 读取 MAT 对应行保存的候选槽位身份及边缘分组，再通过固定映射得到真实客户端；该过程不打乱候选列表，也不进行额外随机采样。
 3. 仅 MAT 当前行启用的客户端基于各自持久本地模型完成一个本地 epoch；其他客户端本轮不训练。
-4. 聚合前客户端探针始终按固定槽位顺序记录 37 个候选客户端，保证同一 CSV 列在所有 epoch 中指向同一个真实客户端。
+4. 本地训练后，37个候选客户端分别对同一批固定100张测试图片执行一次批量推理；探针每类10张，全部epoch和四种方案使用相同索引与顺序。
 5. HFL 先对活跃客户端执行组内样本数加权聚合，再执行云端聚合；FL 将活跃客户端模型直接交给云端聚合。
-6. 聚合完成后，将最新云模型下发给全部 200 个客户端；零参与 epoch 不产生新模型，但仍把上一有效云模型下发给全部客户端。
-7. 下发完成后，200 个真实客户端分别加载自己的持久本地状态并评估自己的数据分区；全局准确率严格按“总正确数 ÷ 总样本数”计算。由于此时已完成全量下发，各客户端参数相同，但评估执行主体和数据入口仍是 200 个真实客户端。
+6. 边缘和云模型也分别对同一批100张图片执行批量推理；未启用边缘槽位保存为整块NaN。零参与 epoch 沿用上一有效云模型，仍形成一条完整探针记录。
+7. 三层探针完整后写入内存缓冲，每10个epoch原子更新压缩NPZ；正常结束或异常退出时再保存最后一个完整epoch前缀。
+8. 聚合完成后，将最新云模型下发给全部 200 个客户端；零参与 epoch 不产生新模型，但仍把上一有效云模型下发给全部客户端。
+9. 下发完成后，200 个真实客户端分别加载自己的持久本地状态并评估自己的数据分区；全局准确率严格按“总正确数 ÷ 总样本数”计算。固定探针只用于监控，不替代完整测试集 `test_acc`。
 
 所有 YAML 都固定使用 `model_distribution_scope: "all"`。MAT 当前 epoch 参与人数为 0 时，本轮不产生新的聚合模型，而是沿用上一有效云模型完成全量下发和逐客户端评估。
+
+四份正式配置、根配置和两份冒烟配置均启用以下固定探针参数：
+
+```yaml
+probe_output_format: "npz"
+probe_source: "test"
+probe_samples_per_class: 10
+probe_seed: 0
+probe_inference_batch_size: 100
+probe_checkpoint_interval: 10
+probe_npz_file: "probe_probabilities.npz"
+probe_summary_file: "probe_epoch_summary.csv"
+```
+
+`probe_seed` 只用于固定探针抽样，不改变训练随机状态。正式配置的推理批量等于100，因此每个客户端、边缘模型和云模型各用一次前向传播处理全部探针。
 
 ## 运行环境
 
@@ -122,6 +139,22 @@ IDE入口根据脚本在 `result/originalData` 中的固定位置推导项目根
 python result\originalData\test_analyze_experiment_suite.py
 ```
 
+分析程序优先读取固定探针NPZ；如果历史结果没有NPZ，则自动回退到原来的三份单图CSV。NPZ一旦存在但损坏，程序会直接报错，不会用旧CSV静默掩盖问题。四方案使用NPZ时，探针哈希、索引或真实标签有任一处不同，分析都会终止。
+
+## 固定探针指标口径
+
+对每个epoch、每张图片分别计算：
+
+- 一致性 (A)：用归一化广义JSD衡量客户端之间的概率分歧；
+- 确定性 (C)：一减去各客户端自身归一化熵的平均；
+- 纯有效共识 (S=A\times C)；
+- 正确有效共识：多数客户端类别等于真实标签时保留该图片的 (S)；
+- 错误有效共识：多数客户端类别不等于真实标签时保留该图片的 (S)。
+
+随后才对100张图片取均值和四分位数，禁止先平均不同图片的概率向量再计算熵或JSD。候选37人和当轮实际活跃客户端分别计算；活跃客户端少于2人时，其共识指标为空值，但活跃覆盖率仍保留。报告还给出覆盖率乘以活跃正确共识，用于同时反映“参与多少”和“参与者是否正确形成共识”。
+
+“达成更快”通过前50轮、前100轮归一化曲线面积及MA10稳定越过0.60、0.70、0.80的epoch判断。历史最佳曲线仅作辅助展示，不能作为唯一结论。当前正式实验只有单随机种子，论文结论建议至少运行5个匹配随机种子。
+
 ## 单元测试
 
 ```powershell
@@ -135,16 +168,23 @@ python result\originalData\test_analyze_experiment_suite.py
 
 - `train_acc.txt`、`train_loss.txt`
 - `test_acc.txt`、`test_loss.txt`
-- `probe_client_pre.csv`
-- `probe_edge_post.csv`
-- `probe_cloud_post.csv`
-- `probe_meta.csv`
+- `probe_probabilities.npz`
+- `probe_epoch_summary.csv`
 - `topology_metadata.json`
 - `topology_schedule.jsonl`
 
-`probe_client_pre.csv` 每个 epoch 固定写入 37 列，第 `i` 列始终对应固定候选列表中的第 `i` 个真实客户端，不会因 epoch 改变客户端含义。HFL fixed 的 `probe_edge_post.csv` 每行为 6 个边缘槽位，`probe_cloud_post.csv` 每行为 1 个云模型输出；普通 FL 没有边缘模型，因此 edge CSV 保留 1 个空列用于保持 epoch 对齐。
+`probe_probabilities.npz` 主要字段如下：
 
-`probe_meta.csv` 每个 epoch 写入一行结构化探针元数据，字段包括 `global_epoch`、通信轮坐标、`probe_source`、`probe_index` 和 `true_label`。它与三份概率探针 CSV 的数据行一一对应，可用于计算“正确共识”和“错误共识”，而不只是判断客户端之间是否意见一致。
+- `client_probabilities`：`[epoch, 37, 100, K]`；
+- `edge_probabilities`：`[epoch, edge_slot, 100, K]`，未启用槽位为NaN；
+- `cloud_probabilities`：`[epoch, 100, K]`；
+- `active_client_mask`、`edge_active_mask`：逐epoch的候选和边缘活跃掩码；
+- `client_ids`、`probe_indices`、`true_labels`、`global_epochs`；
+- `probe_set_hash`、`completed_epochs` 和格式版本。
+
+`probe_epoch_summary.csv` 每个epoch一行，包含候选与活跃口径的A、C、纯/正确/错误有效共识、S的四分位数、活跃人数与覆盖率、覆盖加权活跃正确共识、固定探针云端准确率和云端真实类别平均概率。分析报告会从NPZ重新计算并核对该摘要，而不是直接信任派生结果。
+
+没有配置 `probe_output_format` 的旧实验仍使用 `probe_client_pre.csv`、`probe_edge_post.csv`、`probe_cloud_post.csv` 和可选的 `probe_meta.csv`，以保证历史结果可继续分析。
 
 `topology_schedule.jsonl` 每行对应一个展平后的本地 epoch，主要记录：
 

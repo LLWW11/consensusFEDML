@@ -38,11 +38,14 @@ train_args:
 validation_args:
   frequency_of_the_test: 1
   enable_consensus_probe: true
+  probe_output_format: "npz"
   probe_source: "test"
-  probe_client_pre_file: "probe_client_pre.csv"
-  probe_edge_post_file: "probe_edge_post.csv"
-  probe_cloud_post_file: "probe_cloud_post.csv"
-  probe_meta_file: "probe_meta.csv"
+  probe_samples_per_class: 10
+  probe_seed: 0
+  probe_inference_batch_size: 100
+  probe_checkpoint_interval: 10
+  probe_npz_file: "probe_probabilities.npz"
+  probe_summary_file: "probe_epoch_summary.csv"
 
 device_args:
   using_gpu: true

@@ -131,6 +131,21 @@ class HFLClient(Client):
 
         model_state 为空时使用客户端当前持久本地模型；否则使用传入的边缘模型或云模型参数。
         """
+        batch_probabilities = self.predict_proba_batch(
+            sample_x, model_state=model_state
+        )
+        if len(batch_probabilities) != 1:
+            raise ValueError("predict_proba 仅接受单张图片，请改用 predict_proba_batch。")
+        return batch_probabilities[0]
+
+    def predict_proba_batch(
+            self, sample_x, model_state=None, inference_batch_size=None
+    ):
+        """对一批固定探针图片执行批量推理并返回二维概率列表。
+
+        模型参数在整批探针开始前只加载一次。默认把全部图片放在一个批次中；
+        当显存受限时可通过 ``inference_batch_size`` 分块，但不会逐图片加载模型。
+        """
         if model_state is None:
             model_state = self.local_model_state
 
@@ -143,9 +158,22 @@ class HFLClient(Client):
             # 探针样本必须带 batch 维度，便于兼容当前训练入口的模型形状。
             if probe_x.dim() == 1:
                 probe_x = probe_x.unsqueeze(0)
-            logits = self.model(probe_x)
-            probabilities = torch.softmax(logits, dim=1)
-        return probabilities.squeeze(0).detach().cpu().tolist()
+            sample_count = int(probe_x.shape[0])
+            if sample_count <= 0:
+                raise ValueError("批量探针不能为空。")
+            if inference_batch_size is None:
+                inference_batch_size = sample_count
+            inference_batch_size = int(inference_batch_size)
+            if inference_batch_size <= 0:
+                raise ValueError("probe_inference_batch_size 必须大于 0。")
+
+            probability_batches = []
+            for start_index in range(0, sample_count, inference_batch_size):
+                end_index = min(start_index + inference_batch_size, sample_count)
+                logits = self.model(probe_x[start_index:end_index])
+                probability_batches.append(torch.softmax(logits, dim=1))
+            probabilities = torch.cat(probability_batches, dim=0)
+        return probabilities.detach().cpu().tolist()
 
     def train(self, global_round_idx, group_round_idx, w=None):
         """

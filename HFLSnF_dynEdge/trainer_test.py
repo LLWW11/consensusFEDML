@@ -12,6 +12,7 @@ import torch
 from client_test import HFLClient
 from fedavg_test import FedAvgAPI
 from group_test import Group
+from probe_batch import ProbeBatchRecorder, select_fixed_balanced_probe
 from topology_schedule import MatlabTopologySchedule
 
 
@@ -562,6 +563,122 @@ class HierarchicalTrainer(FedAvgAPI):
         """
         return bool(getattr(self.args, "enable_consensus_probe", True))
 
+    def _get_probe_output_format(self):
+        """返回探针输出格式，并保留未配置旧实验继续写 CSV 的兼容行为。"""
+        output_format = str(
+            getattr(self.args, "probe_output_format", "legacy_csv")
+        ).strip().lower()
+        aliases = {"csv": "legacy_csv", "legacy": "legacy_csv"}
+        output_format = aliases.get(output_format, output_format)
+        if output_format not in {"legacy_csv", "npz"}:
+            raise ValueError(
+                "probe_output_format 只能是 legacy_csv（或 csv）与 npz，实际为 {}。".format(
+                    output_format
+                )
+            )
+        return output_format
+
+    def _get_fixed_probe_candidate_ids(self):
+        """返回 NPZ 每个 epoch 始终使用的固定候选客户端编号。"""
+        if self.fixed_candidate_client_indexes is None:
+            raise ValueError(
+                "NPZ 固定探针模式要求实验开始时存在固定候选客户端集合；"
+                "非 MATLAB 旧分组模式请继续使用 legacy_csv。"
+            )
+        return [int(value) for value in self.fixed_candidate_client_indexes]
+
+    def _prepare_fixed_probe_set(self):
+        """从配置指定的数据源选择固定、类别均衡且不改变训练随机状态的探针。"""
+        probe_source = str(getattr(self.args, "probe_source", "test")).strip().lower()
+        if probe_source == "test":
+            probe_data = self.test_global
+        elif probe_source == "train":
+            probe_data = self.train_global
+        else:
+            raise ValueError("probe_source 只能是 test 或 train。")
+        return select_fixed_balanced_probe(
+            probe_data=probe_data,
+            samples_per_class=int(getattr(self.args, "probe_samples_per_class", 10)),
+            seed=int(getattr(self.args, "probe_seed", 0)),
+            source=probe_source,
+        )
+
+    def _create_batch_probe_recorder(self, probe_set):
+        """根据正式配置创建固定探针 NPZ 与逐 epoch 摘要记录器。"""
+        unique_labels = np.unique(probe_set.true_labels)
+        dataset_name = str(getattr(self.args, "dataset", "")).strip().lower()
+        expected_class_count = 10 if dataset_name == "mnist" else int(unique_labels.shape[0])
+        expected_labels = np.arange(expected_class_count, dtype=np.int64)
+        if not np.array_equal(unique_labels, expected_labels):
+            raise ValueError(
+                "固定探针必须从 0 开始覆盖全部 {} 个类别，实际为 {}。".format(
+                    expected_class_count, unique_labels.tolist()
+                )
+            )
+        expected_per_class = int(getattr(self.args, "probe_samples_per_class", 10))
+        for class_id in expected_labels:
+            actual_count = int(np.sum(probe_set.true_labels == class_id))
+            if actual_count != expected_per_class:
+                raise ValueError(
+                    "固定探针类别 {} 应有 {} 张，实际为 {} 张。".format(
+                        int(class_id), expected_per_class, actual_count
+                    )
+                )
+        recorder = ProbeBatchRecorder(
+            result_dir=self.args.result_dir,
+            total_epochs=(
+                int(self.args.comm_round)
+                * int(self.args.group_comm_round)
+                * int(self.args.epochs)
+            ),
+            candidate_client_ids=self._get_fixed_probe_candidate_ids(),
+            edge_slot_count=int(self.args.group_num),
+            probe_set=probe_set,
+            class_count=expected_class_count,
+            npz_filename=getattr(
+                self.args, "probe_npz_file", "probe_probabilities.npz"
+            ),
+            summary_filename=getattr(
+                self.args, "probe_summary_file", "probe_epoch_summary.csv"
+            ),
+            checkpoint_interval=int(
+                getattr(self.args, "probe_checkpoint_interval", 10)
+            ),
+        )
+        try:
+            self._update_batch_probe_metadata(recorder)
+        except Exception:
+            # 元数据写入失败时也关闭摘要句柄，避免Windows下遗留被占用文件。
+            recorder.close()
+            raise
+        return recorder
+
+    def _update_batch_probe_metadata(self, recorder):
+        """在已生成的拓扑元数据中补充固定探针哈希、配置和预期形状。"""
+        metadata_path = os.path.join(self.args.result_dir, "topology_metadata.json")
+        metadata = {}
+        if os.path.isfile(metadata_path):
+            with open(metadata_path, "r", encoding="utf-8") as file_obj:
+                metadata = json.load(file_obj)
+        metadata.update(recorder.metadata())
+        metadata.update({
+            "probe_seed": int(getattr(self.args, "probe_seed", 0)),
+            "probe_inference_batch_size": int(
+                getattr(self.args, "probe_inference_batch_size", 100)
+            ),
+            "probe_checkpoint_interval": int(
+                getattr(self.args, "probe_checkpoint_interval", 10)
+            ),
+            "probe_indices": [
+                int(value) for value in recorder.probe_set.indices
+            ],
+            "probe_true_labels": [
+                int(value) for value in recorder.probe_set.true_labels
+            ],
+        })
+        with open(metadata_path, "w", encoding="utf-8") as file_obj:
+            json.dump(metadata, file_obj, ensure_ascii=False, indent=2)
+
     def _format_result_name_part(self, value):
         """
         将配置值转换成适合放进结果文件夹名称的字符串。
@@ -618,17 +735,8 @@ class HierarchicalTrainer(FedAvgAPI):
             "group_comm_round": int(self.args.group_comm_round),
             "partition_alpha": float(self.args.partition_alpha),
             "random_seed": int(getattr(self.args, "random_seed", 0)),
+            "probe_output_format": self._get_probe_output_format(),
             "probe_source": getattr(self.args, "probe_source", "test"),
-            "probe_meta_file": getattr(self.args, "probe_meta_file", "probe_meta.csv"),
-            "probe_meta_columns": [
-                "global_epoch",
-                "global_round_idx",
-                "group_round_idx",
-                "local_epoch_idx",
-                "probe_source",
-                "probe_index",
-                "true_label",
-            ],
             "experiment_tag": getattr(self.args, "experiment_tag", ""),
             "client_num_in_total": int(self.args.client_num_in_total),
             "client_num_per_round": int(self.args.client_num_per_round),
@@ -648,6 +756,22 @@ class HierarchicalTrainer(FedAvgAPI):
                 * int(self.args.epochs)
             ),
         })
+        if self._get_probe_output_format() == "legacy_csv":
+            # 历史格式仍记录逐epoch单图标签文件的列定义。
+            metadata.update({
+                "probe_meta_file": getattr(
+                    self.args, "probe_meta_file", "probe_meta.csv"
+                ),
+                "probe_meta_columns": [
+                    "global_epoch",
+                    "global_round_idx",
+                    "group_round_idx",
+                    "local_epoch_idx",
+                    "probe_source",
+                    "probe_index",
+                    "true_label",
+                ],
+            })
         output_path = os.path.join(result_dir, "topology_metadata.json")
         with open(output_path, "w", encoding="utf-8") as file_obj:
             json.dump(metadata, file_obj, ensure_ascii=False, indent=2)
@@ -909,6 +1033,59 @@ class HierarchicalTrainer(FedAvgAPI):
         probabilities = self._predict_model_proba(probe_x, w_global)
         return [self._format_probability_vector(probabilities)]
 
+    def _predict_model_proba_batch(self, probe_x, model_state):
+        """借用客户端模型结构，对固定探针批次执行一次或少量分块前向推理。"""
+        inference_batch_size = int(
+            getattr(self.args, "probe_inference_batch_size", probe_x.shape[0])
+        )
+        return np.asarray(
+            self.client_registry[0].predict_proba_batch(
+                probe_x,
+                model_state=model_state,
+                inference_batch_size=inference_batch_size,
+            ),
+            dtype=np.float32,
+        )
+
+    def _build_client_probe_tensor(self, probe_x, candidate_client_indexes):
+        """按固定候选顺序批量推理全部探针，返回 [候选, 探针, 类别]。"""
+        expected_candidates = self._get_fixed_probe_candidate_ids()
+        if [int(value) for value in candidate_client_indexes] != expected_candidates:
+            raise ValueError("NPZ 客户端探针必须始终使用实验开始时固定的候选顺序。")
+        inference_batch_size = int(
+            getattr(self.args, "probe_inference_batch_size", probe_x.shape[0])
+        )
+        probability_batches = []
+        for client_idx in candidate_client_indexes:
+            # 每个客户端只加载一次本地模型；正式配置100张图片恰好一次前向推理。
+            probability_batches.append(np.asarray(
+                self.client_registry[client_idx].predict_proba_batch(
+                    probe_x,
+                    inference_batch_size=inference_batch_size,
+                ),
+                dtype=np.float32,
+            ))
+        return np.stack(probability_batches, axis=0)
+
+    def _build_edge_probe_tensor(self, probe_x, edge_model_states):
+        """批量推理当轮边缘模型，未启用槽位保留为整块 NaN。"""
+        probe_count = int(probe_x.shape[0])
+        class_count = int(np.max(self.fixed_probe_set.true_labels)) + 1
+        probabilities = np.full(
+            (int(self.args.group_num), probe_count, class_count),
+            np.nan,
+            dtype=np.float32,
+        )
+        for group_idx, model_state in edge_model_states.items():
+            probabilities[int(group_idx)] = self._predict_model_proba_batch(
+                probe_x, model_state
+            )
+        return probabilities
+
+    def _build_cloud_probe_tensor(self, probe_x, w_global):
+        """批量推理当前云模型，返回 [探针, 类别] 概率矩阵。"""
+        return self._predict_model_proba_batch(probe_x, w_global)
+
     def _get_distribution_client_indexes(self, active_client_indexes):
         """根据 YAML 下发范围返回需要同步云模型的真实客户端编号。"""
         if self.model_distribution_scope == "all":
@@ -993,10 +1170,25 @@ class HierarchicalTrainer(FedAvgAPI):
         self._setup_result_dir()
         self._initialize_metric_output_files()
         probe_enabled = self._is_consensus_probe_enabled()
+        probe_output_format = self._get_probe_output_format()
         probe_files = {}
         probe_writers = {}
+        batch_probe_recorder = None
+        self.fixed_probe_set = None
         if probe_enabled:
-            probe_files, probe_writers = self._open_probe_outputs()
+            if probe_output_format == "npz":
+                # 固定探针仅准备一次，四种方案在相同数据与种子下会得到相同内容哈希。
+                self.fixed_probe_set = self._prepare_fixed_probe_set()
+                batch_probe_recorder = self._create_batch_probe_recorder(
+                    self.fixed_probe_set
+                )
+                logging.info(
+                    "fixed probe count = %s, hash = %s",
+                    self.fixed_probe_set.sample_count,
+                    self.fixed_probe_set.content_hash,
+                )
+            else:
+                probe_files, probe_writers = self._open_probe_outputs()
 
         try:
             for global_round_idx in range(self.args.comm_round):
@@ -1034,7 +1226,13 @@ class HierarchicalTrainer(FedAvgAPI):
                                 global_round_idx, group_round_idx, epoch_idx
                             )
 
-                        if probe_enabled:
+                        client_probe_probabilities = None
+                        if probe_enabled and probe_output_format == "npz":
+                            probe_x = self.fixed_probe_set.inputs
+                            client_probe_probabilities = self._build_client_probe_tensor(
+                                probe_x, candidate_client_indexes
+                            )
+                        elif probe_enabled:
                             probe_x, probe_label, probe_index = self._get_probe_sample(global_epoch)
                             logging.info(
                                 "consensus probe global_epoch = {}, label = {}".format(global_epoch, probe_label)
@@ -1044,7 +1242,7 @@ class HierarchicalTrainer(FedAvgAPI):
                                     probe_x, candidate_client_indexes
                                 )
                             )
-                            # 与客户端探针同轮写入，确保真实标签、样本索引和训练层级坐标可审计。
+                            # 旧 CSV 仍逐轮保存真实标签，保证历史分析入口不受影响。
                             probe_writers["meta"].writerow(
                                 self._build_probe_metadata_row(
                                     global_epoch=global_epoch,
@@ -1073,7 +1271,22 @@ class HierarchicalTrainer(FedAvgAPI):
                                     global_epoch
                                 )
                             )
-                            if probe_enabled:
+                            if probe_enabled and probe_output_format == "npz":
+                                # 空聚合轮仍提交完整记录：边缘为空，云模型沿用上一轮。
+                                edge_probe_probabilities = self._build_edge_probe_tensor(
+                                    probe_x, {}
+                                )
+                                cloud_probe_probabilities = self._build_cloud_probe_tensor(
+                                    probe_x, w_global
+                                )
+                                batch_probe_recorder.record_epoch(
+                                    global_epoch=global_epoch,
+                                    client_probabilities=client_probe_probabilities,
+                                    edge_probabilities=edge_probe_probabilities,
+                                    cloud_probabilities=cloud_probe_probabilities,
+                                    active_client_ids=active_client_indexes,
+                                )
+                            elif probe_enabled:
                                 # 空聚合轮没有边缘模型，边缘 CSV 保留一行空单元格以维持矩阵行数。
                                 probe_writers["edge"].writerow(["" for _ in range(self.args.group_num)])
                                 # 云模型沿用上一轮 w_global，使云 CSV 在每个全局 epoch 都有一行。
@@ -1100,7 +1313,12 @@ class HierarchicalTrainer(FedAvgAPI):
                             )
                             continue
 
-                        if probe_enabled:
+                        edge_probe_probabilities = None
+                        if probe_enabled and probe_output_format == "npz":
+                            edge_probe_probabilities = self._build_edge_probe_tensor(
+                                probe_x, edge_model_states
+                            )
+                        elif probe_enabled:
                             if self._uses_direct_cloud_aggregation():
                                 # 普通 FL 没有边缘模型，保留一个空单元格维持按 epoch 对齐。
                                 probe_writers["edge"].writerow(
@@ -1114,7 +1332,19 @@ class HierarchicalTrainer(FedAvgAPI):
                         # 云端只聚合 MAT 当前行实际启用客户端贡献的模型。
                         w_global = self._aggregate(cloud_inputs)
 
-                        if probe_enabled:
+                        if probe_enabled and probe_output_format == "npz":
+                            cloud_probe_probabilities = self._build_cloud_probe_tensor(
+                                probe_x, w_global
+                            )
+                            # 三层数据全部成功后才提交该 epoch，异常时不会产生半条记录。
+                            batch_probe_recorder.record_epoch(
+                                global_epoch=global_epoch,
+                                client_probabilities=client_probe_probabilities,
+                                edge_probabilities=edge_probe_probabilities,
+                                cloud_probabilities=cloud_probe_probabilities,
+                                active_client_ids=active_client_indexes,
+                            )
+                        elif probe_enabled:
                             probe_writers["cloud"].writerow(self._build_cloud_probe_row(probe_x, w_global))
                             self._flush_probe_outputs(probe_files)
 
@@ -1136,5 +1366,8 @@ class HierarchicalTrainer(FedAvgAPI):
                             aggregated=True,
                         )
         finally:
-            if probe_enabled:
+            if batch_probe_recorder is not None:
+                # 正常结束和异常退出都保存最后一个完整 epoch 前缀。
+                batch_probe_recorder.close()
+            elif probe_enabled:
                 self._close_probe_outputs(probe_files)

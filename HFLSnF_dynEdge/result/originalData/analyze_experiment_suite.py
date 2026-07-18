@@ -23,6 +23,12 @@ from matplotlib import font_manager
 from matplotlib.colors import ListedColormap
 import numpy as np
 
+# 分析脚本位于 result/originalData；显式加入项目根目录以复用训练端同一指标公式。
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from probe_metrics import calculate_population_probe_metrics
+
 
 SCENARIO_ORDER = [
     "hfl_snf_fixed",
@@ -52,17 +58,28 @@ SCENARIO_LINESTYLES = {
     "fl_no_snf": "--",
 }
 
-REQUIRED_RESULT_FILES = [
+COMMON_REQUIRED_RESULT_FILES = [
     "topology_metadata.json",
     "topology_schedule.jsonl",
     "train_acc.txt",
     "train_loss.txt",
     "test_acc.txt",
     "test_loss.txt",
+]
+
+LEGACY_PROBE_FILES = [
     "probe_client_pre.csv",
     "probe_edge_post.csv",
     "probe_cloud_post.csv",
 ]
+
+NPZ_PROBE_FILES = [
+    "probe_probabilities.npz",
+    "probe_epoch_summary.csv",
+]
+
+# 保留旧公开常量，避免已有测试和外部脚本导入后失效。
+REQUIRED_RESULT_FILES = COMMON_REQUIRED_RESULT_FILES + LEGACY_PROBE_FILES
 
 # 新训练会额外保存真实标签；旧批次没有该文件时仍可继续生成兼容报告。
 OPTIONAL_RESULT_FILES = [
@@ -70,6 +87,7 @@ OPTIONAL_RESULT_FILES = [
 ]
 
 SUMMARY_THRESHOLDS = (0.80, 0.85, 0.88)
+CONSENSUS_THRESHOLDS = (0.60, 0.70, 0.80)
 
 
 def locate_project_root() -> Path:
@@ -95,6 +113,13 @@ class ExperimentData:
     client_probe: List[List[Optional[np.ndarray]]]
     edge_probe: List[List[Optional[np.ndarray]]]
     cloud_probe: List[List[Optional[np.ndarray]]]
+    true_labels: np.ndarray
+    probe_indices: np.ndarray
+    global_epochs: np.ndarray
+    client_ids: np.ndarray
+    active_client_mask: np.ndarray
+    probe_set_hash: str
+    probe_format: str
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -204,6 +229,208 @@ def nonempty_probability_vectors(
     return [vector for vector in row if vector is not None]
 
 
+def get_probe_input_format(path: Path, metadata: Dict[str, object]) -> str:
+    """根据结构化声明和实际文件选择NPZ或历史CSV输入，不静默回退损坏NPZ。"""
+    declared = str(metadata.get("probe_output_format", "")).strip().lower()
+    if declared in {"csv", "legacy", "legacy_csv"}:
+        return "legacy_csv"
+    if declared == "npz":
+        return "npz"
+    npz_filename = str(metadata.get("probe_npz_file", "probe_probabilities.npz"))
+    if (path / npz_filename).is_file():
+        return "npz"
+    return "legacy_csv"
+
+
+def get_probe_input_files(path: Path, metadata: Dict[str, object]) -> List[str]:
+    """返回当前实验格式必须存在的探针文件名。"""
+    if get_probe_input_format(path, metadata) == "npz":
+        return [
+            str(metadata.get("probe_npz_file", "probe_probabilities.npz")),
+            str(metadata.get("probe_summary_file", "probe_epoch_summary.csv")),
+        ]
+    return list(LEGACY_PROBE_FILES)
+
+
+def missing_experiment_files(path: Path, metadata: Dict[str, object]) -> List[str]:
+    """列出公共输入和所选探针格式缺失的全部文件。"""
+    required = COMMON_REQUIRED_RESULT_FILES + get_probe_input_files(path, metadata)
+    return [filename for filename in required if not (path / filename).is_file()]
+
+
+def _legacy_probe_rows_to_batches(
+        rows: List[List[Optional[np.ndarray]]]
+) -> List[List[Optional[np.ndarray]]]:
+    """把旧单图CSV统一扩展为每个模型 [1,K] 的探针批次。"""
+    converted = []
+    for row in rows:
+        converted.append([
+            None if vector is None else np.asarray(vector, dtype=np.float64).reshape(1, -1)
+            for vector in row
+        ])
+    return converted
+
+
+def _read_legacy_probe_labels(path: Path, round_count: int) -> Tuple[np.ndarray, np.ndarray]:
+    """读取旧probe_meta真实标签；历史结果缺失时使用-1明确表示未知。"""
+    labels = np.full((round_count, 1), -1, dtype=np.int64)
+    indices = np.full((round_count, 1), -1, dtype=np.int64)
+    metadata_path = path / "probe_meta.csv"
+    if not metadata_path.is_file():
+        return labels, indices
+    with metadata_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    if len(rows) != round_count:
+        raise ValueError(
+            "probe_meta.csv行数{}与实验轮数{}不一致：{}".format(
+                len(rows), round_count, metadata_path
+            )
+        )
+    for row_index, row in enumerate(rows):
+        if int(row.get("global_epoch", row_index)) != row_index:
+            raise ValueError("probe_meta.csv的global_epoch必须从0连续递增。")
+        labels[row_index, 0] = int(row["true_label"])
+        indices[row_index, 0] = int(row["probe_index"])
+    return labels, indices
+
+
+def _npz_scalar(data: np.lib.npyio.NpzFile, key: str) -> object:
+    """读取禁止object类型的NPZ标量，并拒绝意外维度。"""
+    value = np.asarray(data[key])
+    if value.dtype.kind == "O" or value.ndim != 0:
+        raise ValueError("NPZ字段{}必须是非object标量。".format(key))
+    return value.item()
+
+
+def read_probe_npz(path: Path, metadata: Dict[str, object]) -> Dict[str, object]:
+    """严格读取固定多图NPZ并转换为报告内部统一的逐模型探针批次。"""
+    npz_filename = str(metadata.get("probe_npz_file", "probe_probabilities.npz"))
+    npz_path = path / npz_filename
+    required_keys = {
+        "schema_version",
+        "client_probabilities",
+        "edge_probabilities",
+        "cloud_probabilities",
+        "active_client_mask",
+        "client_ids",
+        "probe_indices",
+        "true_labels",
+        "global_epochs",
+        "completed_epochs",
+        "probe_set_hash",
+        "probe_source",
+    }
+    try:
+        with np.load(str(npz_path), allow_pickle=False) as data:
+            missing_keys = sorted(required_keys.difference(data.files))
+            if missing_keys:
+                raise ValueError("NPZ缺少字段：{}".format(missing_keys))
+            # 保留训练端float32，四方案同时加载时可把固定探针内存占用控制在约一半。
+            clients = np.asarray(data["client_probabilities"], dtype=np.float32)
+            edges = np.asarray(data["edge_probabilities"], dtype=np.float32)
+            cloud = np.asarray(data["cloud_probabilities"], dtype=np.float32)
+            active_mask = np.asarray(data["active_client_mask"], dtype=np.bool_)
+            client_ids = np.asarray(data["client_ids"], dtype=np.int64)
+            probe_indices = np.asarray(data["probe_indices"], dtype=np.int64)
+            true_labels = np.asarray(data["true_labels"], dtype=np.int64)
+            global_epochs = np.asarray(data["global_epochs"], dtype=np.int64)
+            completed_epochs = int(_npz_scalar(data, "completed_epochs"))
+            probe_set_hash = str(_npz_scalar(data, "probe_set_hash"))
+            schema_version = str(_npz_scalar(data, "schema_version"))
+            probe_source = str(_npz_scalar(data, "probe_source"))
+            edge_active_mask = (
+                np.asarray(data["edge_active_mask"], dtype=np.bool_)
+                if "edge_active_mask" in data.files else None
+            )
+    except (OSError, ValueError, KeyError) as exc:
+        raise ValueError("固定探针NPZ损坏或格式不合法：{}；{}".format(npz_path, exc)) from exc
+
+    if clients.ndim != 4 or edges.ndim != 4 or cloud.ndim != 3:
+        raise ValueError("NPZ概率维度必须分别为[E,M,P,K]、[E,G,P,K]和[E,P,K]。")
+    if schema_version != "fixed_probe_v1":
+        raise ValueError("不支持的固定探针NPZ版本：{}。".format(schema_version))
+    if probe_source not in {"test", "train"}:
+        raise ValueError("NPZ probe_source只能是test或train。")
+    metadata_source = str(metadata.get("probe_source", probe_source))
+    if metadata_source != probe_source:
+        raise ValueError("NPZ probe_source与topology_metadata.json不一致。")
+    epoch_count, candidate_count, probe_count, class_count = clients.shape
+    if edges.shape[0] != epoch_count or edges.shape[2:] != (probe_count, class_count):
+        raise ValueError("边缘概率与客户端概率的epoch、探针或类别维度不一致。")
+    if cloud.shape != (epoch_count, probe_count, class_count):
+        raise ValueError("云端概率形状与客户端概率不一致。")
+    if completed_epochs != epoch_count or global_epochs.shape != (epoch_count,):
+        raise ValueError("completed_epochs、global_epochs与NPZ首维不一致。")
+    if not np.array_equal(global_epochs, np.arange(epoch_count, dtype=np.int64)):
+        raise ValueError("NPZ global_epochs必须从0严格连续递增。")
+    if client_ids.shape != (candidate_count,) or np.unique(client_ids).size != candidate_count:
+        raise ValueError("NPZ client_ids形状异常或包含重复编号。")
+    if active_mask.shape != (epoch_count, candidate_count):
+        raise ValueError("NPZ active_client_mask形状异常。")
+    if probe_indices.shape != (probe_count,) or np.unique(probe_indices).size != probe_count:
+        raise ValueError("NPZ probe_indices形状异常或索引不唯一。")
+    if true_labels.shape != (probe_count,) or np.any(true_labels < 0) or np.any(true_labels >= class_count):
+        raise ValueError("NPZ true_labels形状或标签范围异常。")
+    expected_per_class = int(metadata.get("probe_samples_per_class", 10))
+    label_counts = np.bincount(true_labels, minlength=class_count)
+    if not np.array_equal(label_counts, np.full(class_count, expected_per_class, dtype=np.int64)):
+        raise ValueError(
+            "固定探针必须每类恰好{}张，实际计数为{}。".format(
+                expected_per_class, label_counts.tolist()
+            )
+        )
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", probe_set_hash):
+        raise ValueError("probe_set_hash必须是64位SHA-256十六进制字符串。")
+    metadata_hash = str(metadata.get("probe_set_hash", probe_set_hash))
+    if metadata_hash != probe_set_hash:
+        raise ValueError("NPZ探针哈希与topology_metadata.json不一致。")
+    metadata_probe_count = int(metadata.get("probe_sample_count", probe_count))
+    if metadata_probe_count != probe_count:
+        raise ValueError("NPZ探针数与topology_metadata.json不一致。")
+
+    if not validate_probability_vector(clients, class_count):
+        raise ValueError("NPZ客户端概率包含非法值。")
+    if not validate_probability_vector(cloud, class_count):
+        raise ValueError("NPZ云端概率包含非法值。")
+    inferred_edge_mask = np.all(np.isfinite(edges), axis=(2, 3))
+    partial_edge_mask = np.any(np.isfinite(edges), axis=(2, 3)) & ~inferred_edge_mask
+    if np.any(partial_edge_mask):
+        raise ValueError("NPZ边缘槽位只能整块为空，不能部分包含NaN。")
+    if edge_active_mask is not None:
+        if edge_active_mask.shape != inferred_edge_mask.shape or not np.array_equal(
+                edge_active_mask, inferred_edge_mask
+        ):
+            raise ValueError("NPZ edge_active_mask与边缘概率有限性不一致。")
+    for epoch_index, edge_slot in np.argwhere(inferred_edge_mask):
+        if not validate_probability_vector(edges[epoch_index, edge_slot], class_count):
+            raise ValueError("NPZ边缘概率包含非法值。")
+
+    client_rows = [
+        [clients[epoch_index, model_index] for model_index in range(candidate_count)]
+        for epoch_index in range(epoch_count)
+    ]
+    edge_rows = [
+        [
+            edges[epoch_index, edge_slot] if inferred_edge_mask[epoch_index, edge_slot] else None
+            for edge_slot in range(edges.shape[1])
+        ]
+        for epoch_index in range(epoch_count)
+    ]
+    cloud_rows = [[cloud[epoch_index]] for epoch_index in range(epoch_count)]
+    return {
+        "client_probe": client_rows,
+        "edge_probe": edge_rows,
+        "cloud_probe": cloud_rows,
+        "true_labels": np.tile(true_labels[None, :], (epoch_count, 1)),
+        "probe_indices": np.tile(probe_indices[None, :], (epoch_count, 1)),
+        "global_epochs": global_epochs,
+        "client_ids": client_ids,
+        "active_client_mask": active_mask,
+        "probe_set_hash": probe_set_hash,
+        "probe_format": "npz",
+    }
+
+
 def discover_experiment_dirs(result_root: Path) -> List[Path]:
     """从指定批次目录发现恰好覆盖四个目标场景的完整实验目录。"""
 
@@ -219,10 +446,7 @@ def discover_experiment_dirs(result_root: Path) -> List[Path]:
         scenario = str(metadata.get("scenario", ""))
         if scenario not in scenario_to_paths:
             continue
-        missing = [
-            filename for filename in REQUIRED_RESULT_FILES
-            if not (directory / filename).is_file()
-        ]
+        missing = missing_experiment_files(directory, metadata)
         if missing:
             incomplete_directories.append(
                 "{} 缺少 {}".format(directory.name, "、".join(missing))
@@ -270,26 +494,73 @@ def load_experiment(path: Path) -> ExperimentData:
     """读取一个实验目录的全部分析输入，并保留结果目录的实际运行语义。"""
 
     path = path.resolve()
-    missing = [filename for filename in REQUIRED_RESULT_FILES if not (path / filename).is_file()]
+    metadata = read_json(path / "topology_metadata.json")
+    missing = missing_experiment_files(path, metadata)
     if missing:
         raise FileNotFoundError("实验目录缺少文件 {}：{}".format(missing, path))
-    metadata = read_json(path / "topology_metadata.json")
     scenario = str(metadata.get("scenario", ""))
     if scenario not in SCENARIO_ORDER:
         raise ValueError("不支持的实验场景 {}：{}".format(scenario, path))
+    schedule = read_jsonl(path / "topology_schedule.jsonl")
+    probe_format = get_probe_input_format(path, metadata)
+    if probe_format == "npz":
+        probe_data = read_probe_npz(path, metadata)
+    else:
+        client_probe = _legacy_probe_rows_to_batches(
+            read_probability_csv(path / "probe_client_pre.csv")
+        )
+        edge_probe = _legacy_probe_rows_to_batches(
+            read_probability_csv(path / "probe_edge_post.csv")
+        )
+        cloud_probe = _legacy_probe_rows_to_batches(
+            read_probability_csv(path / "probe_cloud_post.csv")
+        )
+        true_labels, probe_indices = _read_legacy_probe_labels(path, len(schedule))
+        if schedule:
+            client_ids = np.asarray(
+                schedule[0].get("candidate_client_indexes", []), dtype=np.int64
+            )
+            active_mask = np.zeros((len(schedule), client_ids.shape[0]), dtype=np.bool_)
+            for epoch_index, record in enumerate(schedule):
+                active_slots = [
+                    int(value) for value in record.get("mat_active_candidate_slots", [])
+                ]
+                active_mask[epoch_index, active_slots] = True
+        else:
+            client_ids = np.asarray([], dtype=np.int64)
+            active_mask = np.empty((0, 0), dtype=np.bool_)
+        probe_data = {
+            "client_probe": client_probe,
+            "edge_probe": edge_probe,
+            "cloud_probe": cloud_probe,
+            "true_labels": true_labels,
+            "probe_indices": probe_indices,
+            "global_epochs": np.arange(len(schedule), dtype=np.int64),
+            "client_ids": client_ids,
+            "active_client_mask": active_mask,
+            "probe_set_hash": "",
+            "probe_format": "legacy_csv",
+        }
     return ExperimentData(
         path=path,
         scenario=scenario,
         label=SCENARIO_LABELS[scenario],
         metadata=metadata,
-        schedule=read_jsonl(path / "topology_schedule.jsonl"),
+        schedule=schedule,
         train_acc=read_metric_series(path / "train_acc.txt"),
         train_loss=read_metric_series(path / "train_loss.txt"),
         test_acc=read_metric_series(path / "test_acc.txt"),
         test_loss=read_metric_series(path / "test_loss.txt"),
-        client_probe=read_probability_csv(path / "probe_client_pre.csv"),
-        edge_probe=read_probability_csv(path / "probe_edge_post.csv"),
-        cloud_probe=read_probability_csv(path / "probe_cloud_post.csv"),
+        client_probe=probe_data["client_probe"],
+        edge_probe=probe_data["edge_probe"],
+        cloud_probe=probe_data["cloud_probe"],
+        true_labels=probe_data["true_labels"],
+        probe_indices=probe_data["probe_indices"],
+        global_epochs=probe_data["global_epochs"],
+        client_ids=probe_data["client_ids"],
+        active_client_mask=probe_data["active_client_mask"],
+        probe_set_hash=str(probe_data["probe_set_hash"]),
+        probe_format=str(probe_data["probe_format"]),
     )
 
 
@@ -304,9 +575,9 @@ def infer_probability_class_count(experiment: ExperimentData) -> int:
                 if vector is None:
                     continue
                 values = np.asarray(vector)
-                if values.ndim != 1 or values.size < 2:
+                if values.ndim not in {1, 2} or values.shape[-1] < 2:
                     raise ValueError("无法从探针推导有效类别数：{}".format(experiment.path))
-                return int(values.size)
+                return int(values.shape[-1])
     raise ValueError("实验没有任何非空概率探针：{}".format(experiment.path))
 
 
@@ -349,12 +620,32 @@ def build_batch_profile(
             infer_probability_class_count(experiment) for experiment in experiments
         ],
         "actual_rounds": [len(experiment.schedule) for experiment in experiments],
+        "probe_format": [experiment.probe_format for experiment in experiments],
+        "probe_count": [int(experiment.true_labels.shape[1]) for experiment in experiments],
     }
     inconsistent = {
         key: values for key, values in profile_fields.items() if len(set(values)) != 1
     }
     if inconsistent:
         raise ValueError("四方案关键元数据不一致：{}".format(inconsistent))
+
+    if profile_fields["probe_format"][0] == "npz":
+        reference = experiments[0]
+        for experiment in experiments[1:]:
+            if experiment.probe_set_hash != reference.probe_set_hash:
+                raise ValueError(
+                    "四方案固定探针哈希不一致：{}与{}。".format(
+                        reference.label, experiment.label
+                    )
+                )
+            if not np.array_equal(
+                    experiment.probe_indices[0], reference.probe_indices[0]
+            ):
+                raise ValueError("四方案固定探针索引不一致。")
+            if not np.array_equal(
+                    experiment.true_labels[0], reference.true_labels[0]
+            ):
+                raise ValueError("四方案固定探针真实标签不一致。")
 
     hfl_edge_slots = {
         int(experiment.metadata.get("group_capacity", len(experiment.edge_probe[0])))
@@ -378,6 +669,7 @@ def build_batch_profile(
             "batch_name": input_dir.resolve().name,
             "hfl_edge_slot_count": next(iter(hfl_edge_slots)),
             "fl_edge_slot_count": next(iter(fl_edge_slots)),
+            "probe_set_hash": experiments[0].probe_set_hash,
         }
     )
     return profile
@@ -439,15 +731,19 @@ def pairwise_js_divergence(left: np.ndarray, right: np.ndarray) -> float:
 
 
 def consensus_components(probabilities: np.ndarray) -> Tuple[float, float, float]:
-    """计算概率一致性 A、整体确定性 C 和有效共识 S=A×C。"""
+    """逐图计算概率一致性A、确定性C和有效共识S，再对探针取平均。"""
 
     matrix = np.asarray(probabilities, dtype=np.float64)
-    if matrix.ndim != 2 or matrix.shape[0] == 0:
+    if matrix.ndim == 2:
+        matrix = matrix[:, None, :]
+    if matrix.ndim != 3 or matrix.shape[0] < 2:
         return float("nan"), float("nan"), float("nan")
-    agreement = 1.0 - generalized_js_divergence(matrix)
-    certainty = 1.0 - float(np.mean(normalized_entropy(matrix)))
-    effective = agreement * certainty
-    return agreement, certainty, effective
+    metrics = calculate_population_probe_metrics(matrix, true_labels=None)
+    return (
+        float(metrics["agreement_mean"]),
+        float(metrics["certainty_mean"]),
+        float(metrics["effective_mean"]),
+    )
 
 
 def trailing_mean(values: Sequence[float], window: int, require_full_values: bool = True) -> np.ndarray:
@@ -497,6 +793,13 @@ def safe_correlation(left: Sequence[float], right: Sequence[float]) -> float:
     return float(np.corrcoef(left_valid, right_valid)[0, 1])
 
 
+def finite_mean(values: Sequence[float]) -> float:
+    """仅对有限值取平均；全部为空时返回NaN且不产生运行时警告。"""
+    array = np.asarray(values, dtype=np.float64)
+    finite = array[np.isfinite(array)]
+    return float(np.mean(finite)) if finite.size else float("nan")
+
+
 def lagged_correlations(
         leading: Sequence[float], following: Sequence[float], max_lag: int = 10
 ) -> List[Dict[str, float]]:
@@ -540,14 +843,14 @@ def map_client_ids_to_slots(record: Dict[str, object], client_ids: Sequence[int]
 
 
 def validate_probability_vector(vector: np.ndarray, class_count: int) -> bool:
-    """检查概率向量的维度、有限性、取值范围和归一化误差。"""
+    """检查单个或成批概率向量的类别维、有限性、范围和归一化误差。"""
 
     values = np.asarray(vector, dtype=np.float64)
-    if values.shape != (class_count,) or not np.all(np.isfinite(values)):
+    if values.ndim < 1 or values.shape[-1] != class_count or not np.all(np.isfinite(values)):
         return False
     if np.any(values < -1e-7) or np.any(values > 1.0 + 1e-7):
         return False
-    return abs(float(values.sum()) - 1.0) <= 5e-6
+    return bool(np.all(np.abs(np.sum(values, axis=-1) - 1.0) <= 5e-6))
 
 
 def add_quality_check(
@@ -604,6 +907,7 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
     edge_ok = True
     probability_ok = True
     fixed_mapping_ok = True
+    probe_alignment_ok = True
     zero_rounds = 0
     candidate_sets = []
     client_total = int(experiment.metadata.get("client_num_in_total", -1))
@@ -642,6 +946,15 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
         group_union = [client_id for client_ids in group_mapping.values() for client_id in client_ids]
         candidate_sets.append(tuple(candidates))
         epoch_ok = epoch_ok and int(record["global_epoch"]) == index
+        probe_alignment_ok = probe_alignment_ok and int(experiment.global_epochs[index]) == index
+        probe_alignment_ok = probe_alignment_ok and candidates == [
+            int(value) for value in experiment.client_ids
+        ]
+        expected_active_mask = np.zeros(len(candidates), dtype=np.bool_)
+        expected_active_mask[active_slots] = True
+        probe_alignment_ok = probe_alignment_ok and np.array_equal(
+            experiment.active_client_mask[index], expected_active_mask
+        )
         candidate_ok = candidate_ok and len(candidates) == candidate_total
         candidate_ok = candidate_ok and len(set(candidates)) == candidate_total
         candidate_ok = candidate_ok and all(0 <= client_id < client_total for client_id in candidates)
@@ -737,10 +1050,15 @@ def validate_experiment(experiment: ExperimentData) -> List[Dict[str, object]]:
     )
     add_quality_check(
         checks, experiment.label, "探针概率合法且层级列数匹配", "通过" if probability_ok and edge_ok else "未通过",
-        "客户端{}列、概率{}维、云端1列；HFL边缘{}槽位，FL边缘为空".format(
-            candidate_total, class_count, hfl_edge_slot_count
+        "格式{}；每轮{}张；客户端{}列、概率{}维、云端1列；HFL边缘{}槽位，FL边缘为空".format(
+            experiment.probe_format, experiment.true_labels.shape[1], candidate_total, class_count, hfl_edge_slot_count
             if experiment.scenario.startswith("hfl_") else 0
         ), "关键",
+    )
+    add_quality_check(
+        checks, experiment.label, "探针epoch、候选顺序和活跃掩码与JSONL一致",
+        "通过" if probe_alignment_ok else "未通过",
+        "global_epochs、client_ids和active_client_mask逐轮交叉核对", "关键",
     )
     add_quality_check(
         checks, experiment.label, "实际训练调用严格等于MAT活跃集合", "无法独立验证",
@@ -771,26 +1089,44 @@ def weighted_group_metric(group_values: Sequence[Tuple[int, float]]) -> float:
 
 
 def mean_js_to_reference(probabilities: np.ndarray, reference: np.ndarray) -> float:
-    """计算一组概率向量到同一参考概率向量的平均 JS 散度。"""
+    """逐模型、逐探针计算到对应云概率的JS散度，再取总体平均。"""
 
     matrix = np.asarray(probabilities, dtype=np.float64)
-    if matrix.ndim != 2 or matrix.shape[0] == 0:
+    reference_matrix = np.asarray(reference, dtype=np.float64)
+    if matrix.ndim == 2:
+        matrix = matrix[:, None, :]
+    if reference_matrix.ndim == 1:
+        reference_matrix = reference_matrix[None, :]
+    if matrix.ndim != 3 or matrix.shape[0] == 0 or reference_matrix.shape != matrix.shape[1:]:
         return float("nan")
-    return float(np.mean([pairwise_js_divergence(vector, reference) for vector in matrix]))
+    values = [
+        pairwise_js_divergence(matrix[model_index, sample_index], reference_matrix[sample_index])
+        for model_index in range(matrix.shape[0])
+        for sample_index in range(matrix.shape[1])
+    ]
+    return float(np.mean(values))
 
 
 def mean_consensus_to_reference(
         probabilities: np.ndarray, reference: np.ndarray
 ) -> Tuple[float, float, float]:
-    """逐个计算概率向量与参考向量的A/C/S，并返回三个分量的算术均值。"""
+    """逐模型、逐探针计算与对应云概率的A/C/S，并返回算术均值。"""
 
     matrix = np.asarray(probabilities, dtype=np.float64)
-    if matrix.ndim != 2 or matrix.shape[0] == 0:
+    reference_matrix = np.asarray(reference, dtype=np.float64)
+    if matrix.ndim == 2:
+        matrix = matrix[:, None, :]
+    if reference_matrix.ndim == 1:
+        reference_matrix = reference_matrix[None, :]
+    if matrix.ndim != 3 or matrix.shape[0] == 0 or reference_matrix.shape != matrix.shape[1:]:
         return float("nan"), float("nan"), float("nan")
     components = np.asarray(
         [
-            consensus_components(np.stack([vector, reference], axis=0))
-            for vector in matrix
+            consensus_components(np.stack([
+                matrix[model_index, sample_index], reference_matrix[sample_index]
+            ], axis=0))
+            for model_index in range(matrix.shape[0])
+            for sample_index in range(matrix.shape[1])
         ],
         dtype=np.float64,
     )
@@ -809,12 +1145,27 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
         cloud_vectors = nonempty_probability_vectors(experiment.cloud_probe[index])
         candidate_matrix = np.stack(candidate_vectors, axis=0)
         cloud_probability = cloud_vectors[0]
+        true_labels = experiment.true_labels[index]
+        labels_for_metrics = true_labels if np.all(true_labels >= 0) else None
         # JSONL保存的是MAT真实槽位，优先直接使用，避免按连续人数错误还原分组。
         active_slots = [int(value) for value in record["mat_active_candidate_slots"]]
-        active_matrix = candidate_matrix[active_slots] if active_slots else np.empty((0, candidate_matrix.shape[1]))
+        active_matrix = (
+            candidate_matrix[active_slots]
+            if active_slots else np.empty((0,) + candidate_matrix.shape[1:])
+        )
 
-        candidate_a, candidate_c, candidate_s = consensus_components(candidate_matrix)
-        active_a, active_c, active_s = consensus_components(active_matrix)
+        candidate_metrics = calculate_population_probe_metrics(
+            candidate_matrix, labels_for_metrics
+        )
+        active_metrics = calculate_population_probe_metrics(
+            active_matrix, labels_for_metrics
+        )
+        candidate_a = float(candidate_metrics["agreement_mean"])
+        candidate_c = float(candidate_metrics["certainty_mean"])
+        candidate_s = float(candidate_metrics["effective_mean"])
+        active_a = float(active_metrics["agreement_mean"])
+        active_c = float(active_metrics["certainty_mean"])
+        active_s = float(active_metrics["effective_mean"])
 
         group_effective_values = []
         group_certainty_values = []
@@ -832,26 +1183,59 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             if not group_slots:
                 continue
             group_matrix = candidate_matrix[group_slots]
-            group_a, group_c, group_s = consensus_components(group_matrix)
+            group_metrics = calculate_population_probe_metrics(
+                group_matrix, labels_for_metrics
+            )
+            group_a = float(group_metrics["agreement_mean"])
+            group_c = float(group_metrics["certainty_mean"])
+            group_s = float(group_metrics["effective_mean"])
             group_agreement_values.append((len(group_slots), group_a))
             group_certainty_values.append((len(group_slots), group_c))
             group_effective_values.append((len(group_slots), group_s))
 
         edge_vectors = nonempty_probability_vectors(experiment.edge_probe[index])
-        edge_matrix = np.stack(edge_vectors, axis=0) if edge_vectors else np.empty((0, candidate_matrix.shape[1]))
-        edge_a, edge_c, edge_s = consensus_components(edge_matrix)
+        edge_matrix = (
+            np.stack(edge_vectors, axis=0)
+            if edge_vectors else np.empty((0,) + candidate_matrix.shape[1:])
+        )
+        edge_metrics = calculate_population_probe_metrics(
+            edge_matrix, labels_for_metrics
+        )
+        edge_a = float(edge_metrics["agreement_mean"])
+        edge_c = float(edge_metrics["certainty_mean"])
+        edge_s = float(edge_metrics["effective_mean"])
         edge_cloud_a, edge_cloud_c, edge_cloud_s = mean_consensus_to_reference(
             edge_matrix, cloud_probability
         )
-        cloud_certainty = 1.0 - float(normalized_entropy(cloud_probability))
+        cloud_certainty = 1.0 - float(np.mean(normalized_entropy(cloud_probability)))
+        if labels_for_metrics is None:
+            cloud_probe_accuracy = float("nan")
+            cloud_true_probability = float("nan")
+        else:
+            cloud_probe_accuracy = float(
+                np.mean(np.argmax(cloud_probability, axis=1) == true_labels)
+            )
+            cloud_true_probability = float(np.mean(
+                cloud_probability[np.arange(true_labels.shape[0]), true_labels]
+            ))
+        active_coverage_ratio = float(len(active_slots)) / float(len(candidates))
+        if np.isfinite(active_metrics["correct_effective_mean"]):
+            coverage_weighted_active_correct = (
+                active_coverage_ratio
+                * float(active_metrics["correct_effective_mean"])
+            )
+        else:
+            coverage_weighted_active_correct = float("nan")
 
         cumulative_active += len(active)
         row = {
             "scenario": experiment.scenario,
             "label": experiment.label,
             "epoch": index + 1,
+            "probe_count": int(candidate_matrix.shape[1]),
             "candidate_count": len(candidates),
             "active_count": len(active),
+            "active_coverage_ratio": active_coverage_ratio,
             "cumulative_active": cumulative_active,
             "effective_edge_count": len(edge_vectors),
             "distributed_count": int(record["distributed_client_count"]),
@@ -864,16 +1248,31 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             "candidate_agreement": candidate_a,
             "candidate_certainty": candidate_c,
             "candidate_effective": candidate_s,
+            "candidate_correct_effective": float(candidate_metrics["correct_effective_mean"]),
+            "candidate_wrong_effective": float(candidate_metrics["wrong_effective_mean"]),
+            "candidate_effective_q25": float(candidate_metrics["effective_q25"]),
+            "candidate_effective_q50": float(candidate_metrics["effective_q50"]),
+            "candidate_effective_q75": float(candidate_metrics["effective_q75"]),
             "active_agreement": active_a,
             "active_certainty": active_c,
             "active_effective": active_s,
+            "active_correct_effective": float(active_metrics["correct_effective_mean"]),
+            "active_wrong_effective": float(active_metrics["wrong_effective_mean"]),
+            "active_effective_q25": float(active_metrics["effective_q25"]),
+            "active_effective_q50": float(active_metrics["effective_q50"]),
+            "active_effective_q75": float(active_metrics["effective_q75"]),
+            "coverage_weighted_active_correct_effective": coverage_weighted_active_correct,
             "within_group_agreement": weighted_group_metric(group_agreement_values),
             "within_group_certainty": weighted_group_metric(group_certainty_values),
             "within_group_effective": weighted_group_metric(group_effective_values),
             "edge_agreement": edge_a,
             "edge_certainty": edge_c,
             "edge_effective": edge_s,
+            "edge_correct_effective": float(edge_metrics["correct_effective_mean"]),
+            "edge_wrong_effective": float(edge_metrics["wrong_effective_mean"]),
             "cloud_certainty": cloud_certainty,
+            "cloud_probe_accuracy": cloud_probe_accuracy,
+            "cloud_true_class_probability": cloud_true_probability,
             "candidate_cloud_js": mean_js_to_reference(candidate_matrix, cloud_probability),
             "active_cloud_js": mean_js_to_reference(active_matrix, cloud_probability),
             "edge_cloud_js": mean_js_to_reference(edge_matrix, cloud_probability),
@@ -906,16 +1305,26 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
         "candidate_agreement",
         "candidate_certainty",
         "candidate_effective",
+        "candidate_correct_effective",
+        "candidate_wrong_effective",
         "active_agreement",
         "active_certainty",
         "active_effective",
+        "active_correct_effective",
+        "active_wrong_effective",
+        "active_coverage_ratio",
+        "coverage_weighted_active_correct_effective",
         "within_group_agreement",
         "within_group_certainty",
         "within_group_effective",
         "edge_agreement",
         "edge_certainty",
         "edge_effective",
+        "edge_correct_effective",
+        "edge_wrong_effective",
         "cloud_certainty",
+        "cloud_probe_accuracy",
+        "cloud_true_class_probability",
         "candidate_cloud_js",
         "active_cloud_js",
         "edge_cloud_js",
@@ -929,12 +1338,17 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             "active_certainty",
             "active_agreement",
             "active_effective",
+            "active_correct_effective",
+            "active_wrong_effective",
+            "coverage_weighted_active_correct_effective",
             "within_group_agreement",
             "within_group_certainty",
             "within_group_effective",
             "edge_agreement",
             "edge_certainty",
             "edge_effective",
+            "edge_correct_effective",
+            "edge_wrong_effective",
             "active_cloud_js",
             "edge_cloud_js",
             "edge_cloud_agreement",
@@ -951,7 +1365,94 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
     active_attainment = historical_best([float(row["active_effective_ma"]) for row in rows])
     for index, value in enumerate(active_attainment):
         rows[index]["active_effective_historical_best"] = float(value)
+    correct_attainment = historical_best([
+        float(row["candidate_correct_effective_ma"]) for row in rows
+    ])
+    for index, value in enumerate(correct_attainment):
+        rows[index]["candidate_correct_effective_historical_best"] = float(value)
     return rows
+
+
+def validate_npz_summary(
+        experiment: ExperimentData, round_rows: Sequence[Dict[str, object]]
+) -> None:
+    """用NPZ重算结果核对训练端摘要CSV，防止把派生文件直接当作可信来源。"""
+    if experiment.probe_format != "npz":
+        return
+    summary_filename = str(
+        experiment.metadata.get("probe_summary_file", "probe_epoch_summary.csv")
+    )
+    summary_path = experiment.path / summary_filename
+    with summary_path.open("r", encoding="utf-8", newline="") as handle:
+        summary_rows = list(csv.DictReader(handle))
+    if len(summary_rows) != len(round_rows):
+        raise ValueError(
+            "{}摘要CSV为{}行，NPZ重算为{}行。".format(
+                experiment.label, len(summary_rows), len(round_rows)
+            )
+        )
+    field_mapping = {
+        "candidate_agreement_mean": "candidate_agreement",
+        "candidate_certainty_mean": "candidate_certainty",
+        "candidate_effective_mean": "candidate_effective",
+        "candidate_correct_effective_mean": "candidate_correct_effective",
+        "candidate_wrong_effective_mean": "candidate_wrong_effective",
+        "candidate_effective_q25": "candidate_effective_q25",
+        "candidate_effective_q50": "candidate_effective_q50",
+        "candidate_effective_q75": "candidate_effective_q75",
+        "active_coverage": "active_coverage_ratio",
+        "active_effective_mean": "active_effective",
+        "active_correct_effective_mean": "active_correct_effective",
+        "active_wrong_effective_mean": "active_wrong_effective",
+        "active_effective_q25": "active_effective_q25",
+        "active_effective_q50": "active_effective_q50",
+        "active_effective_q75": "active_effective_q75",
+        "coverage_weighted_active_correct_effective": "coverage_weighted_active_correct_effective",
+        "edge_effective_mean": "edge_effective",
+        "edge_correct_effective_mean": "edge_correct_effective",
+        "cloud_probe_accuracy": "cloud_probe_accuracy",
+        "cloud_true_class_probability_mean": "cloud_true_class_probability",
+    }
+    for row_index, (saved, recomputed) in enumerate(
+            zip(summary_rows, round_rows)
+    ):
+        if int(saved["global_epoch"]) != row_index:
+            raise ValueError("探针摘要global_epoch未从0连续递增。")
+        if int(saved["active_count"]) != int(recomputed["active_count"]):
+            raise ValueError("探针摘要第{}轮活跃人数与NPZ重算不一致。".format(row_index))
+        if int(saved["probe_count"]) != int(recomputed["probe_count"]):
+            raise ValueError("探针摘要第{}轮探针数与NPZ重算不一致。".format(row_index))
+        if int(saved["candidate_count"]) != int(recomputed["candidate_count"]):
+            raise ValueError("探针摘要第{}轮候选数与NPZ重算不一致。".format(row_index))
+        for saved_field, computed_field in field_mapping.items():
+            text = str(saved.get(saved_field, "")).strip()
+            computed_value = float(recomputed[computed_field])
+            if not text:
+                if np.isfinite(computed_value):
+                    raise ValueError(
+                        "探针摘要第{}轮字段{}为空，但NPZ重算为有限值。".format(
+                            row_index, saved_field
+                        )
+                    )
+                continue
+            saved_value = float(text)
+            if not np.isfinite(computed_value) or not math.isclose(
+                    saved_value, computed_value, rel_tol=0.0, abs_tol=1e-6
+            ):
+                raise ValueError(
+                    "探针摘要第{}轮字段{}与NPZ重算不一致：{} vs {}。".format(
+                        row_index, saved_field, saved_value, computed_value
+                    )
+                )
+        # 每图拆分由共享公式保证，这里再校验epoch均值恒等式作为输出护栏。
+        if not math.isclose(
+                float(recomputed["candidate_correct_effective"])
+                + float(recomputed["candidate_wrong_effective"]),
+                float(recomputed["candidate_effective"]),
+                rel_tol=0.0,
+                abs_tol=1e-10,
+        ):
+            raise ValueError("正确与错误有效共识之和不等于纯有效共识。")
 
 
 def first_stable_epoch(values: Sequence[float], threshold: float, window: int = 5) -> Optional[int]:
@@ -960,6 +1461,31 @@ def first_stable_epoch(values: Sequence[float], threshold: float, window: int = 
     smoothed = trailing_mean(values, window, require_full_values=True)
     for index in range(window - 1, smoothed.size):
         remaining = smoothed[index:]
+        if np.all(np.isfinite(remaining)) and np.all(remaining >= threshold):
+            return int(index + 1)
+    return None
+
+
+def normalized_curve_area(values: Sequence[float], limit: int) -> float:
+    """计算前limit轮曲线的单位epoch归一化梯形面积，空序列返回NaN。"""
+    array = np.asarray(values, dtype=np.float64)[:int(limit)]
+    if array.size == 0 or not np.all(np.isfinite(array)):
+        return float("nan")
+    if array.size == 1:
+        return float(array[0])
+    area = np.sum((array[:-1] + array[1:]) * 0.5)
+    return float(area / float(array.size - 1))
+
+
+def first_stable_smoothed_epoch(
+        smoothed_values: Sequence[float], threshold: float, minimum_tail: int = 5
+) -> Optional[int]:
+    """返回MA曲线首次越线且之后不跌破，并至少保留minimum_tail个观察点的epoch。"""
+    values = np.asarray(smoothed_values, dtype=np.float64)
+    for index, value in enumerate(values):
+        remaining = values[index:]
+        if remaining.size < int(minimum_tail) or not np.isfinite(value):
+            continue
         if np.all(np.isfinite(remaining)) and np.all(remaining >= threshold):
             return int(index + 1)
     return None
@@ -979,8 +1505,26 @@ def summarize_experiment(
     candidate_a = np.asarray([float(row["candidate_agreement"]) for row in round_rows])
     candidate_c = np.asarray([float(row["candidate_certainty"]) for row in round_rows])
     candidate_s = np.asarray([float(row["candidate_effective"]) for row in round_rows])
+    candidate_correct_s = np.asarray([
+        float(row["candidate_correct_effective"]) for row in round_rows
+    ])
+    candidate_wrong_s = np.asarray([
+        float(row["candidate_wrong_effective"]) for row in round_rows
+    ])
     active_s = np.asarray([float(row["active_effective"]) for row in round_rows])
+    active_correct_s = np.asarray([
+        float(row["active_correct_effective"]) for row in round_rows
+    ])
+    coverage_weighted_correct = np.asarray([
+        float(row["coverage_weighted_active_correct_effective"])
+        for row in round_rows
+    ])
     candidate_s_ma = np.asarray([float(row["candidate_effective_ma"]) for row in round_rows])
+    # 达成速度固定使用MA10，避免用户只调整绘图窗口就改变论文主口径。
+    candidate_s_ma10 = trailing_mean(candidate_s, 10, require_full_values=True)
+    candidate_correct_s_ma10 = trailing_mean(
+        candidate_correct_s, 10, require_full_values=True
+    )
     active_s_ma = np.asarray([float(row["active_effective_ma"]) for row in round_rows])
     test_acc_ma = np.asarray([float(row["test_acc_ma"]) for row in round_rows])
     test_acc_delta = np.asarray([float(row["test_acc_delta"]) for row in round_rows])
@@ -1041,8 +1585,20 @@ def summarize_experiment(
         "effective_last10": float(np.mean(candidate_s[-10:])),
         "effective_last20": float(np.mean(candidate_s[-20:])),
         "effective_last20_std": float(np.std(candidate_s[-20:])),
-        "active_effective_last10": float(np.nanmean(active_s[-10:])),
-        "active_effective_last20": float(np.nanmean(active_s[-20:])),
+        "correct_effective_last10": finite_mean(candidate_correct_s[-10:]),
+        "correct_effective_last20": finite_mean(candidate_correct_s[-20:]),
+        "wrong_effective_last10": finite_mean(candidate_wrong_s[-10:]),
+        "wrong_effective_last20": finite_mean(candidate_wrong_s[-20:]),
+        "active_effective_last10": finite_mean(active_s[-10:]),
+        "active_effective_last20": finite_mean(active_s[-20:]),
+        "active_correct_effective_last20": finite_mean(active_correct_s[-20:]),
+        "coverage_weighted_active_correct_last20": finite_mean(
+            coverage_weighted_correct[-20:]
+        ),
+        "effective_auc50": normalized_curve_area(candidate_s, 50),
+        "effective_auc100": normalized_curve_area(candidate_s, 100),
+        "correct_effective_auc50": normalized_curve_area(candidate_correct_s, 50),
+        "correct_effective_auc100": normalized_curve_area(candidate_correct_s, 100),
         "effective_ma_best": float(np.nanmax(candidate_s_ma)),
         "active_effective_ma_best": float(np.nanmax(active_s_ma)),
         "consensus_accuracy_level_corr": safe_correlation(candidate_s_ma, test_acc_ma),
@@ -1057,6 +1613,13 @@ def summarize_experiment(
     for threshold in SUMMARY_THRESHOLDS:
         key = "stable_epoch_{:.2f}".format(threshold)
         result[key] = first_stable_epoch(test_acc, threshold, window=5)
+    for threshold in CONSENSUS_THRESHOLDS:
+        result["effective_ma10_stable_epoch_{:.2f}".format(threshold)] = (
+            first_stable_smoothed_epoch(candidate_s_ma10, threshold)
+        )
+        result["correct_effective_ma10_stable_epoch_{:.2f}".format(threshold)] = (
+            first_stable_smoothed_epoch(candidate_correct_s_ma10, threshold)
+        )
     return result
 
 
@@ -1492,19 +2055,36 @@ def plot_candidate_consensus_comparison(
         rows_by_scenario: Dict[str, List[Dict[str, object]]],
         summaries: Dict[str, Dict[str, object]], figure_dir: Path, smooth_window: int
 ) -> Path:
-    """在统一坐标中直接比较四方案固定候选的有效共识S。"""
+    """比较四方案纯/正确有效共识趋势，并用前50/100轮面积衡量达成速度。"""
 
     path = figure_dir / "08_四方案候选有效共识S对比.png"
     figure, axes = plt.subplots(
         1, 2, figsize=(15, 6.8), gridspec_kw={"width_ratios": [2.15, 1.0]}
     )
 
-    # 左图保留逐轮原始值作为波动背景，并用粗线突出相同窗口的平滑趋势。
+    has_correct_metrics = all(
+        np.any(np.isfinite([
+            float(row["candidate_correct_effective"]) for row in rows_by_scenario[scenario]
+        ]))
+        for scenario in SCENARIO_ORDER
+    )
+    # 新NPZ以正确有效共识为主趋势，并用同色点线保留纯有效共识作并列参照。
     for scenario in SCENARIO_ORDER:
         rows = rows_by_scenario[scenario]
         epochs = np.asarray([int(row["epoch"]) for row in rows])
-        raw = np.asarray([float(row["candidate_effective"]) for row in rows])
-        smooth = np.asarray([float(row["candidate_effective_ma"]) for row in rows])
+        if has_correct_metrics:
+            raw = np.asarray([
+                float(row["candidate_correct_effective"]) for row in rows
+            ])
+            smooth = np.asarray([
+                float(row["candidate_correct_effective_ma"]) for row in rows
+            ])
+            pure_smooth = np.asarray([
+                float(row["candidate_effective_ma"]) for row in rows
+            ])
+        else:
+            raw = np.asarray([float(row["candidate_effective"]) for row in rows])
+            smooth = np.asarray([float(row["candidate_effective_ma"]) for row in rows])
         color = SCENARIO_COLORS[scenario]
         linestyle = SCENARIO_LINESTYLES[scenario]
         axes[0].plot(
@@ -1514,49 +2094,78 @@ def plot_candidate_consensus_comparison(
             epochs, smooth, color=color, linestyle=linestyle, linewidth=2.2,
             label=SCENARIO_LABELS[scenario],
         )
-    style_axis(axes[0], "候选有效共识 S", (0, 1.02))
+        if has_correct_metrics:
+            axes[0].plot(
+                epochs, pure_smooth, color=color, linestyle=":", linewidth=1.0,
+                alpha=0.45,
+            )
+    style_axis(
+        axes[0],
+        "候选正确有效共识 S" if has_correct_metrics else "候选有效共识 S",
+        (0, 1.02),
+    )
     axes[0].set_title("逐轮趋势与{}轮尾随均值".format(smooth_window), loc="left", fontweight="bold")
     axes[0].legend(frameon=False, loc="upper left", ncol=2)
 
-    # 右图从零开始显示绝对水平；误差线仅表示最后20轮的轮间波动。
     positions = np.arange(len(SCENARIO_ORDER))
-    last20_means = np.asarray([
-        float(summaries[scenario]["effective_last20"]) for scenario in SCENARIO_ORDER
-    ])
-    last20_stds = np.asarray([
-        float(summaries[scenario]["effective_last20_std"]) for scenario in SCENARIO_ORDER
-    ])
-    bars = axes[1].bar(
-        positions, last20_means, width=0.68,
-        color=[SCENARIO_COLORS[scenario] for scenario in SCENARIO_ORDER],
-        edgecolor="#344054", linewidth=0.7, zorder=2,
-    )
-    axes[1].errorbar(
-        positions, last20_means, yerr=last20_stds, fmt="none", ecolor="#344054",
-        elinewidth=1.2, capsize=4, capthick=1.2, zorder=3,
-    )
-    upper_limit = min(1.02, max(0.82, float(np.max(last20_means + last20_stds)) * 1.15))
-    for bar, mean, std in zip(bars, last20_means, last20_stds):
-        axes[1].text(
-            bar.get_x() + bar.get_width() / 2.0, mean + std + 0.018,
-            "{:.4f}".format(mean), ha="center", va="bottom", fontsize=9,
-            color="#101828", fontweight="bold",
+    if has_correct_metrics:
+        auc50 = np.asarray([
+            float(summaries[scenario]["correct_effective_auc50"])
+            for scenario in SCENARIO_ORDER
+        ])
+        auc100 = np.asarray([
+            float(summaries[scenario]["correct_effective_auc100"])
+            for scenario in SCENARIO_ORDER
+        ])
+        width = 0.34
+        axes[1].bar(
+            positions - width / 2.0, auc50, width=width, color="#93C5FD",
+            edgecolor="#344054", linewidth=0.6, label="前50轮面积",
         )
+        axes[1].bar(
+            positions + width / 2.0, auc100, width=width, color="#2563EB",
+            edgecolor="#344054", linewidth=0.6, label="前100轮面积",
+        )
+        upper_limit = min(1.02, max(0.2, float(np.nanmax([auc50, auc100])) * 1.18))
+        axes[1].set_ylabel("正确有效共识归一化面积")
+        axes[1].set_title("越早越高：前50/100轮面积", loc="left", fontweight="bold")
+        axes[1].legend(frameon=False, fontsize=8.5)
+    else:
+        last20_means = np.asarray([
+            float(summaries[scenario]["effective_last20"]) for scenario in SCENARIO_ORDER
+        ])
+        last20_stds = np.asarray([
+            float(summaries[scenario]["effective_last20_std"]) for scenario in SCENARIO_ORDER
+        ])
+        axes[1].bar(
+            positions, last20_means, width=0.68,
+            color=[SCENARIO_COLORS[scenario] for scenario in SCENARIO_ORDER],
+            edgecolor="#344054", linewidth=0.7, zorder=2,
+        )
+        axes[1].errorbar(
+            positions, last20_means, yerr=last20_stds, fmt="none", ecolor="#344054",
+            elinewidth=1.2, capsize=4, capthick=1.2, zorder=3,
+        )
+        upper_limit = min(1.02, max(0.82, float(np.max(last20_means + last20_stds)) * 1.15))
+        axes[1].set_ylabel("候选有效共识 S")
+        axes[1].set_title("最后20轮均值与轮间标准差", loc="left", fontweight="bold")
     axes[1].set_xticks(positions)
     axes[1].set_xticklabels([SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER], rotation=14)
     axes[1].set_xlabel("方案")
-    axes[1].set_ylabel("候选有效共识 S")
     axes[1].set_ylim(0, upper_limit)
     axes[1].grid(True, axis="y", color="#EAECF0", linewidth=0.8, zorder=0)
     axes[1].spines["top"].set_visible(False)
     axes[1].spines["right"].set_visible(False)
-    axes[1].set_title("最后20轮均值与轮间标准差", loc="left", fontweight="bold")
 
     candidate_total = int(rows_by_scenario[SCENARIO_ORDER[0]][0]["candidate_count"])
     add_figure_header(
         figure,
-        "四方案固定{}候选的有效共识S对比".format(candidate_total),
-        "左图浅线为逐轮值、粗线为{}轮尾随均值；右图误差线不是多种子置信区间".format(smooth_window),
+        "四方案固定{}候选的纯/正确有效共识对比".format(candidate_total),
+        (
+            "左图粗线为正确S的{}轮尾随均值、同色点线为纯S；右图用前50/100轮面积衡量达成速度"
+            if has_correct_metrics else
+            "历史CSV缺少完整真值，左图展示纯S的{}轮尾随均值，右图为后20轮描述统计"
+        ).format(smooth_window),
     )
     save_figure(figure, path)
     return path
@@ -1813,8 +2422,22 @@ def export_summary_rows(summaries: Dict[str, Dict[str, object]]) -> List[Dict[st
                 "后10轮有效共识S": item["effective_last10"],
                 "后20轮有效共识S": item["effective_last20"],
                 "后20轮有效共识S标准差": item["effective_last20_std"],
+                "后20轮正确有效共识S": item["correct_effective_last20"],
+                "后20轮错误有效共识S": item["wrong_effective_last20"],
                 "后10轮活跃客户端有效共识S": item["active_effective_last10"],
                 "后20轮活跃客户端有效共识S": item["active_effective_last20"],
+                "后20轮活跃客户端正确有效共识S": item["active_correct_effective_last20"],
+                "后20轮覆盖加权活跃正确有效共识S": item["coverage_weighted_active_correct_last20"],
+                "纯有效共识前50轮归一化面积": item["effective_auc50"],
+                "纯有效共识前100轮归一化面积": item["effective_auc100"],
+                "正确有效共识前50轮归一化面积": item["correct_effective_auc50"],
+                "正确有效共识前100轮归一化面积": item["correct_effective_auc100"],
+                "纯有效共识MA10稳定达到0.60轮次": item["effective_ma10_stable_epoch_0.60"],
+                "纯有效共识MA10稳定达到0.70轮次": item["effective_ma10_stable_epoch_0.70"],
+                "纯有效共识MA10稳定达到0.80轮次": item["effective_ma10_stable_epoch_0.80"],
+                "正确有效共识MA10稳定达到0.60轮次": item["correct_effective_ma10_stable_epoch_0.60"],
+                "正确有效共识MA10稳定达到0.70轮次": item["correct_effective_ma10_stable_epoch_0.70"],
+                "正确有效共识MA10稳定达到0.80轮次": item["correct_effective_ma10_stable_epoch_0.80"],
                 "最高10轮平滑有效共识": item["effective_ma_best"],
                 "最高10轮平滑活跃客户端有效共识": item["active_effective_ma_best"],
                 "平滑共识与平滑准确率同期相关": item["consensus_accuracy_level_corr"],
@@ -1834,8 +2457,10 @@ def export_round_rows(rows_by_scenario: Dict[str, List[Dict[str, object]]]) -> L
         ("label", "方案"),
         ("scenario", "场景"),
         ("epoch", "轮次"),
+        ("probe_count", "固定探针图片数"),
         ("candidate_count", "候选客户端数"),
         ("active_count", "最终参与客户端数"),
+        ("active_coverage_ratio", "活跃候选覆盖率"),
         ("cumulative_active", "累计参与客户端次"),
         ("effective_edge_count", "有效边缘数"),
         ("distributed_count", "下发客户端数"),
@@ -1849,19 +2474,34 @@ def export_round_rows(rows_by_scenario: Dict[str, List[Dict[str, object]]]) -> L
         ("candidate_agreement", "候选一致性A"),
         ("candidate_certainty", "候选确定性C"),
         ("candidate_effective", "候选有效共识S"),
+        ("candidate_correct_effective", "候选正确有效共识S"),
+        ("candidate_wrong_effective", "候选错误有效共识S"),
+        ("candidate_effective_q25", "候选有效共识S_P25"),
+        ("candidate_effective_q50", "候选有效共识S_P50"),
+        ("candidate_effective_q75", "候选有效共识S_P75"),
         ("candidate_effective_ma", "候选有效共识尾随均值"),
+        ("candidate_correct_effective_ma", "候选正确有效共识尾随均值"),
+        ("candidate_wrong_effective_ma", "候选错误有效共识尾随均值"),
         ("candidate_effective_historical_best", "历史最佳平滑共识"),
+        ("candidate_correct_effective_historical_best", "正确有效共识历史最佳"),
         ("active_effective_historical_best", "参与者历史最佳平滑共识"),
         ("active_agreement", "参与者一致性A"),
         ("active_certainty", "参与者确定性C"),
         ("active_effective", "参与者有效共识S"),
+        ("active_correct_effective", "参与者正确有效共识S"),
+        ("active_wrong_effective", "参与者错误有效共识S"),
+        ("coverage_weighted_active_correct_effective", "覆盖率加权参与者正确有效共识S"),
         ("within_group_agreement", "组内一致性A_人数加权"),
         ("within_group_certainty", "组内确定性C_人数加权"),
         ("within_group_effective", "组内有效共识S_人数加权"),
         ("edge_agreement", "边缘间一致性A"),
         ("edge_certainty", "边缘模型确定性C"),
         ("edge_effective", "边缘间有效共识S"),
+        ("edge_correct_effective", "边缘正确有效共识S"),
+        ("edge_wrong_effective", "边缘错误有效共识S"),
         ("cloud_certainty", "云模型确定性"),
+        ("cloud_probe_accuracy", "固定探针云端准确率"),
+        ("cloud_true_class_probability", "云端真实类别平均概率"),
         ("candidate_cloud_js", "候选客户端到云平均JS"),
         ("active_cloud_js", "参与客户端到云平均JS"),
         ("edge_cloud_js", "边缘到云平均JS"),
@@ -2080,11 +2720,19 @@ def build_current_report_text(
         ])
         consensus_rows.append([
             item["label"], format_number(item["effective_last20"], 4),
-            format_number(item["effective_last20_std"], 4),
-            format_number(item["active_effective_last20"], 4),
-            format_number(item["effective_ma_best"], 4),
-            format_number(item["active_effective_ma_best"], 4),
-            format_number(item["active_count_accuracy_delta_corr"], 3),
+            format_number(item["correct_effective_last20"], 4),
+            format_number(item["wrong_effective_last20"], 4),
+            format_number(item["active_correct_effective_last20"], 4),
+            format_number(item["coverage_weighted_active_correct_last20"], 4),
+            "{}/{}".format(
+                format_number(item["effective_auc50"], 4),
+                format_number(item["effective_auc100"], 4),
+            ),
+            "{}/{}".format(
+                format_number(item["correct_effective_auc50"], 4),
+                format_number(item["correct_effective_auc100"], 4),
+            ),
+            item["correct_effective_ma10_stable_epoch_0.60"] or "未稳定达到",
         ])
 
     contrast_rows = [[
@@ -2117,6 +2765,55 @@ def build_current_report_text(
     candidate_top_label = summaries[
         max(SCENARIO_ORDER, key=lambda key: summaries[key]["effective_last20"])
     ]["label"]
+    fixed_probe_mode = str(profile.get("probe_format")) == "npz"
+    if fixed_probe_mode:
+        probe_evidence_limit = (
+            "固定探针已保存真实标签并通过四方案哈希核对；当前主要限制是只有单随机种子，"
+            "且没有可靠耗时和硬件日志"
+        )
+        probe_storage_statement = (
+            "探针使用固定、类别均衡的{probe_count}张图片，每类10张；客户端、边缘和云概率"
+            "分别来自压缩NPZ，未启用边缘槽位为整块NaN。四方案探针SHA-256为"
+            "`{probe_hash}`。每张图片先独立计算A、C、S，再在epoch内取平均。"
+        ).format(
+            probe_count=profile["probe_count"], probe_hash=profile["probe_set_hash"]
+        )
+        probe_longitudinal_statement = (
+            "全部epoch使用同一批固定图片与顺序，因此MA10可解释为相同探针集合上的纵向趋势。"
+            "历史最佳仍只作辅助展示；“达成更快”以原始epoch均值的前50/100轮面积和MA10稳定越线为准。"
+        )
+        correctness_statement = (
+            "真实标签允许把纯有效共识拆成正确和错误两部分，并同时报告固定探针云端准确率；"
+            "这仍不能替代完整测试集test_acc。"
+        )
+        probe_limitation_bullet = (
+            "- 固定探针只覆盖测试集中的100张类别均衡图片，用于机制监控；最终性能仍以完整测试集 `test_acc` 为准。"
+        )
+        probe_next_step = (
+            "3. 在至少5个匹配随机种子上重复当前固定探针方案，并报告均值、标准差或置信区间。"
+        )
+    else:
+        probe_evidence_limit = (
+            "历史探针每轮更换样本且部分批次没有真值标签；同时只有单随机种子，"
+            "也没有可靠耗时和硬件日志"
+        )
+        probe_storage_statement = (
+            "本批使用历史单图CSV：每轮只有1张探针图片，边缘空单元格表示未启用槽位。"
+            "该格式不具备固定多图哈希。"
+        )
+        probe_longitudinal_statement = (
+            "每轮探针使用不同测试样本，所以曲线同时包含模型学习进展和样本难度变化，"
+            "不能当成同一样本上的纯收敛轨迹。历史最佳只作辅助展示。"
+        )
+        correctness_statement = (
+            "历史结果缺少完整真实标签时，无法区分正确共识和集体错误。"
+        )
+        probe_limitation_bullet = (
+            "- 历史单图探针每轮样本不同且可能没有真实标签，不能可靠比较固定样本的纵向正确/错误共识。"
+        )
+        probe_next_step = (
+            "3. 使用当前代码重新运行固定100图探针实验，获得正确/错误共识和跨方案探针哈希。"
+        )
     if len(missing_mat_scenarios) == len(SCENARIO_ORDER):
         mat_path_statement = (
             "运行元数据中的MAT绝对路径在当前工作区均不可访问（{}）"
@@ -2146,11 +2843,13 @@ def build_current_report_text(
 - **后20轮效果最好的是 {best_label}，波动最小的是 {stable_label}。** 最佳方案的后20轮平均测试准确率为 **{best_acc}**，其标准差为 **{best_std:.2f} 个百分点**。
 - **本批SnF相对noSnF的后20轮差值在HFL内为 {hfl_gain:+.3f} 个百分点，在FL内为 {fl_gain:+.3f} 个百分点。** 这些差值不是纯SnF因果效应，因为对应方案的累计活跃客户端次数也可能不同。
 - **四方案均记录了{rounds}轮，但有效参与预算并不相同。** HFL-SnF、HFL-noSnF、FL-SnF、FL-noSnF累计活跃客户端次数分别为 **{hfl_snf_total}、{hfl_no_total}、{fl_snf_total}、{fl_no_total}**。
-- **证据评级：可分享但附带限制。** 结果完整且关键运行不变量通过检查，但只有单随机种子、探针每轮更换样本且没有真值标签，也没有可靠耗时和硬件日志。
+- **证据评级：可分享但附带限制。** 结果完整且关键运行不变量通过检查；{probe_evidence_limit}。
 
 ## 1. 数据完整性与运行语义
 
-四个实验的调度、训练/测试准确率、训练/测试损失和三层概率探针均为 **{rounds}轮**。客户端探针逐轮固定{candidate_total}列；HFL边缘探针固定{hfl_edge_slot_count}个物理槽位并保留未启用组的空单元格；FL边缘探针固定{fl_edge_slot_count}个槽位；云探针固定1列。所有非空概率向量均为{class_count}维、数值有限且概率和接近1。
+四个实验的调度、训练/测试准确率、训练/测试损失和三层概率探针均为 **{rounds}轮**。客户端探针逐轮固定{candidate_total}列；HFL边缘探针固定{hfl_edge_slot_count}个物理槽位，FL边缘探针固定{fl_edge_slot_count}个槽位；云探针固定1列。所有非空概率向量均为{class_count}维、数值有限且概率和接近1。
+
+{probe_storage_statement}
 
 固定候选顺序为：`{fixed_candidates}`。四方案、全部epoch均使用同一顺序，MAT活跃槽位、真实客户端分组和人数之和逐轮一致。正常轮产生聚合，零参与轮不产生新聚合；两种情况下都向0至{last_client_id}号全部客户端下发当前云模型。
 
@@ -2182,7 +2881,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 ## 4. 固定候选、活跃客户端与有效共识
 
-有效共识分成概率一致性A、预测确定性C和二者乘积S。只看A会把“所有模型共同接近均匀分布”误判成高共识，因此报告以S为主要共识指标。
+有效共识分成概率一致性A、各客户端预测确定性C和二者乘积S。只看A会把“所有模型共同接近均匀分布”误判成高共识。报告把纯有效共识S与正确有效共识并列为主指标，以错误有效共识作为护栏。
 
 {consensus_table}
 
@@ -2196,13 +2895,13 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 ![当前平滑共识与历史最佳](figures/05_平滑共识与历史最佳.png)
 
-历史最佳曲线天然单调不降，只表示曾经达到过的水平；判断退化必须读取当前平滑共识。每轮探针使用不同测试样本，所以曲线同时包含模型学习进展和样本难度变化，不能当成同一样本上的纯收敛轨迹。
+历史最佳曲线天然单调不降，只表示曾经达到过的水平；判断退化必须读取当前平滑共识。{probe_longitudinal_statement}
 
 ## 5. HFL层级传播
 
 ![HFL层级共识传播](figures/06_HFL层级共识传播.png)
 
-层级指标直接使用JSONL的MAT槽位到边缘组映射，组内指标按实际组人数加权；边缘空槽位不会被压缩后错误对应到其他组。边缘和云输出更集中并不自动表示预测正确，因为结果没有保存探针真实标签，无法区分正确共识和集体错误。
+层级指标直接使用JSONL的MAT槽位到边缘组映射，组内指标按实际组人数加权；边缘空槽位不会被压缩后错误对应到其他组。{correctness_statement}
 
 ## 6. 固定{candidate_total}人的活跃公平性与精度波动
 
@@ -2221,7 +2920,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 - 当前工作区四份YAML配置轮数为 {yaml_rounds}，本批实际结果轮数为 {rounds}；两者是否一致见数据质量检查。{trainer_semantics_text}。
 - 结果没有保存Git提交、完整运行环境、模型快照和逐客户端训练事件，因此不能从结果文件独立证明每一次本地训练调用确实发生。
 - 运行时MAT绝对路径已失效，但JSONL保存了逐轮真实槽位、分组和下发对象，足以完成本报告的运行后分析。
-- 探针每轮样本不同且没有真实标签，不能计算正确共识、错误共识或固定样本的纵向变化。
+{probe_limitation_bullet}
 - 结果没有阶段耗时、GPU利用率、驱动和PyTorch CUDA信息，不能用于比较4090与4060训练速度。
 - 单随机种子不支持置信区间、显著性检验或稳定性外推。
 
@@ -2229,7 +2928,7 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 1. 下一批实验保存Git提交、完整YAML、MAT文件哈希、CUDA环境和分阶段耗时。
 2. 使用至少5个随机种子，并在SnF/noSnF之间匹配每轮活跃人数或累计样本预算。
-3. 将探针改为固定小批量并保存真实标签，分别报告正确共识、错误共识和样本难度分层结果。
+{probe_next_step}
 4. 若研究通信效率，额外保存上下行模型字节数和真实传输次数，避免只使用客户端次数代理。
 
 本报告由 `analyze_experiment_suite.py` 从原始结果重新计算；逐轮证据、质量检查和来源哈希见同目录CSV及 `analysis_manifest.json`。
@@ -2239,6 +2938,12 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
         best_acc=format_percent(summaries[best_scenario]["last20_test_acc_mean"]),
         best_std=100.0 * summaries[best_scenario]["last20_test_acc_std"],
         stable_label=summaries[stable_scenario]["label"],
+        probe_evidence_limit=probe_evidence_limit,
+        probe_storage_statement=probe_storage_statement,
+        probe_longitudinal_statement=probe_longitudinal_statement,
+        correctness_statement=correctness_statement,
+        probe_limitation_bullet=probe_limitation_bullet,
+        probe_next_step=probe_next_step,
         hfl_gain=hfl_gain["后20轮准确率差_百分点"],
         fl_gain=fl_gain["后20轮准确率差_百分点"],
         hfl_snf_total=summaries["hfl_snf_fixed"]["active_total"],
@@ -2271,7 +2976,11 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
             participation_rows,
         ),
         consensus_table=markdown_table(
-            ["方案", "候选后20轮S", "候选后20轮S标准差", "活跃后20轮S", "候选最高MA10", "活跃最高MA10", "活跃人数—精度变化相关"],
+            [
+                "方案", "候选后20轮纯S", "候选后20轮正确S", "候选后20轮错误S",
+                "活跃后20轮正确S", "覆盖加权活跃正确S", "纯S面积50/100",
+                "正确S面积50/100", "正确S的MA10稳定达到0.60",
+            ],
             consensus_rows,
         ),
         candidate_consensus_ranking=candidate_consensus_ranking,
@@ -2296,7 +3005,12 @@ def build_manifest(
     sources = {}
     for experiment in experiments:
         hashes = {}
-        for filename in REQUIRED_RESULT_FILES + OPTIONAL_RESULT_FILES:
+        source_filenames = (
+            COMMON_REQUIRED_RESULT_FILES
+            + get_probe_input_files(experiment.path, experiment.metadata)
+            + OPTIONAL_RESULT_FILES
+        )
+        for filename in source_filenames:
             path = experiment.path / filename
             if path.is_file():
                 hashes[filename] = sha256_file(path)
@@ -2304,6 +3018,9 @@ def build_manifest(
             "label": experiment.label,
             "path": str(experiment.path),
             "rounds": len(experiment.schedule),
+            "probe_format": experiment.probe_format,
+            "probe_count": int(experiment.true_labels.shape[1]),
+            "probe_set_hash": experiment.probe_set_hash or None,
             "has_probe_meta": (experiment.path / "probe_meta.csv").is_file(),
             "hashes": hashes,
         }
@@ -2335,12 +3052,16 @@ def build_manifest(
         "运行时MAT绝对路径在当前工作区失效，分析以JSONL为准",
         "没有可靠运行时间和通信字节日志",
     ]
-    if not all((experiment.path / "probe_meta.csv").is_file() for experiment in experiments):
-        # 历史批次仍需明确提示无法判断探针共识是否对应真实类别。
-        limitations.insert(3, "至少一组实验的探针样本每轮变化且没有保存真值标签")
+    if any(
+            experiment.probe_format == "legacy_csv"
+            and np.any(experiment.true_labels < 0)
+            for experiment in experiments
+    ):
+        # 仅对缺失真值的历史格式保留这项解释限制。
+        limitations.insert(3, "至少一组历史单图探针没有保存真值标签")
 
     return {
-        "schema_version": "3.0",
+        "schema_version": "4.0",
         "generated_at": datetime.now().astimezone().isoformat(),
         "confidence": "可分享但附带限制",
         "source_precedence": [
@@ -2352,6 +3073,7 @@ def build_manifest(
             "smooth_window": smooth_window,
             "stable_threshold_window": 5,
             "thresholds": list(SUMMARY_THRESHOLDS),
+            "consensus_thresholds": list(CONSENSUS_THRESHOLDS),
             "lag_range": [-10, 10],
         },
         "batch_profile": profile,
@@ -2475,6 +3197,22 @@ def _run_analysis(
         experiment.scenario: build_round_metrics(experiment, smooth_window)
         for experiment in experiments
     }
+    for experiment in experiments:
+        validate_npz_summary(
+            experiment, rows_by_scenario[experiment.scenario]
+        )
+        add_quality_check(
+            quality_checks,
+            experiment.label,
+            "训练端探针摘要可由原始探针重算",
+            "通过" if experiment.probe_format == "npz" else "不适用",
+            (
+                "逐字段在1e-6容差内核对"
+                if experiment.probe_format == "npz"
+                else "历史CSV没有独立的逐epoch摘要文件"
+            ),
+            "关键" if experiment.probe_format == "npz" else "低",
+        )
     summaries = {
         experiment.scenario: summarize_experiment(
             experiment, rows_by_scenario[experiment.scenario], smooth_window

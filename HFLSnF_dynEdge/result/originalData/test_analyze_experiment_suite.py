@@ -15,19 +15,23 @@ from analyze_experiment_suite import (
     REQUIRED_RESULT_FILES,
     build_batch_profile,
     build_fixed_candidate_activity_matrix,
+    build_round_metrics,
     consensus_components,
     discover_experiment_dirs,
     first_stable_epoch,
+    first_stable_smoothed_epoch,
     generalized_js_divergence,
     historical_best,
     load_experiment,
     map_client_ids_to_slots,
     normalized_entropy,
+    normalized_curve_area,
     parse_args,
     read_probability_csv,
     run_analysis,
     trailing_mean,
     validate_experiment,
+    validate_npz_summary,
     validate_probability_vector,
 )
 
@@ -246,6 +250,391 @@ class DiscoveryValidationTest(unittest.TestCase):
             self._create_stub_experiment(parent, "second", "hfl_snf_fixed")
             with self.assertRaisesRegex(ValueError, "匹配到 2 个目录"):
                 discover_experiment_dirs(parent)
+
+
+class FixedNpzAnalysisTest(unittest.TestCase):
+    """验证固定100图NPZ的发现、读取、配对、指标与摘要审计。"""
+
+    @staticmethod
+    def _create_npz_experiment(
+            parent: Path,
+            name: str,
+            scenario: str,
+            epochs: int = 2,
+            probe_hash: str = "a" * 64,
+            probe_index_offset: int = 0,
+            active_slots_by_epoch=None,
+    ) -> Path:
+        """创建可由正式分析器读取的最小固定100图实验目录。"""
+        directory = parent / name
+        directory.mkdir()
+        candidate_ids = np.asarray([10, 20, 30], dtype=np.int64)
+        if active_slots_by_epoch is None:
+            active_slots_by_epoch = [[0, 1, 2] for _ in range(epochs)]
+        if len(active_slots_by_epoch) != epochs:
+            raise ValueError("测试夹具的活跃槽位轮数必须与epochs一致。")
+
+        edge_slot_count = 2 if scenario.startswith("hfl_") else 1
+        metadata = {
+            "scenario": scenario,
+            "probe_output_format": "npz",
+            "probe_source": "test",
+            "probe_samples_per_class": 10,
+            "probe_npz_file": "probe_probabilities.npz",
+            "probe_summary_file": "probe_epoch_summary.csv",
+            "client_num_in_total": 40,
+            "client_num_per_round": 3,
+            "configured_comm_round": epochs,
+            "partition_alpha": 0.2,
+            "topology_util": 0.5,
+            "random_seed": 0,
+            "model_distribution_scope": "all",
+            "experiment_tag": "fixed-probe-unit-test",
+            "group_capacity": 2,
+            "round_count": epochs,
+            "fixed_candidate_client_indexes": candidate_ids.tolist(),
+            "mat_candidate_slot_to_client_index": {
+                str(slot): int(client_id)
+                for slot, client_id in enumerate(candidate_ids)
+            },
+        }
+        (directory / "topology_metadata.json").write_text(
+            json.dumps(metadata, ensure_ascii=False), encoding="utf-8"
+        )
+
+        schedule_rows = []
+        active_mask = np.zeros((epochs, candidate_ids.size), dtype=np.bool_)
+        for epoch_index, raw_slots in enumerate(active_slots_by_epoch):
+            slots = [int(value) for value in raw_slots]
+            active_mask[epoch_index, slots] = True
+            active_ids = [int(candidate_ids[slot]) for slot in slots]
+            if scenario.startswith("hfl_"):
+                first_group = [slot for slot in slots if slot in (0, 1)]
+                second_group = [slot for slot in slots if slot == 2]
+                group_slots = {}
+                if first_group:
+                    group_slots["0"] = first_group
+                if second_group:
+                    group_slots["1"] = second_group
+            else:
+                group_slots = {"0": slots} if slots else {}
+            group_clients = {
+                group_id: [int(candidate_ids[slot]) for slot in group_slots_value]
+                for group_id, group_slots_value in group_slots.items()
+            }
+            group_counts = {
+                group_id: len(group_slots_value)
+                for group_id, group_slots_value in group_slots.items()
+            }
+            schedule_rows.append({
+                "global_epoch": epoch_index,
+                "candidate_client_indexes": candidate_ids.tolist(),
+                "active_client_indexes": active_ids,
+                "active_client_count": len(active_ids),
+                "mat_active_candidate_slots": slots,
+                "mat_group_to_candidate_slots": group_slots,
+                "mat_group_client_counts": group_counts,
+                "group_to_client_indexes": group_clients,
+                "distributed_client_count": 40,
+                "distributed_client_indexes": list(range(40)),
+                "aggregated": bool(active_ids),
+            })
+        (directory / "topology_schedule.jsonl").write_text(
+            "".join(
+                json.dumps(row, ensure_ascii=False) + "\n" for row in schedule_rows
+            ),
+            encoding="utf-8",
+        )
+
+        for filename, value in (
+                ("train_acc.txt", 0.8),
+                ("train_loss.txt", 0.4),
+                ("test_acc.txt", 0.75),
+                ("test_loss.txt", 0.5),
+        ):
+            (directory / filename).write_text(
+                "".join("{}\n".format(value) for _ in range(epochs)),
+                encoding="utf-8",
+            )
+
+        # 100张图片严格按类别0至9排列，每类10张；所有模型均确定且预测正确。
+        true_labels = np.repeat(np.arange(10, dtype=np.int64), 10)
+        one_hot = np.eye(10, dtype=np.float32)[true_labels]
+        client_probabilities = np.tile(
+            one_hot[None, None, :, :], (epochs, candidate_ids.size, 1, 1)
+        )
+        edge_probabilities = np.tile(
+            one_hot[None, None, :, :], (epochs, edge_slot_count, 1, 1)
+        )
+        edge_active_mask = np.ones(
+            (epochs, edge_slot_count), dtype=np.bool_
+        )
+        if scenario.startswith("fl_"):
+            # 普通FL没有边缘模型，唯一占位槽必须整块为NaN。
+            edge_probabilities[:] = np.nan
+            edge_active_mask[:] = False
+        cloud_probabilities = np.tile(one_hot[None, :, :], (epochs, 1, 1))
+        np.savez_compressed(
+            str(directory / "probe_probabilities.npz"),
+            schema_version=np.asarray("fixed_probe_v1"),
+            client_probabilities=client_probabilities,
+            edge_probabilities=edge_probabilities,
+            cloud_probabilities=cloud_probabilities,
+            active_client_mask=active_mask,
+            edge_active_mask=edge_active_mask,
+            client_ids=candidate_ids,
+            probe_indices=np.arange(100, dtype=np.int64) + int(probe_index_offset),
+            true_labels=true_labels,
+            global_epochs=np.arange(epochs, dtype=np.int64),
+            completed_epochs=np.asarray(epochs, dtype=np.int64),
+            probe_set_hash=np.asarray(probe_hash),
+            probe_source=np.asarray("test"),
+        )
+        # 读取阶段只要求摘要存在；需要审计时由测试按NPZ重算值补写。
+        (directory / "probe_epoch_summary.csv").write_text("", encoding="utf-8")
+        return directory
+
+    @staticmethod
+    def _write_matching_summary(
+            experiment, round_rows
+    ) -> None:
+        """把分析器重算值写成训练端摘要格式，供双向一致性校验。"""
+        field_mapping = {
+            "candidate_agreement_mean": "candidate_agreement",
+            "candidate_certainty_mean": "candidate_certainty",
+            "candidate_effective_mean": "candidate_effective",
+            "candidate_correct_effective_mean": "candidate_correct_effective",
+            "candidate_wrong_effective_mean": "candidate_wrong_effective",
+            "candidate_effective_q25": "candidate_effective_q25",
+            "candidate_effective_q50": "candidate_effective_q50",
+            "candidate_effective_q75": "candidate_effective_q75",
+            "active_coverage": "active_coverage_ratio",
+            "active_effective_mean": "active_effective",
+            "active_correct_effective_mean": "active_correct_effective",
+            "active_wrong_effective_mean": "active_wrong_effective",
+            "active_effective_q25": "active_effective_q25",
+            "active_effective_q50": "active_effective_q50",
+            "active_effective_q75": "active_effective_q75",
+            "coverage_weighted_active_correct_effective": (
+                "coverage_weighted_active_correct_effective"
+            ),
+            "edge_effective_mean": "edge_effective",
+            "edge_correct_effective_mean": "edge_correct_effective",
+            "cloud_probe_accuracy": "cloud_probe_accuracy",
+            "cloud_true_class_probability_mean": "cloud_true_class_probability",
+        }
+        fieldnames = [
+            "global_epoch", "probe_count", "candidate_count", "active_count"
+        ] + list(field_mapping)
+        summary_path = experiment.path / "probe_epoch_summary.csv"
+        with summary_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for epoch_index, round_row in enumerate(round_rows):
+                output = {
+                    "global_epoch": epoch_index,
+                    "probe_count": int(round_row["probe_count"]),
+                    "candidate_count": int(round_row["candidate_count"]),
+                    "active_count": int(round_row["active_count"]),
+                }
+                for saved_field, computed_field in field_mapping.items():
+                    value = float(round_row[computed_field])
+                    output[saved_field] = "" if not np.isfinite(value) else repr(value)
+                writer.writerow(output)
+
+    def test_npz_only_directories_are_discovered_and_loaded(self):
+        """确认四方案只有NPZ而没有旧CSV时仍能被发现并完整加载。"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for scenario in SCENARIO_ORDER:
+                self._create_npz_experiment(root, scenario, scenario)
+
+            discovered = discover_experiment_dirs(root)
+            experiments = [load_experiment(path) for path in discovered]
+
+        self.assertEqual([item.scenario for item in experiments], SCENARIO_ORDER)
+        self.assertTrue(all(item.probe_format == "npz" for item in experiments))
+        self.assertTrue(all(item.true_labels.shape == (2, 100) for item in experiments))
+        self.assertTrue(all(len(item.client_probe[0]) == 3 for item in experiments))
+        self.assertTrue(
+            all(item.client_probe[0][0].shape == (100, 10) for item in experiments)
+        )
+        self.assertTrue(
+            all(
+                not (item.path / legacy_filename).exists()
+                for item in experiments
+                for legacy_filename in (
+                    "probe_client_pre.csv",
+                    "probe_edge_post.csv",
+                    "probe_cloud_post.csv",
+                )
+            )
+        )
+
+    def test_corrupt_declared_npz_never_falls_back_to_legacy_csv(self):
+        """确认已声明NPZ损坏时即使旧CSV存在也必须失败而非静默回退。"""
+        with tempfile.TemporaryDirectory() as directory:
+            experiment_dir = self._create_npz_experiment(
+                Path(directory), "broken", "hfl_snf_fixed"
+            )
+            for filename in (
+                    "probe_client_pre.csv",
+                    "probe_edge_post.csv",
+                    "probe_cloud_post.csv",
+            ):
+                (experiment_dir / filename).write_text("[]\n", encoding="utf-8")
+            (experiment_dir / "probe_probabilities.npz").write_bytes(
+                b"this-is-not-a-valid-npz"
+            )
+
+            with self.assertRaisesRegex(ValueError, "固定探针NPZ损坏"):
+                load_experiment(experiment_dir)
+
+    def test_one_hundred_images_are_scored_before_epoch_average(self):
+        """确认先逐图计算S再平均，并验证正确S加错误S等于纯S。"""
+        with tempfile.TemporaryDirectory() as directory:
+            experiment = load_experiment(self._create_npz_experiment(
+                Path(directory), "npz", "hfl_snf_fixed", epochs=1
+            ))
+            rows = build_round_metrics(experiment, smooth_window=1)
+
+        row = rows[0]
+        # 每张图上三个客户端都对真实类别输出one-hot，因此逐图S及正确S均为1。
+        self.assertEqual(row["probe_count"], 100)
+        self.assertAlmostEqual(float(row["candidate_effective"]), 1.0, places=12)
+        self.assertAlmostEqual(
+            float(row["candidate_correct_effective"]), 1.0, places=12
+        )
+        self.assertAlmostEqual(float(row["candidate_wrong_effective"]), 0.0, places=12)
+        self.assertAlmostEqual(
+            float(row["candidate_correct_effective"])
+            + float(row["candidate_wrong_effective"]),
+            float(row["candidate_effective"]),
+            places=12,
+        )
+
+        averaged_across_images = np.stack(
+            experiment.client_probe[0], axis=0
+        ).mean(axis=1)
+        _, _, incorrectly_averaged_s = consensus_components(averaged_across_images)
+        # 若错误地先跨图片平均，会得到共同均匀分布，S降为0，和正式结果显著不同。
+        self.assertAlmostEqual(incorrectly_averaged_s, 0.0, places=12)
+        self.assertNotAlmostEqual(
+            float(row["candidate_effective"]), incorrectly_averaged_s, places=6
+        )
+
+    def test_probe_hash_or_indices_mismatch_rejects_four_way_profile(self):
+        """确认四方案探针哈希或索引任一不一致都会终止配对比较。"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            experiments = []
+            for scenario in SCENARIO_ORDER:
+                experiments.append(load_experiment(self._create_npz_experiment(
+                    root, scenario, scenario
+                )))
+
+            mismatched_hash = list(experiments)
+            mismatched_hash[1] = replace(
+                mismatched_hash[1], probe_set_hash="b" * 64
+            )
+            with self.assertRaisesRegex(ValueError, "固定探针哈希不一致"):
+                build_batch_profile(root, mismatched_hash)
+
+            changed_indices = experiments[1].probe_indices.copy()
+            changed_indices[:, 0] = 9999
+            mismatched_indices = list(experiments)
+            mismatched_indices[1] = replace(
+                mismatched_indices[1], probe_indices=changed_indices
+            )
+            with self.assertRaisesRegex(ValueError, "固定探针索引不一致"):
+                build_batch_profile(root, mismatched_indices)
+
+    def test_zero_or_single_active_client_produces_nan_metrics(self):
+        """确认零参与和单参与轮的活跃共识及覆盖加权正确共识均为NaN。"""
+        with tempfile.TemporaryDirectory() as directory:
+            experiment = load_experiment(self._create_npz_experiment(
+                Path(directory),
+                "sparse",
+                "hfl_snf_fixed",
+                epochs=2,
+                active_slots_by_epoch=[[], [0]],
+            ))
+            rows = build_round_metrics(experiment, smooth_window=1)
+
+        self.assertEqual([row["active_count"] for row in rows], [0, 1])
+        self.assertEqual([row["active_coverage_ratio"] for row in rows], [0.0, 1.0 / 3.0])
+        for row in rows:
+            self.assertTrue(np.isnan(float(row["active_agreement"])))
+            self.assertTrue(np.isnan(float(row["active_certainty"])))
+            self.assertTrue(np.isnan(float(row["active_effective"])))
+            self.assertTrue(np.isnan(float(row["active_correct_effective"])))
+            self.assertTrue(
+                np.isnan(float(row["coverage_weighted_active_correct_effective"]))
+            )
+
+    def test_auc_limits_and_ma10_stable_crossing_use_epoch_curves(self):
+        """确认前50/100轮归一化AUC和MA10稳定越线epoch的时间语义。"""
+        values = np.asarray([0.0] * 50 + [1.0] * 50, dtype=np.float64)
+        self.assertAlmostEqual(normalized_curve_area(values, 50), 0.0, places=12)
+        self.assertAlmostEqual(normalized_curve_area(values, 100), 0.5, places=12)
+
+        raw_values = np.asarray([0.5] * 10 + [0.7] * 20, dtype=np.float64)
+        ma10 = trailing_mean(raw_values, window=10)
+        self.assertEqual(
+            first_stable_smoothed_epoch(ma10, threshold=0.59, minimum_tail=5),
+            15,
+        )
+        self.assertIsNone(
+            first_stable_smoothed_epoch(ma10, threshold=0.71, minimum_tail=5)
+        )
+
+    def test_minimal_npz_summary_matches_independent_recalculation(self):
+        """确认最小有效NPZ与逐epoch摘要通过正式双向数值校验。"""
+        with tempfile.TemporaryDirectory() as directory:
+            experiment = load_experiment(self._create_npz_experiment(
+                Path(directory), "summary", "hfl_snf_fixed", epochs=2
+            ))
+            round_rows = build_round_metrics(experiment, smooth_window=1)
+            self._write_matching_summary(experiment, round_rows)
+
+            # 校验函数无返回值；不抛异常即表示行数、活跃人数和核心指标全部一致。
+            self.assertIsNone(validate_npz_summary(experiment, round_rows))
+
+    def test_npz_batch_generates_complete_report_package(self):
+        """确认四方案固定NPZ可生成含正确/错误共识、哈希、CSV和八张图的完整报告。"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "batch"
+            root.mkdir()
+            for scenario in SCENARIO_ORDER:
+                experiment_path = self._create_npz_experiment(
+                    root, scenario, scenario, epochs=12
+                )
+                experiment = load_experiment(experiment_path)
+                round_rows = build_round_metrics(experiment, smooth_window=10)
+                self._write_matching_summary(experiment, round_rows)
+
+            output_dir = run_analysis(
+                root, Path(directory) / "analysis", smooth_window=10
+            )
+            report = (output_dir / "分析报告.md").read_text(encoding="utf-8")
+            manifest = json.loads(
+                (output_dir / "analysis_manifest.json").read_text(encoding="utf-8")
+            )
+            with (output_dir / "逐轮指标.csv").open(
+                    "r", encoding="utf-8-sig", newline=""
+            ) as handle:
+                round_output = list(csv.DictReader(handle))
+
+            self.assertIn("固定、类别均衡的100张图片", report)
+            self.assertIn("正确有效共识", report)
+            self.assertIn("错误有效共识", report)
+            self.assertIn("`{}`".format("a" * 64), report)
+            self.assertEqual(len(round_output), 48)
+            self.assertEqual(len(list((output_dir / "figures").glob("*.png"))), 8)
+            self.assertTrue(all(
+                source["probe_format"] == "npz"
+                for source in manifest["sources"].values()
+            ))
 
 
 class CurrentResultIntegrationTest(unittest.TestCase):

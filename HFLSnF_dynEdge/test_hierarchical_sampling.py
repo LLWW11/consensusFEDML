@@ -8,8 +8,17 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+import numpy as np
+import torch
+
 from analyze_consensus import read_true_labels
 from client_test import HFLClient
+from probe_batch import (
+    FixedProbeSet,
+    ProbeBatchRecorder,
+    calculate_population_probe_metrics,
+    select_fixed_balanced_probe,
+)
 from topology_schedule import MatlabTopologySchedule
 from trainer_test import HierarchicalTrainer
 
@@ -434,6 +443,247 @@ class HierarchicalSamplingTest(unittest.TestCase):
         self.assertEqual(record["distributed_client_indexes"], list(range(200)))
         self.assertEqual(record["mat_topology_index"], global_epoch)
         self.assertTrue(record["aggregated"])
+
+
+class FixedProbeBatchTest(unittest.TestCase):
+    """验证固定100图探针、逐图共识计算和结构化检查点。"""
+
+    def test_balanced_probe_is_unique_reproducible_and_rng_isolated(self):
+        """验证每类10张、索引唯一、哈希可复现且不改变全局NumPy状态。"""
+        labels = torch.arange(10, dtype=torch.long).repeat_interleave(12)
+        # 图片内容编码全局样本序号，便于哈希同时覆盖索引、标签和真实内容。
+        inputs = torch.arange(120 * 4, dtype=torch.float32).reshape(120, 1, 2, 2)
+        probe_data = [
+            (inputs[:40], labels[:40]),
+            (inputs[40:85], labels[40:85]),
+            (inputs[85:], labels[85:]),
+        ]
+
+        np.random.seed(20260717)
+        state_before = np.random.get_state()
+        first = select_fixed_balanced_probe(
+            probe_data, samples_per_class=10, seed=7, source="test"
+        )
+        state_after = np.random.get_state()
+        repeated = select_fixed_balanced_probe(
+            probe_data, samples_per_class=10, seed=7, source="test"
+        )
+        different = select_fixed_balanced_probe(
+            probe_data, samples_per_class=10, seed=19, source="test"
+        )
+
+        self.assertEqual(first.sample_count, 100)
+        self.assertEqual(len(set(first.indices.tolist())), 100)
+        self.assertEqual(
+            np.bincount(first.true_labels, minlength=10).tolist(), [10] * 10
+        )
+        self.assertTrue(np.array_equal(first.indices, repeated.indices))
+        self.assertEqual(first.content_hash, repeated.content_hash)
+        self.assertNotEqual(first.content_hash, different.content_hash)
+        # RandomState由算法内部独立创建，全局MT19937的完整状态必须逐项不变。
+        self.assertEqual(state_before[0], state_after[0])
+        self.assertTrue(np.array_equal(state_before[1], state_after[1]))
+        self.assertEqual(state_before[2:], state_after[2:])
+
+    def test_consensus_boundaries_match_the_metric_definition(self):
+        """验证均匀、确定但不同、确定且相同三种人工概率的A/C/S边界。"""
+        uniform = np.full((3, 2, 3), 1.0 / 3.0, dtype=np.float64)
+        deterministic_different = np.eye(3, dtype=np.float64)[:, None, :]
+        deterministic_same = np.repeat(
+            np.asarray([[[1.0, 0.0, 0.0]]], dtype=np.float64), 3, axis=0
+        )
+
+        uniform_metrics = calculate_population_probe_metrics(
+            uniform, np.asarray([0, 1], dtype=np.int64)
+        )
+        different_metrics = calculate_population_probe_metrics(
+            deterministic_different, np.asarray([0], dtype=np.int64)
+        )
+        same_metrics = calculate_population_probe_metrics(
+            deterministic_same, np.asarray([0], dtype=np.int64)
+        )
+
+        self.assertAlmostEqual(uniform_metrics["agreement_mean"], 1.0, places=12)
+        self.assertAlmostEqual(uniform_metrics["certainty_mean"], 0.0, places=12)
+        self.assertAlmostEqual(uniform_metrics["effective_mean"], 0.0, places=12)
+        self.assertAlmostEqual(different_metrics["agreement_mean"], 0.0, places=12)
+        self.assertAlmostEqual(different_metrics["certainty_mean"], 1.0, places=12)
+        self.assertAlmostEqual(different_metrics["effective_mean"], 0.0, places=12)
+        self.assertAlmostEqual(same_metrics["agreement_mean"], 1.0, places=12)
+        self.assertAlmostEqual(same_metrics["certainty_mean"], 1.0, places=12)
+        self.assertAlmostEqual(same_metrics["effective_mean"], 1.0, places=12)
+
+    def test_correct_and_wrong_consensus_partition_pure_consensus(self):
+        """验证每张图片及其均值都满足正确共识加错误共识等于纯共识。"""
+        probabilities = np.asarray(
+            [
+                [[0.9, 0.1], [0.8, 0.2], [0.1, 0.9]],
+                [[0.8, 0.2], [0.7, 0.3], [0.2, 0.8]],
+                [[0.7, 0.3], [0.6, 0.4], [0.3, 0.7]],
+            ],
+            dtype=np.float64,
+        )
+        # 中间图片多数预测为0但真实标签为1，用于同时覆盖正确和错误分支。
+        metrics = calculate_population_probe_metrics(
+            probabilities, np.asarray([0, 1, 1], dtype=np.int64)
+        )
+
+        self.assertTrue(
+            np.allclose(
+                metrics["correct_effective_by_sample"]
+                + metrics["wrong_effective_by_sample"],
+                metrics["effective_by_sample"],
+                atol=1e-12,
+            )
+        )
+        self.assertAlmostEqual(
+            metrics["correct_effective_mean"]
+            + metrics["wrong_effective_mean"],
+            metrics["effective_mean"],
+            places=12,
+        )
+
+    def test_zero_or_single_active_client_returns_empty_consensus(self):
+        """验证活跃客户端不足2人时所有活跃共识指标均为空值。"""
+        labels = np.asarray([0, 1], dtype=np.int64)
+        for model_count in (0, 1):
+            with self.subTest(model_count=model_count):
+                probabilities = np.full(
+                    (model_count, 2, 2), 0.5, dtype=np.float64
+                )
+                metrics = calculate_population_probe_metrics(probabilities, labels)
+                self.assertTrue(np.isnan(metrics["agreement_mean"]))
+                self.assertTrue(np.isnan(metrics["certainty_mean"]))
+                self.assertTrue(np.isnan(metrics["effective_mean"]))
+                self.assertTrue(np.isnan(metrics["correct_effective_mean"]))
+                self.assertTrue(np.all(np.isnan(metrics["effective_by_sample"])))
+
+    def test_recorder_saves_valid_prefix_masks_and_nan_edge_slots(self):
+        """验证第10轮和关闭时保存合法NPZ前缀、活跃掩码及NaN边缘槽位。"""
+        probe_set = FixedProbeSet(
+            inputs=torch.zeros(4, 1, 2, 2),
+            indices=np.asarray([3, 5, 7, 9], dtype=np.int64),
+            true_labels=np.asarray([0, 1, 0, 1], dtype=np.int64),
+            content_hash="unit-test-probe-hash",
+            source="test",
+        )
+        client_probabilities = np.asarray(
+            [
+                [[0.9, 0.1], [0.1, 0.9], [0.8, 0.2], [0.2, 0.8]],
+                [[0.8, 0.2], [0.2, 0.8], [0.7, 0.3], [0.3, 0.7]],
+                [[0.7, 0.3], [0.3, 0.7], [0.6, 0.4], [0.4, 0.6]],
+            ],
+            dtype=np.float32,
+        )
+        edge_probabilities = np.asarray(
+            [
+                [[0.85, 0.15], [0.15, 0.85], [0.75, 0.25], [0.25, 0.75]],
+                [[np.nan, np.nan]] * 4,
+            ],
+            dtype=np.float32,
+        )
+        cloud_probabilities = np.asarray(
+            [[0.9, 0.1], [0.1, 0.9], [0.8, 0.2], [0.2, 0.8]],
+            dtype=np.float32,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            recorder = ProbeBatchRecorder(
+                result_dir=temp_dir,
+                total_epochs=12,
+                candidate_client_ids=[10, 11, 12],
+                edge_slot_count=2,
+                probe_set=probe_set,
+                class_count=2,
+                checkpoint_interval=10,
+            )
+            for global_epoch in range(9):
+                recorder.record_epoch(
+                    global_epoch,
+                    client_probabilities,
+                    edge_probabilities,
+                    cloud_probabilities,
+                    active_client_ids=[10, 12],
+                )
+            npz_path = os.path.join(temp_dir, "probe_probabilities.npz")
+            self.assertFalse(os.path.exists(npz_path))
+
+            recorder.record_epoch(
+                9,
+                client_probabilities,
+                edge_probabilities,
+                cloud_probabilities,
+                active_client_ids=[10, 12],
+            )
+            with np.load(npz_path, allow_pickle=False) as checkpoint:
+                self.assertEqual(int(checkpoint["completed_epochs"]), 10)
+                self.assertEqual(checkpoint["client_probabilities"].shape, (10, 3, 4, 2))
+                self.assertEqual(checkpoint["edge_probabilities"].shape, (10, 2, 4, 2))
+                self.assertEqual(checkpoint["cloud_probabilities"].shape, (10, 4, 2))
+                self.assertEqual(checkpoint["active_client_mask"].shape, (10, 3))
+                self.assertTrue(np.all(checkpoint["active_client_mask"][:, [0, 2]]))
+                self.assertTrue(np.all(~checkpoint["active_client_mask"][:, 1]))
+                self.assertTrue(np.all(np.isnan(checkpoint["edge_probabilities"][:, 1])))
+                self.assertTrue(np.all(~checkpoint["edge_active_mask"][:, 1]))
+
+            # 第11轮先保留在内存，close必须覆盖为11轮的合法部分前缀。
+            recorder.record_epoch(
+                10,
+                client_probabilities,
+                edge_probabilities,
+                cloud_probabilities,
+                active_client_ids=[],
+            )
+            with np.load(npz_path, allow_pickle=False) as checkpoint:
+                self.assertEqual(int(checkpoint["completed_epochs"]), 10)
+            recorder.close()
+
+            with np.load(npz_path, allow_pickle=False) as completed:
+                self.assertEqual(int(completed["completed_epochs"]), 11)
+                self.assertEqual(completed["global_epochs"].tolist(), list(range(11)))
+                self.assertEqual(completed["probe_set_hash"].item(), "unit-test-probe-hash")
+                self.assertTrue(np.all(~completed["active_client_mask"][10]))
+                self.assertTrue(np.all(np.isfinite(completed["client_probabilities"])))
+                self.assertTrue(np.allclose(
+                    np.sum(completed["client_probabilities"], axis=-1), 1.0
+                ))
+            self.assertFalse(os.path.exists(npz_path + ".tmp"))
+
+            with open(
+                    os.path.join(temp_dir, "probe_epoch_summary.csv"),
+                    "r",
+                    encoding="utf-8",
+                    newline="",
+            ) as file_obj:
+                rows = list(csv.DictReader(file_obj))
+            self.assertEqual(len(rows), 11)
+            self.assertEqual(rows[-1]["active_count"], "0")
+            self.assertEqual(rows[-1]["active_effective_mean"], "")
+            self.assertEqual(
+                rows[-1]["coverage_weighted_active_correct_effective"], ""
+            )
+
+    def test_client_batches_one_hundred_probes_in_one_forward(self):
+        """验证100张探针配置只加载一次模型并只执行一次前向传播。"""
+        client = HFLClient.__new__(HFLClient)
+        client.local_model_state = {"weight": "client-local"}
+        client.device = torch.device("cpu")
+        logits = torch.tensor([[2.0, 1.0]], dtype=torch.float32).repeat(100, 1)
+        client.model = Mock(return_value=logits)
+        probe_inputs = torch.zeros(100, 1, 28, 28, dtype=torch.float32)
+
+        probabilities = client.predict_proba_batch(
+            probe_inputs, inference_batch_size=100
+        )
+
+        client.model.load_state_dict.assert_called_once_with(client.local_model_state)
+        client.model.to.assert_called_once_with(client.device)
+        client.model.eval.assert_called_once_with()
+        self.assertEqual(client.model.call_count, 1)
+        self.assertEqual(len(probabilities), 100)
+        self.assertTrue(
+            np.allclose(np.sum(np.asarray(probabilities), axis=1), 1.0, atol=1e-7)
+        )
 
 
 if __name__ == "__main__":
