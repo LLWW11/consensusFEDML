@@ -8,7 +8,7 @@ from analyze_experiment_suite import run_analysis
 
 # ==================== 只需修改这里 ====================
 # 批次文件夹名对应本脚本所在目录的子目录
-INPUT_BATCH_FOLDER = "varAlpha_0p1_client200_util0p6"
+INPUT_BATCH_FOLDER = "var0p1client200u0p6_v2"
 # 趋势和共识曲线使用的尾随平滑窗口。
 SMOOTH_WINDOW = 10
 # ======================================================

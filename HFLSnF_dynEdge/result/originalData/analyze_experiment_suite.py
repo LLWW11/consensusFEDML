@@ -88,6 +88,9 @@ OPTIONAL_RESULT_FILES = [
 
 SUMMARY_THRESHOLDS = (0.80, 0.85, 0.88)
 CONSENSUS_THRESHOLDS = (0.60, 0.70, 0.80)
+# 参与机制指标同时受覆盖率和正确共识质量约束，量级低于候选共识。
+# 这些阈值从本版报告起固定使用，避免通过调整阈值追逐单批结果。
+MECHANISM_THRESHOLDS = (0.20, 0.40, 0.50)
 
 
 def locate_project_root() -> Path:
@@ -1099,12 +1102,18 @@ def mean_js_to_reference(probabilities: np.ndarray, reference: np.ndarray) -> fl
         reference_matrix = reference_matrix[None, :]
     if matrix.ndim != 3 or matrix.shape[0] == 0 or reference_matrix.shape != matrix.shape[1:]:
         return float("nan")
-    values = [
-        pairwise_js_divergence(matrix[model_index, sample_index], reference_matrix[sample_index])
-        for model_index in range(matrix.shape[0])
-        for sample_index in range(matrix.shape[1])
-    ]
-    return float(np.mean(values))
+    # 使用广播一次计算全部“模型-探针”对，数学口径与逐项pairwise JSD完全一致。
+    reference_entropy = normalized_entropy(reference_matrix)[None, :]
+    model_entropy = normalized_entropy(matrix)
+    midpoint_entropy = normalized_entropy(
+        0.5 * (matrix + reference_matrix[None, :, :])
+    )
+    divergences = np.clip(
+        midpoint_entropy - 0.5 * (model_entropy + reference_entropy),
+        0.0,
+        1.0,
+    )
+    return float(np.mean(divergences))
 
 
 def mean_consensus_to_reference(
@@ -1120,17 +1129,79 @@ def mean_consensus_to_reference(
         reference_matrix = reference_matrix[None, :]
     if matrix.ndim != 3 or matrix.shape[0] == 0 or reference_matrix.shape != matrix.shape[1:]:
         return float("nan"), float("nan"), float("nan")
-    components = np.asarray(
-        [
-            consensus_components(np.stack([
-                matrix[model_index, sample_index], reference_matrix[sample_index]
-            ], axis=0))
-            for model_index in range(matrix.shape[0])
-            for sample_index in range(matrix.shape[1])
-        ],
-        dtype=np.float64,
+    # 将每个模型与对应云概率组成一个二模型探针，再批量复用统一的A/C/S实现。
+    model_count, probe_count, class_count = matrix.shape
+    expanded_reference = np.broadcast_to(
+        reference_matrix[None, :, :], matrix.shape
     )
-    return tuple(float(value) for value in components.mean(axis=0))
+    paired_probabilities = np.stack(
+        [
+            matrix.reshape(model_count * probe_count, class_count),
+            expanded_reference.reshape(model_count * probe_count, class_count),
+        ],
+        axis=0,
+    )
+    metrics = calculate_population_probe_metrics(
+        paired_probabilities, true_labels=None
+    )
+    return (
+        float(metrics["agreement_mean"]),
+        float(metrics["certainty_mean"]),
+        float(metrics["effective_mean"]),
+    )
+
+
+def calculate_participation_margin_metrics(
+        candidate_matrix: np.ndarray,
+        active_slots: Sequence[int],
+        true_labels: Optional[np.ndarray],
+) -> Tuple[float, float]:
+    """计算参与加权的正边界质量和有符号边界质量。
+
+    对每个活跃客户端和探针计算真实类别概率减去最强错误类别概率，再以
+    “候选总数乘探针数”归一化。正边界质量只累计正边界；有符号版本
+    同时保留错误预测的负贡献。没有活跃客户端时二者为0，缺少真值时为空值。
+    """
+
+    probabilities = np.asarray(candidate_matrix, dtype=np.float64)
+    if probabilities.ndim != 3 or probabilities.shape[0] == 0:
+        raise ValueError("候选概率必须是非空的[候选, 探针, 类别]三维数组。")
+    labels = (
+        None
+        if true_labels is None
+        else np.asarray(true_labels, dtype=np.int64).reshape(-1)
+    )
+    probe_count = int(probabilities.shape[1])
+    class_count = int(probabilities.shape[2])
+    if labels is None or labels.shape != (probe_count,) or np.any(labels < 0):
+        return float("nan"), float("nan")
+    if np.any(labels >= class_count):
+        raise ValueError("真实标签超出候选概率的类别范围。")
+
+    active_indexes = np.asarray(list(active_slots), dtype=np.int64)
+    if active_indexes.size == 0:
+        # 这是“正确证据质量”而非至少需要两人的共识，因此零参与自然贡献0。
+        return 0.0, 0.0
+    if np.any(active_indexes < 0) or np.any(active_indexes >= probabilities.shape[0]):
+        raise ValueError("活跃候选槽位超出候选概率范围。")
+    active_probabilities = probabilities[active_indexes]
+    true_probabilities = np.take_along_axis(
+        active_probabilities,
+        labels[None, :, None],
+        axis=2,
+    )[:, :, 0]
+    wrong_probabilities = active_probabilities.copy()
+    label_positions = np.broadcast_to(
+        labels[None, :, None],
+        (active_probabilities.shape[0], probe_count, 1),
+    )
+    np.put_along_axis(wrong_probabilities, label_positions, -np.inf, axis=2)
+    strongest_wrong = np.max(wrong_probabilities, axis=2)
+    signed_margin = true_probabilities - strongest_wrong
+    denominator = float(probabilities.shape[0] * probe_count)
+    positive_margin_mass = float(np.sum(np.maximum(signed_margin, 0.0)) / denominator)
+    signed_margin_mass = float(np.sum(signed_margin) / denominator)
+    return positive_margin_mass, signed_margin_mass
 
 
 def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[Dict[str, object]]:
@@ -1138,6 +1209,10 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
 
     rows = []
     cumulative_active = 0
+    cumulative_mechanism_evidence = 0.0
+    cumulative_positive_margin = 0.0
+    has_mechanism_evidence = False
+    has_positive_margin = False
     for index, record in enumerate(experiment.schedule):
         candidates = [int(value) for value in record["candidate_client_indexes"]]
         active = [int(value) for value in record["active_client_indexes"]]
@@ -1226,8 +1301,21 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             )
         else:
             coverage_weighted_active_correct = float("nan")
+        positive_margin_mass, signed_margin_mass = (
+            calculate_participation_margin_metrics(
+                candidate_matrix, active_slots, labels_for_metrics
+            )
+        )
 
         cumulative_active += len(active)
+        # 共识不足两人或缺少真值时Q不可用；边界质量只在缺少真值时不可用。
+        # 累计列在首次出现有效值前保持空值，避免把旧CSV的缺失证据误写成零。
+        if np.isfinite(coverage_weighted_active_correct):
+            cumulative_mechanism_evidence += coverage_weighted_active_correct
+            has_mechanism_evidence = True
+        if np.isfinite(positive_margin_mass):
+            cumulative_positive_margin += positive_margin_mass
+            has_positive_margin = True
         row = {
             "scenario": experiment.scenario,
             "label": experiment.label,
@@ -1262,6 +1350,16 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             "active_effective_q50": float(active_metrics["effective_q50"]),
             "active_effective_q75": float(active_metrics["effective_q75"]),
             "coverage_weighted_active_correct_effective": coverage_weighted_active_correct,
+            "cumulative_coverage_weighted_active_correct_effective": (
+                cumulative_mechanism_evidence
+                if has_mechanism_evidence else float("nan")
+            ),
+            "participation_weighted_positive_margin": positive_margin_mass,
+            "participation_weighted_signed_margin": signed_margin_mass,
+            "cumulative_participation_weighted_positive_margin": (
+                cumulative_positive_margin
+                if has_positive_margin else float("nan")
+            ),
             "within_group_agreement": weighted_group_metric(group_agreement_values),
             "within_group_certainty": weighted_group_metric(group_certainty_values),
             "within_group_effective": weighted_group_metric(group_effective_values),
@@ -1314,6 +1412,8 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
         "active_wrong_effective",
         "active_coverage_ratio",
         "coverage_weighted_active_correct_effective",
+        "participation_weighted_positive_margin",
+        "participation_weighted_signed_margin",
         "within_group_agreement",
         "within_group_certainty",
         "within_group_effective",
@@ -1341,6 +1441,8 @@ def build_round_metrics(experiment: ExperimentData, smooth_window: int) -> List[
             "active_correct_effective",
             "active_wrong_effective",
             "coverage_weighted_active_correct_effective",
+            "participation_weighted_positive_margin",
+            "participation_weighted_signed_margin",
             "within_group_agreement",
             "within_group_certainty",
             "within_group_effective",
@@ -1477,6 +1579,16 @@ def normalized_curve_area(values: Sequence[float], limit: int) -> float:
     return float(area / float(array.size - 1))
 
 
+def mechanism_speed_curve(values: Sequence[float]) -> np.ndarray:
+    """把偶发无有效活跃共识的轮次记为零证据，同时保留整列缺失语义。"""
+
+    array = np.asarray(values, dtype=np.float64)
+    if not np.any(np.isfinite(array)):
+        return array.copy()
+    # 新NPZ有真值但活跃不足两人时，原始共识为空；速度/累计口径解释为本轮零证据。
+    return np.where(np.isfinite(array), array, 0.0)
+
+
 def first_stable_smoothed_epoch(
         smoothed_values: Sequence[float], threshold: float, minimum_tail: int = 5
 ) -> Optional[int]:
@@ -1519,11 +1631,23 @@ def summarize_experiment(
         float(row["coverage_weighted_active_correct_effective"])
         for row in round_rows
     ])
+    positive_margin = np.asarray([
+        float(row["participation_weighted_positive_margin"])
+        for row in round_rows
+    ])
+    signed_margin = np.asarray([
+        float(row["participation_weighted_signed_margin"])
+        for row in round_rows
+    ])
+    mechanism_speed = mechanism_speed_curve(coverage_weighted_correct)
     candidate_s_ma = np.asarray([float(row["candidate_effective_ma"]) for row in round_rows])
     # 达成速度固定使用MA10，避免用户只调整绘图窗口就改变论文主口径。
     candidate_s_ma10 = trailing_mean(candidate_s, 10, require_full_values=True)
     candidate_correct_s_ma10 = trailing_mean(
         candidate_correct_s, 10, require_full_values=True
+    )
+    mechanism_speed_ma10 = trailing_mean(
+        mechanism_speed, 10, require_full_values=True
     )
     active_s_ma = np.asarray([float(row["active_effective_ma"]) for row in round_rows])
     test_acc_ma = np.asarray([float(row["test_acc_ma"]) for row in round_rows])
@@ -1595,6 +1719,32 @@ def summarize_experiment(
         "coverage_weighted_active_correct_last20": finite_mean(
             coverage_weighted_correct[-20:]
         ),
+        "coverage_weighted_active_correct_total": (
+            float(np.sum(mechanism_speed))
+            if np.any(np.isfinite(mechanism_speed)) else float("nan")
+        ),
+        "coverage_weighted_active_correct_auc50": normalized_curve_area(
+            mechanism_speed, 50
+        ),
+        "coverage_weighted_active_correct_auc100": normalized_curve_area(
+            mechanism_speed, 100
+        ),
+        "participation_positive_margin_last20": finite_mean(
+            positive_margin[-20:]
+        ),
+        "participation_signed_margin_last20": finite_mean(
+            signed_margin[-20:]
+        ),
+        "participation_positive_margin_total": (
+            float(np.nansum(positive_margin))
+            if np.any(np.isfinite(positive_margin)) else float("nan")
+        ),
+        "participation_positive_margin_auc50": normalized_curve_area(
+            positive_margin, 50
+        ),
+        "participation_positive_margin_auc100": normalized_curve_area(
+            positive_margin, 100
+        ),
         "effective_auc50": normalized_curve_area(candidate_s, 50),
         "effective_auc100": normalized_curve_area(candidate_s, 100),
         "correct_effective_auc50": normalized_curve_area(candidate_correct_s, 50),
@@ -1619,6 +1769,10 @@ def summarize_experiment(
         )
         result["correct_effective_ma10_stable_epoch_{:.2f}".format(threshold)] = (
             first_stable_smoothed_epoch(candidate_correct_s_ma10, threshold)
+        )
+    for threshold in MECHANISM_THRESHOLDS:
+        result["mechanism_ma10_stable_epoch_{:.2f}".format(threshold)] = (
+            first_stable_smoothed_epoch(mechanism_speed_ma10, threshold)
         )
     return result
 
@@ -2055,117 +2209,159 @@ def plot_candidate_consensus_comparison(
         rows_by_scenario: Dict[str, List[Dict[str, object]]],
         summaries: Dict[str, Dict[str, object]], figure_dir: Path, smooth_window: int
 ) -> Path:
-    """比较四方案纯/正确有效共识趋势，并用前50/100轮面积衡量达成速度。"""
+    """比较参与机制共识吞吐量、累计证据、相对差值和正确边界质量。"""
 
-    path = figure_dir / "08_四方案候选有效共识S对比.png"
-    figure, axes = plt.subplots(
-        1, 2, figsize=(15, 6.8), gridspec_kw={"width_ratios": [2.15, 1.0]}
-    )
-
-    has_correct_metrics = all(
+    path = figure_dir / "08_参与加权正确共识与边界质量.png"
+    figure, axes = plt.subplots(2, 2, figsize=(16, 10.2))
+    mechanism_available = all(
         np.any(np.isfinite([
-            float(row["candidate_correct_effective"]) for row in rows_by_scenario[scenario]
+            float(row["coverage_weighted_active_correct_effective"])
+            for row in rows_by_scenario[scenario]
         ]))
         for scenario in SCENARIO_ORDER
     )
-    # 新NPZ以正确有效共识为主趋势，并用同色点线保留纯有效共识作并列参照。
+    raw_field = (
+        "coverage_weighted_active_correct_effective"
+        if mechanism_available else "candidate_effective"
+    )
+    smooth_field = (
+        "coverage_weighted_active_correct_effective_ma"
+        if mechanism_available else "candidate_effective_ma"
+    )
+
+    cumulative_curves = {}
+    smoothed_curves = {}
     for scenario in SCENARIO_ORDER:
         rows = rows_by_scenario[scenario]
         epochs = np.asarray([int(row["epoch"]) for row in rows])
-        if has_correct_metrics:
-            raw = np.asarray([
-                float(row["candidate_correct_effective"]) for row in rows
-            ])
-            smooth = np.asarray([
-                float(row["candidate_correct_effective_ma"]) for row in rows
-            ])
-            pure_smooth = np.asarray([
-                float(row["candidate_effective_ma"]) for row in rows
+        raw = np.asarray([float(row[raw_field]) for row in rows], dtype=np.float64)
+        smooth = np.asarray([float(row[smooth_field]) for row in rows], dtype=np.float64)
+        if mechanism_available:
+            cumulative = np.asarray([
+                float(row["cumulative_coverage_weighted_active_correct_effective"])
+                for row in rows
             ])
         else:
-            raw = np.asarray([float(row["candidate_effective"]) for row in rows])
-            smooth = np.asarray([float(row["candidate_effective_ma"]) for row in rows])
+            cumulative = np.cumsum(np.where(np.isfinite(raw), raw, 0.0))
+        cumulative_curves[scenario] = cumulative
+        smoothed_curves[scenario] = smooth
         color = SCENARIO_COLORS[scenario]
         linestyle = SCENARIO_LINESTYLES[scenario]
-        axes[0].plot(
+        axes[0, 0].plot(
             epochs, raw, color=color, linestyle=linestyle, linewidth=0.7, alpha=0.14
         )
-        axes[0].plot(
+        axes[0, 0].plot(
             epochs, smooth, color=color, linestyle=linestyle, linewidth=2.2,
             label=SCENARIO_LABELS[scenario],
         )
-        if has_correct_metrics:
-            axes[0].plot(
-                epochs, pure_smooth, color=color, linestyle=":", linewidth=1.0,
-                alpha=0.45,
-            )
+        axes[0, 1].plot(
+            epochs, cumulative, color=color, linestyle=linestyle, linewidth=2.2,
+            label=SCENARIO_LABELS[scenario],
+        )
     style_axis(
-        axes[0],
-        "候选正确有效共识 S" if has_correct_metrics else "候选有效共识 S",
+        axes[0, 0],
+        "覆盖加权活跃正确共识" if mechanism_available else "候选有效共识 S",
         (0, 1.02),
     )
-    axes[0].set_title("逐轮趋势与{}轮尾随均值".format(smooth_window), loc="left", fontweight="bold")
-    axes[0].legend(frameon=False, loc="upper left", ncol=2)
+    axes[0, 0].set_title(
+        "逐轮值与{}轮尾随均值".format(smooth_window),
+        loc="left", fontweight="bold",
+    )
+    axes[0, 0].legend(frameon=False, loc="upper left", ncol=2)
+    style_axis(
+        axes[0, 1],
+        "累计机制共识证据" if mechanism_available else "累计候选有效共识",
+    )
+    axes[0, 1].set_ylim(bottom=0)
+    axes[0, 1].set_title("累计量：越早越陡、总量越大", loc="left", fontweight="bold")
+
+    reference = smoothed_curves["hfl_snf_fixed"]
+    epochs = np.asarray([
+        int(row["epoch"]) for row in rows_by_scenario["hfl_snf_fixed"]
+    ])
+    for scenario in SCENARIO_ORDER[1:]:
+        difference = reference - smoothed_curves[scenario]
+        axes[1, 0].plot(
+            epochs,
+            difference,
+            color=SCENARIO_COLORS[scenario],
+            linestyle=SCENARIO_LINESTYLES[scenario],
+            linewidth=2.0,
+            label="HFL-SnF − {}".format(SCENARIO_LABELS[scenario]),
+        )
+    axes[1, 0].axhline(0.0, color="#344054", linewidth=1.0)
+    style_axis(axes[1, 0], "相对差值")
+    axes[1, 0].set_title("相对基线差值，零线以上表示HFL-SnF更高", loc="left", fontweight="bold")
+    axes[1, 0].legend(frameon=False, fontsize=8.5)
 
     positions = np.arange(len(SCENARIO_ORDER))
-    if has_correct_metrics:
-        auc50 = np.asarray([
-            float(summaries[scenario]["correct_effective_auc50"])
+    if mechanism_available:
+        positive_margin = np.asarray([
+            float(summaries[scenario]["participation_positive_margin_last20"])
             for scenario in SCENARIO_ORDER
         ])
-        auc100 = np.asarray([
-            float(summaries[scenario]["correct_effective_auc100"])
+        signed_margin = np.asarray([
+            float(summaries[scenario]["participation_signed_margin_last20"])
             for scenario in SCENARIO_ORDER
         ])
         width = 0.34
-        axes[1].bar(
-            positions - width / 2.0, auc50, width=width, color="#93C5FD",
-            edgecolor="#344054", linewidth=0.6, label="前50轮面积",
+        axes[1, 1].bar(
+            positions - width / 2.0,
+            positive_margin,
+            width=width,
+            color="#60A5FA",
+            edgecolor="#344054",
+            linewidth=0.6,
+            label="正边界质量",
         )
-        axes[1].bar(
-            positions + width / 2.0, auc100, width=width, color="#2563EB",
-            edgecolor="#344054", linewidth=0.6, label="前100轮面积",
+        axes[1, 1].bar(
+            positions + width / 2.0,
+            signed_margin,
+            width=width,
+            color="#F59E0B",
+            edgecolor="#344054",
+            linewidth=0.6,
+            label="有符号边界质量",
         )
-        upper_limit = min(1.02, max(0.2, float(np.nanmax([auc50, auc100])) * 1.18))
-        axes[1].set_ylabel("正确有效共识归一化面积")
-        axes[1].set_title("越早越高：前50/100轮面积", loc="left", fontweight="bold")
-        axes[1].legend(frameon=False, fontsize=8.5)
+        axes[1, 1].set_ylabel("后20轮均值")
+        axes[1, 1].set_title("真实类别相对最强错误类别的概率边界", loc="left", fontweight="bold")
+        axes[1, 1].legend(frameon=False, fontsize=8.5)
     else:
         last20_means = np.asarray([
-            float(summaries[scenario]["effective_last20"]) for scenario in SCENARIO_ORDER
+            float(summaries[scenario]["effective_last20"])
+            for scenario in SCENARIO_ORDER
         ])
-        last20_stds = np.asarray([
-            float(summaries[scenario]["effective_last20_std"]) for scenario in SCENARIO_ORDER
-        ])
-        axes[1].bar(
-            positions, last20_means, width=0.68,
+        axes[1, 1].bar(
+            positions,
+            last20_means,
+            width=0.68,
             color=[SCENARIO_COLORS[scenario] for scenario in SCENARIO_ORDER],
-            edgecolor="#344054", linewidth=0.7, zorder=2,
+            edgecolor="#344054",
+            linewidth=0.7,
         )
-        axes[1].errorbar(
-            positions, last20_means, yerr=last20_stds, fmt="none", ecolor="#344054",
-            elinewidth=1.2, capsize=4, capthick=1.2, zorder=3,
-        )
-        upper_limit = min(1.02, max(0.82, float(np.max(last20_means + last20_stds)) * 1.15))
-        axes[1].set_ylabel("候选有效共识 S")
-        axes[1].set_title("最后20轮均值与轮间标准差", loc="left", fontweight="bold")
-    axes[1].set_xticks(positions)
-    axes[1].set_xticklabels([SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER], rotation=14)
-    axes[1].set_xlabel("方案")
-    axes[1].set_ylim(0, upper_limit)
-    axes[1].grid(True, axis="y", color="#EAECF0", linewidth=0.8, zorder=0)
-    axes[1].spines["top"].set_visible(False)
-    axes[1].spines["right"].set_visible(False)
+        axes[1, 1].set_ylabel("候选有效共识 S")
+        axes[1, 1].set_title("历史CSV缺少真值时的候选S后20轮均值", loc="left", fontweight="bold")
+    axes[1, 1].axhline(0.0, color="#344054", linewidth=0.8)
+    axes[1, 1].set_xticks(positions)
+    axes[1, 1].set_xticklabels(
+        [SCENARIO_LABELS[scenario] for scenario in SCENARIO_ORDER],
+        rotation=12,
+    )
+    axes[1, 1].set_xlabel("方案")
+    axes[1, 1].grid(True, axis="y", color="#EAECF0", linewidth=0.8, zorder=0)
+    axes[1, 1].spines["top"].set_visible(False)
+    axes[1, 1].spines["right"].set_visible(False)
 
     candidate_total = int(rows_by_scenario[SCENARIO_ORDER[0]][0]["candidate_count"])
+    subtitle = (
+        "主曲线=活跃覆盖率×活跃正确有效共识；边界质量使用完整概率向量，未活跃候选贡献0"
+        if mechanism_available else
+        "历史CSV缺少完整真值，保留候选有效共识兼容展示"
+    )
     add_figure_header(
         figure,
-        "四方案固定{}候选的纯/正确有效共识对比".format(candidate_total),
-        (
-            "左图粗线为正确S的{}轮尾随均值、同色点线为纯S；右图用前50/100轮面积衡量达成速度"
-            if has_correct_metrics else
-            "历史CSV缺少完整真值，左图展示纯S的{}轮尾随均值，右图为后20轮描述统计"
-        ).format(smooth_window),
+        "固定{}候选下的参与机制共识吞吐量".format(candidate_total),
+        subtitle,
     )
     save_figure(figure, path)
     return path
@@ -2428,6 +2624,30 @@ def export_summary_rows(summaries: Dict[str, Dict[str, object]]) -> List[Dict[st
                 "后20轮活跃客户端有效共识S": item["active_effective_last20"],
                 "后20轮活跃客户端正确有效共识S": item["active_correct_effective_last20"],
                 "后20轮覆盖加权活跃正确有效共识S": item["coverage_weighted_active_correct_last20"],
+                "累计覆盖加权活跃正确有效共识S": item[
+                    "coverage_weighted_active_correct_total"
+                ],
+                "覆盖加权活跃正确有效共识前50轮归一化面积": item[
+                    "coverage_weighted_active_correct_auc50"
+                ],
+                "覆盖加权活跃正确有效共识前100轮归一化面积": item[
+                    "coverage_weighted_active_correct_auc100"
+                ],
+                "后20轮参与加权正确边界质量": item[
+                    "participation_positive_margin_last20"
+                ],
+                "后20轮参与加权有符号边界质量": item[
+                    "participation_signed_margin_last20"
+                ],
+                "累计参与加权正确边界质量": item[
+                    "participation_positive_margin_total"
+                ],
+                "参与加权正确边界质量前50轮归一化面积": item[
+                    "participation_positive_margin_auc50"
+                ],
+                "参与加权正确边界质量前100轮归一化面积": item[
+                    "participation_positive_margin_auc100"
+                ],
                 "纯有效共识前50轮归一化面积": item["effective_auc50"],
                 "纯有效共识前100轮归一化面积": item["effective_auc100"],
                 "正确有效共识前50轮归一化面积": item["correct_effective_auc50"],
@@ -2438,6 +2658,15 @@ def export_summary_rows(summaries: Dict[str, Dict[str, object]]) -> List[Dict[st
                 "正确有效共识MA10稳定达到0.60轮次": item["correct_effective_ma10_stable_epoch_0.60"],
                 "正确有效共识MA10稳定达到0.70轮次": item["correct_effective_ma10_stable_epoch_0.70"],
                 "正确有效共识MA10稳定达到0.80轮次": item["correct_effective_ma10_stable_epoch_0.80"],
+                "机制共识MA10稳定达到0.20轮次": item[
+                    "mechanism_ma10_stable_epoch_0.20"
+                ],
+                "机制共识MA10稳定达到0.40轮次": item[
+                    "mechanism_ma10_stable_epoch_0.40"
+                ],
+                "机制共识MA10稳定达到0.50轮次": item[
+                    "mechanism_ma10_stable_epoch_0.50"
+                ],
                 "最高10轮平滑有效共识": item["effective_ma_best"],
                 "最高10轮平滑活跃客户端有效共识": item["active_effective_ma_best"],
                 "平滑共识与平滑准确率同期相关": item["consensus_accuracy_level_corr"],
@@ -2491,6 +2720,34 @@ def export_round_rows(rows_by_scenario: Dict[str, List[Dict[str, object]]]) -> L
         ("active_correct_effective", "参与者正确有效共识S"),
         ("active_wrong_effective", "参与者错误有效共识S"),
         ("coverage_weighted_active_correct_effective", "覆盖率加权参与者正确有效共识S"),
+        (
+            "cumulative_coverage_weighted_active_correct_effective",
+            "累计覆盖率加权参与者正确有效共识S",
+        ),
+        (
+            "participation_weighted_positive_margin",
+            "参与加权正确边界质量",
+        ),
+        (
+            "participation_weighted_signed_margin",
+            "参与加权有符号边界质量",
+        ),
+        (
+            "cumulative_participation_weighted_positive_margin",
+            "累计参与加权正确边界质量",
+        ),
+        (
+            "coverage_weighted_active_correct_effective_ma",
+            "覆盖率加权参与者正确有效共识尾随均值",
+        ),
+        (
+            "participation_weighted_positive_margin_ma",
+            "参与加权正确边界质量尾随均值",
+        ),
+        (
+            "participation_weighted_signed_margin_ma",
+            "参与加权有符号边界质量尾随均值",
+        ),
         ("within_group_agreement", "组内一致性A_人数加权"),
         ("within_group_certainty", "组内确定性C_人数加权"),
         ("within_group_effective", "组内有效共识S_人数加权"),
@@ -2697,7 +2954,8 @@ def build_current_report_text(
     fl_edge_slot_count = int(profile["fl_edge_slot_count"])
     performance_rows = []
     participation_rows = []
-    consensus_rows = []
+    candidate_consensus_rows = []
+    mechanism_rows = []
     for scenario in SCENARIO_ORDER:
         item = summaries[scenario]
         performance_rows.append([
@@ -2718,12 +2976,11 @@ def build_current_report_text(
             item["active_total"], item["zero_active_rounds"],
             "{}/{}".format(item["active_coverage"], candidate_total), item["distributed_total"],
         ])
-        consensus_rows.append([
+        candidate_consensus_rows.append([
             item["label"], format_number(item["effective_last20"], 4),
             format_number(item["correct_effective_last20"], 4),
             format_number(item["wrong_effective_last20"], 4),
             format_number(item["active_correct_effective_last20"], 4),
-            format_number(item["coverage_weighted_active_correct_last20"], 4),
             "{}/{}".format(
                 format_number(item["effective_auc50"], 4),
                 format_number(item["effective_auc100"], 4),
@@ -2733,6 +2990,22 @@ def build_current_report_text(
                 format_number(item["correct_effective_auc100"], 4),
             ),
             item["correct_effective_ma10_stable_epoch_0.60"] or "未稳定达到",
+        ])
+        mechanism_rows.append([
+            item["label"],
+            format_number(item["coverage_weighted_active_correct_last20"], 4),
+            format_number(item["coverage_weighted_active_correct_total"], 4),
+            "{}/{}".format(
+                format_number(item["coverage_weighted_active_correct_auc50"], 4),
+                format_number(item["coverage_weighted_active_correct_auc100"], 4),
+            ),
+            "{}/{}/{}".format(
+                item["mechanism_ma10_stable_epoch_0.20"] or "未达到",
+                item["mechanism_ma10_stable_epoch_0.40"] or "未达到",
+                item["mechanism_ma10_stable_epoch_0.50"] or "未达到",
+            ),
+            format_number(item["participation_positive_margin_last20"], 4),
+            format_number(item["participation_signed_margin_last20"], 4),
         ])
 
     contrast_rows = [[
@@ -2765,6 +3038,25 @@ def build_current_report_text(
     candidate_top_label = summaries[
         max(SCENARIO_ORDER, key=lambda key: summaries[key]["effective_last20"])
     ]["label"]
+    finite_mechanism_scenarios = [
+        scenario for scenario in SCENARIO_ORDER
+        if np.isfinite(float(
+            summaries[scenario]["coverage_weighted_active_correct_last20"]
+        ))
+    ]
+    mechanism_ranking = " > ".join(
+        "{}（{:.4f}）".format(
+            summaries[scenario]["label"],
+            summaries[scenario]["coverage_weighted_active_correct_last20"],
+        )
+        for scenario in sorted(
+            finite_mechanism_scenarios,
+            key=lambda key: summaries[key]["coverage_weighted_active_correct_last20"],
+            reverse=True,
+        )
+    )
+    if not mechanism_ranking:
+        mechanism_ranking = "当前格式无法计算"
     fixed_probe_mode = str(profile.get("probe_format")) == "npz"
     if fixed_probe_mode:
         probe_evidence_limit = (
@@ -2780,7 +3072,8 @@ def build_current_report_text(
         )
         probe_longitudinal_statement = (
             "全部epoch使用同一批固定图片与顺序，因此MA10可解释为相同探针集合上的纵向趋势。"
-            "历史最佳仍只作辅助展示；“达成更快”以原始epoch均值的前50/100轮面积和MA10稳定越线为准。"
+            "历史最佳仍只作辅助展示；候选收敛速度读取候选S的前50/100轮面积，"
+            "参与机制速度则读取Q的前50/100轮面积、累计量及MA10稳定越过0.20/0.40/0.50的轮次。"
         )
         correctness_statement = (
             "真实标签允许把纯有效共识拆成正确和错误两部分，并同时报告固定探针云端准确率；"
@@ -2791,6 +3084,38 @@ def build_current_report_text(
         )
         probe_next_step = (
             "3. 在至少5个匹配随机种子上重复当前固定探针方案，并报告均值、标准差或置信区间。"
+        )
+        mechanism_evidence_statement = (
+            "**参与机制主指标中，HFL-SnF后20轮覆盖加权活跃正确共识为"
+            "{last20}，{rounds_total}轮累计为{total}，前100轮归一化面积为{auc100}。**"
+            " 该口径把参与覆盖率和正确共识质量同时纳入。"
+        ).format(
+            last20=format_number(
+                summaries["hfl_snf_fixed"][
+                    "coverage_weighted_active_correct_last20"
+                ],
+                4,
+            ),
+            total=format_number(
+                summaries["hfl_snf_fixed"][
+                    "coverage_weighted_active_correct_total"
+                ],
+                4,
+            ),
+            auc100=format_number(
+                summaries["hfl_snf_fixed"][
+                    "coverage_weighted_active_correct_auc100"
+                ],
+                4,
+            ),
+            rounds_total=summaries["hfl_snf_fixed"]["rounds"],
+        )
+        mechanism_definition_statement = (
+            "本报告把“活跃覆盖率乘活跃正确有效共识”记为参与机制主指标Q。"
+            "Q衡量固定候选池中每轮实际产生的正确共识证据，而不是只看候选模型是否相似。"
+            "同时计算参与加权正确边界质量：对每个活跃客户端和探针取"
+            "“真实类别概率减最强错误类别概率”的正部，并除以候选总数与探针数；"
+            "有符号版本保留错误预测的负贡献作为护栏。"
         )
     else:
         probe_evidence_limit = (
@@ -2813,6 +3138,13 @@ def build_current_report_text(
         )
         probe_next_step = (
             "3. 使用当前代码重新运行固定100图探针实验，获得正确/错误共识和跨方案探针哈希。"
+        )
+        mechanism_evidence_statement = (
+            "**历史CSV缺少稳定的固定多图真值，无法可靠计算参与机制主指标和正确边界质量。**"
+        )
+        mechanism_definition_statement = (
+            "历史格式继续保留候选纯S与活跃S；参与机制速度和概率边界相关字段标为空值，"
+            "不会把缺失真值解释成零表现。"
         )
     if len(missing_mat_scenarios) == len(SCENARIO_ORDER):
         mat_path_statement = (
@@ -2843,6 +3175,7 @@ def build_current_report_text(
 - **后20轮效果最好的是 {best_label}，波动最小的是 {stable_label}。** 最佳方案的后20轮平均测试准确率为 **{best_acc}**，其标准差为 **{best_std:.2f} 个百分点**。
 - **本批SnF相对noSnF的后20轮差值在HFL内为 {hfl_gain:+.3f} 个百分点，在FL内为 {fl_gain:+.3f} 个百分点。** 这些差值不是纯SnF因果效应，因为对应方案的累计活跃客户端次数也可能不同。
 - **四方案均记录了{rounds}轮，但有效参与预算并不相同。** HFL-SnF、HFL-noSnF、FL-SnF、FL-noSnF累计活跃客户端次数分别为 **{hfl_snf_total}、{hfl_no_total}、{fl_snf_total}、{fl_no_total}**。
+- {mechanism_evidence_statement}
 - **证据评级：可分享但附带限制。** 结果完整且关键运行不变量通过检查；{probe_evidence_limit}。
 
 ## 1. 数据完整性与运行语义
@@ -2881,17 +3214,25 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 
 ## 4. 固定候选、活跃客户端与有效共识
 
-有效共识分成概率一致性A、各客户端预测确定性C和二者乘积S。只看A会把“所有模型共同接近均匀分布”误判成高共识。报告把纯有效共识S与正确有效共识并列为主指标，以错误有效共识作为护栏。
+有效共识分成概率一致性A、各客户端预测确定性C和二者乘积S。只看A会把“所有模型共同接近均匀分布”误判成高共识。候选纯/正确S继续作为收敛护栏，错误有效共识继续用于识别集体错误，但这些候选口径不再单独承担解释参与机制的任务。
 
-{consensus_table}
+{candidate_consensus_table}
 
 全部{candidate_total}个候选的共识和MAT活跃客户端的共识必须分开解释。noSnF场景每轮只有少量候选训练，其余候选在上轮全量下发后保留相同云模型，容易形成较高的多数一致；活跃客户端指标更能反映当轮真正贡献聚合的模型差异。
 
 ![候选与活跃客户端有效共识](figures/04_有效共识分解.png)
 
-![四方案候选有效共识S对比](figures/08_四方案候选有效共识S对比.png)
-
 按候选有效共识S的最后20轮均值排序为：**{candidate_consensus_ranking}**。当前排序第一的是{candidate_top_label}；候选S会受到轮内未训练候选保留旧云模型的影响，因此该排序不能直接解释成真实参与客户端之间形成了更强共识，应与同表中的活跃客户端S一起阅读。
+
+### 4.1 参与机制共识吞吐量
+
+{mechanism_definition_statement}
+
+{mechanism_table}
+
+当前覆盖加权活跃正确共识的后20轮排序为：**{mechanism_ranking}**。前50/100轮面积衡量单位epoch内累积正确共识的速度；累计量衡量整段训练产生的机制证据总量；MA10越线轮次越早，表示越早进入稳定水平。该指标有意保留参与人数差异，适合检验“每轮聚合更多客户端是否更快形成正确共识”，但不能替代相同参与预算下的效率比较。
+
+![参与加权正确共识与边界质量](figures/08_参与加权正确共识与边界质量.png)
 
 ![当前平滑共识与历史最佳](figures/05_平滑共识与历史最佳.png)
 
@@ -2931,6 +3272,12 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
 {probe_next_step}
 4. 若研究通信效率，额外保存上下行模型字节数和真实传输次数，避免只使用客户端次数代理。
 
+## 10. 待进一步回答的问题
+
+- 在逐轮活跃人数或累计样本预算严格匹配后，HFL-SnF的Q、正确边界质量和 `test_acc` 优势是否仍然存在？
+- Q的提升主要来自覆盖率增加，还是来自活跃客户端正确有效共识本身提高？建议在多随机种子结果中同时报告两项分量。
+- 若按客户端样本数、FLOPs或上传字节数归一化，当前“每epoch产生更多正确共识证据”的排序是否改变？
+
 本报告由 `analyze_experiment_suite.py` 从原始结果重新计算；逐轮证据、质量检查和来源哈希见同目录CSV及 `analysis_manifest.json`。
 """.format(
         batch_name=profile["batch_name"],
@@ -2938,6 +3285,8 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
         best_acc=format_percent(summaries[best_scenario]["last20_test_acc_mean"]),
         best_std=100.0 * summaries[best_scenario]["last20_test_acc_std"],
         stable_label=summaries[stable_scenario]["label"],
+        mechanism_evidence_statement=mechanism_evidence_statement,
+        mechanism_definition_statement=mechanism_definition_statement,
         probe_evidence_limit=probe_evidence_limit,
         probe_storage_statement=probe_storage_statement,
         probe_longitudinal_statement=probe_longitudinal_statement,
@@ -2975,16 +3324,25 @@ HFL-SnF最后20轮平均准确率为 **{hfl_snf_acc}**，FL-SnF、HFL-noSnF、FL
             ["方案", "平均活跃人数", "范围", "累计活跃客户端次", "零参与轮", "{}人中活跃覆盖".format(candidate_total), "累计下发客户端次"],
             participation_rows,
         ),
-        consensus_table=markdown_table(
+        candidate_consensus_table=markdown_table(
             [
                 "方案", "候选后20轮纯S", "候选后20轮正确S", "候选后20轮错误S",
-                "活跃后20轮正确S", "覆盖加权活跃正确S", "纯S面积50/100",
+                "活跃后20轮正确S", "纯S面积50/100",
                 "正确S面积50/100", "正确S的MA10稳定达到0.60",
             ],
-            consensus_rows,
+            candidate_consensus_rows,
+        ),
+        mechanism_table=markdown_table(
+            [
+                "方案", "Q后20轮", "Q累计量", "Q面积50/100",
+                "Q的MA10稳定达到0.20/0.40/0.50",
+                "后20轮正确边界质量", "后20轮有符号边界质量",
+            ],
+            mechanism_rows,
         ),
         candidate_consensus_ranking=candidate_consensus_ranking,
         candidate_top_label=candidate_top_label,
+        mechanism_ranking=mechanism_ranking,
         contrast_table=markdown_table(
             ["对比", "后20轮准确率差/百分点", "最终差/百分点", "平均活跃人数差"],
             contrast_rows,
@@ -3033,7 +3391,7 @@ def build_manifest(
         "当前平滑共识与单调历史最佳值有什么区别？",
         "HFL中客户端、边缘和云端的确定性及分歧如何传播？",
         "固定{}槽位如何活跃，参与人数与当轮准确率变化有什么关系？".format(candidate_total),
-        "四种方案的固定{}候选有效共识S如何变化，后20轮水平有何差异？".format(candidate_total),
+        "四方案的参与机制共识吞吐量、累计量、相对差值和正确边界质量有何差异？",
     ]
     chart_map = []
     for index, path in enumerate(figure_paths):
@@ -3061,7 +3419,7 @@ def build_manifest(
         limitations.insert(3, "至少一组历史单图探针没有保存真值标签")
 
     return {
-        "schema_version": "4.0",
+        "schema_version": "5.0",
         "generated_at": datetime.now().astimezone().isoformat(),
         "confidence": "可分享但附带限制",
         "source_precedence": [
@@ -3074,6 +3432,15 @@ def build_manifest(
             "stable_threshold_window": 5,
             "thresholds": list(SUMMARY_THRESHOLDS),
             "consensus_thresholds": list(CONSENSUS_THRESHOLDS),
+            "mechanism_thresholds": list(MECHANISM_THRESHOLDS),
+            "mechanism_primary_metric": (
+                "active_coverage_ratio × active_correct_effective"
+            ),
+            "participation_margin_metric": (
+                "sum_active_probe(max(true_probability - "
+                "max_wrong_probability, 0)) / "
+                "(candidate_count × probe_count)"
+            ),
             "lag_range": [-10, 10],
         },
         "batch_profile": profile,
@@ -3297,9 +3664,14 @@ def _run_analysis(
     for scenario in SCENARIO_ORDER:
         item = summaries[scenario]
         print(
-            "{}：后20轮测试准确率 {:.4f}，累计参与 {}，后20轮活跃有效共识 {:.4f}".format(
+            "{}：后20轮测试准确率 {:.4f}，累计参与 {}，"
+            "后20轮机制共识 {}，后20轮正确边界质量 {}".format(
                 item["label"], item["last20_test_acc_mean"],
-                item["active_total"], item["active_effective_last20"],
+                item["active_total"],
+                format_number(
+                    item["coverage_weighted_active_correct_last20"], 4
+                ),
+                format_number(item["participation_positive_margin_last20"], 4),
             )
         )
     return output_dir

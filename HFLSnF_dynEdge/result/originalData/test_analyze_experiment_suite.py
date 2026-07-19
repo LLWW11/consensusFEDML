@@ -16,6 +16,7 @@ from analyze_experiment_suite import (
     build_batch_profile,
     build_fixed_candidate_activity_matrix,
     build_round_metrics,
+    calculate_participation_margin_metrics,
     consensus_components,
     discover_experiment_dirs,
     first_stable_epoch,
@@ -24,6 +25,9 @@ from analyze_experiment_suite import (
     historical_best,
     load_experiment,
     map_client_ids_to_slots,
+    mean_consensus_to_reference,
+    mean_js_to_reference,
+    mechanism_speed_curve,
     normalized_entropy,
     normalized_curve_area,
     parse_args,
@@ -93,6 +97,68 @@ class ConsensusMetricTest(unittest.TestCase):
         self.assertAlmostEqual(certainty, 1.0, places=12)
         self.assertLess(effective, 1.0)
 
+    def test_participation_margin_uses_active_probability_boundaries(self):
+        """确认正确边界质量按候选池归一化，并保留错误预测的负贡献。"""
+
+        probabilities = np.asarray(
+            [
+                [[0.8, 0.1, 0.1], [0.1, 0.7, 0.2]],
+                [[0.7, 0.2, 0.1], [0.1, 0.8, 0.1]],
+                [[0.2, 0.6, 0.2], [0.1, 0.2, 0.7]],
+            ],
+            dtype=np.float64,
+        )
+        positive, signed = calculate_participation_margin_metrics(
+            probabilities, active_slots=[0, 2], true_labels=np.asarray([0, 1])
+        )
+
+        # 正边界为0.7和0.5，分母为3候选×2探针；负边界-0.4和-0.5只进入有符号护栏。
+        self.assertAlmostEqual(positive, 1.2 / 6.0, places=12)
+        self.assertAlmostEqual(signed, 0.3 / 6.0, places=12)
+        self.assertEqual(
+            calculate_participation_margin_metrics(
+                probabilities, active_slots=[], true_labels=np.asarray([0, 1])
+            ),
+            (0.0, 0.0),
+        )
+        unavailable = calculate_participation_margin_metrics(
+            probabilities, active_slots=[0], true_labels=None
+        )
+        self.assertTrue(all(np.isnan(value) for value in unavailable))
+
+    def test_vectorized_reference_metrics_match_pairwise_formulas(self):
+        """确认批量参考分布指标与逐模型、逐探针旧公式数值一致。"""
+
+        generator = np.random.RandomState(7)
+        probabilities = generator.dirichlet(
+            np.ones(4), size=(3, 5)
+        )
+        reference = generator.dirichlet(np.ones(4), size=5)
+        expected_js = np.mean([
+            generalized_js_divergence(np.stack([
+                probabilities[model_index, probe_index], reference[probe_index]
+            ]))
+            for model_index in range(probabilities.shape[0])
+            for probe_index in range(probabilities.shape[1])
+        ])
+        expected_components = np.mean([
+            consensus_components(np.stack([
+                probabilities[model_index, probe_index], reference[probe_index]
+            ]))
+            for model_index in range(probabilities.shape[0])
+            for probe_index in range(probabilities.shape[1])
+        ], axis=0)
+
+        self.assertAlmostEqual(
+            mean_js_to_reference(probabilities, reference), expected_js, places=12
+        )
+        np.testing.assert_allclose(
+            mean_consensus_to_reference(probabilities, reference),
+            expected_components,
+            rtol=0.0,
+            atol=1e-12,
+        )
+
 
 class TimeSeriesUtilityTest(unittest.TestCase):
     """验证尾随均值、稳定阈值和历史最佳共识的时间语义。"""
@@ -121,6 +187,13 @@ class TimeSeriesUtilityTest(unittest.TestCase):
 
         values = [0.7] * 4 + [0.9] * 5 + [0.6] * 5 + [0.9] * 8
         self.assertEqual(first_stable_epoch(values, threshold=0.8, window=5), 18)
+
+    def test_mechanism_speed_curve_treats_sparse_consensus_as_zero_evidence(self):
+        """确认偶发空活跃共识用于速度分析时记零，而整列缺失仍保持不可用。"""
+
+        values = mechanism_speed_curve([0.1, np.nan, 0.3])
+        np.testing.assert_allclose(values, [0.1, 0.0, 0.3])
+        self.assertTrue(np.all(np.isnan(mechanism_speed_curve([np.nan, np.nan]))))
 
 
 class ClientMappingTest(unittest.TestCase):
@@ -512,6 +585,17 @@ class FixedNpzAnalysisTest(unittest.TestCase):
             float(row["candidate_effective"]),
             places=12,
         )
+        self.assertAlmostEqual(
+            float(row["participation_weighted_positive_margin"]), 1.0, places=12
+        )
+        self.assertAlmostEqual(
+            float(row["participation_weighted_signed_margin"]), 1.0, places=12
+        )
+        self.assertAlmostEqual(
+            float(row["cumulative_coverage_weighted_active_correct_effective"]),
+            1.0,
+            places=12,
+        )
 
         averaged_across_images = np.stack(
             experiment.client_probe[0], axis=0
@@ -571,6 +655,37 @@ class FixedNpzAnalysisTest(unittest.TestCase):
             self.assertTrue(
                 np.isnan(float(row["coverage_weighted_active_correct_effective"]))
             )
+        self.assertEqual(
+            float(rows[0]["participation_weighted_positive_margin"]), 0.0
+        )
+        self.assertEqual(
+            float(rows[0]["participation_weighted_signed_margin"]), 0.0
+        )
+        self.assertAlmostEqual(
+            float(rows[1]["participation_weighted_positive_margin"]),
+            1.0 / 3.0,
+            places=12,
+        )
+        self.assertAlmostEqual(
+            float(rows[1]["participation_weighted_signed_margin"]),
+            1.0 / 3.0,
+            places=12,
+        )
+        self.assertTrue(np.isnan(float(
+            rows[0]["cumulative_coverage_weighted_active_correct_effective"]
+        )))
+        self.assertTrue(np.isnan(float(
+            rows[1]["cumulative_coverage_weighted_active_correct_effective"]
+        )))
+        self.assertEqual(
+            float(rows[0]["cumulative_participation_weighted_positive_margin"]),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            float(rows[1]["cumulative_participation_weighted_positive_margin"]),
+            1.0 / 3.0,
+            places=12,
+        )
 
     def test_auc_limits_and_ma10_stable_crossing_use_epoch_curves(self):
         """确认前50/100轮归一化AUC和MA10稳定越线epoch的时间语义。"""
@@ -624,13 +739,53 @@ class FixedNpzAnalysisTest(unittest.TestCase):
                     "r", encoding="utf-8-sig", newline=""
             ) as handle:
                 round_output = list(csv.DictReader(handle))
+            with (output_dir / "实验汇总.csv").open(
+                    "r", encoding="utf-8-sig", newline=""
+            ) as handle:
+                summary_output = list(csv.DictReader(handle))
 
             self.assertIn("固定、类别均衡的100张图片", report)
             self.assertIn("正确有效共识", report)
             self.assertIn("错误有效共识", report)
+            self.assertIn("参与机制共识吞吐量", report)
+            self.assertIn("参与加权正确边界质量", report)
+            self.assertIn("待进一步回答的问题", report)
             self.assertIn("`{}`".format("a" * 64), report)
             self.assertEqual(len(round_output), 48)
+            self.assertEqual(len(summary_output), 4)
+            self.assertTrue(
+                {
+                    "覆盖率加权参与者正确有效共识S",
+                    "累计覆盖率加权参与者正确有效共识S",
+                    "参与加权正确边界质量",
+                    "参与加权有符号边界质量",
+                }.issubset(round_output[0])
+            )
+            for summary_row in summary_output:
+                self.assertAlmostEqual(
+                    float(summary_row["后20轮覆盖加权活跃正确有效共识S"]),
+                    1.0,
+                    places=12,
+                )
+                self.assertAlmostEqual(
+                    float(summary_row["累计覆盖加权活跃正确有效共识S"]),
+                    12.0,
+                    places=12,
+                )
+                self.assertAlmostEqual(
+                    float(summary_row["后20轮参与加权正确边界质量"]),
+                    1.0,
+                    places=12,
+                )
             self.assertEqual(len(list((output_dir / "figures").glob("*.png"))), 8)
+            self.assertTrue(
+                (output_dir / "figures" / "08_参与加权正确共识与边界质量.png").is_file()
+            )
+            self.assertEqual(manifest["schema_version"], "5.0")
+            self.assertEqual(
+                manifest["analysis_parameters"]["mechanism_thresholds"],
+                [0.2, 0.4, 0.5],
+            )
             self.assertTrue(all(
                 source["probe_format"] == "npz"
                 for source in manifest["sources"].values()
@@ -838,12 +993,15 @@ class GeneratedArtifactTest(unittest.TestCase):
                 "边缘云有效共识尾随均值",
                 "MAT活跃候选槽位",
                 "MAT分组候选槽位",
+                "累计覆盖率加权参与者正确有效共识S",
+                "参与加权正确边界质量",
+                "参与加权有符号边界质量",
             }.issubset(round_rows[0])
         )
         self.assertEqual(manifest["confidence"], "可分享但附带限制")
         self.assertEqual(len(manifest["chart_map"]), 8)
         self.assertIn(
-            "figures\\08_四方案候选有效共识S对比.png",
+            "figures\\08_参与加权正确共识与边界质量.png",
             [item["file"] for item in manifest["chart_map"]],
         )
 
@@ -899,7 +1057,8 @@ class GeneratedArtifactTest(unittest.TestCase):
             "MAT绝对路径",
             "单随机种子",
             "没有真实标签",
-            "四方案候选有效共识S对比",
+            "参与机制共识吞吐量",
+            "参与加权正确共识与边界质量",
             "当前排序第一的是",
             "不能用于比较4090与4060训练速度",
         ]
