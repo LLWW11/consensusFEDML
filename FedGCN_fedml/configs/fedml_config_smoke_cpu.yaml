@@ -1,0 +1,41 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "cora"
+  data_cache_dir: "../1paperAbout/Collaborative_Reasoning/data"
+  iid_fraction: 0.5
+
+model_args:
+  model: "fedgcn"
+  hidden_dim: 16
+  dropout: 0.5
+
+train_args:
+  federated_optimizer: "FedGCN"
+  client_id_list: "[]"
+  client_num_in_total: 2
+  client_num_per_round: 2
+  comm_round: 2
+  epochs: 1
+  client_optimizer: "sgd"
+  learning_rate: 0.5
+  lr: 0.5
+  weight_decay: 0.0005
+  aggregation_weight_basis: "labeled_train_nodes"
+
+device_args:
+  using_gpu: false
+  gpu_id: 0
+  require_cuda: false
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "fedgcn_cora_smoke_cpu"
+  result_root: "results"
+

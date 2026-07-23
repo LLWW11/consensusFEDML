@@ -2,6 +2,7 @@
 *.txt
 *.csv
 *.json
+!.vscode/launch.json
 *.jsonl
 *.html
 *.zip
@@ -15,3 +16,8 @@
 /idea
 /.workbuddy
 /__pycache__
+/.Codex
+/.vscode
+/.workbuddy
+/1paperabout
+/zOld
