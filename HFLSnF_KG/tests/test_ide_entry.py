@@ -33,6 +33,22 @@ class IdeEntryTest(unittest.TestCase):
         finally:
             sys.argv = original_argv
 
+    def test_transe_profile_selects_stage_three_entrypoint(self) -> None:
+        """验证阶段三IDE方案选择TransE入口和现有配置文件。"""
+
+        original_argv = list(sys.argv)
+        try:
+            config_path = run_from_ide.prepare_fedml_arguments(
+                "transe_smoke_cpu"
+            )
+            entrypoint = run_from_ide.resolve_entrypoint(
+                "transe_smoke_cpu"
+            )
+            self.assertEqual(entrypoint.__module__, "HFLSnF_KG.run_transe")
+            self.assertTrue(config_path.is_file())
+        finally:
+            sys.argv = original_argv
+
     def test_invalid_profile_is_rejected(self) -> None:
         """验证未知IDE运行方案给出明确错误。"""
 

@@ -14,3 +14,5 @@
 原项目的 `init_test.py` 没有复制，因为其中存在写死随机种子和与本实验无关的MLOps初始化。新入口继续使用FedML官方 `load_arguments` 解析YAML、FedML设备接口选择设备，并统一读取 `random_seed`。
 
 原项目的MAT拓扑解析当前通过 `MatlabTopologyProvider` 只读复用，阶段二的Cora冒烟使用静态拓扑。后续接入37槽位FB15k实验时，再将MAT候选槽位与37个知识客户端一一对应。
+
+阶段三的 `tasks/kge/` 是新增集中式TransE准确性基线，不从MNIST训练器复制任务逻辑。它继续复用 `run_hfl_kg.py` 中的FedML YAML初始化、统一随机种子、设备解析和独立结果目录接口。阶段四将以阶段三的数据、模型、负采样和filtered评估组件为基础，再接入本表中的FedML Client、Group和分层Trainer结构。

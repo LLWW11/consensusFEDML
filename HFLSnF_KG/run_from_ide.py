@@ -1,4 +1,4 @@
-"""供PyCharm、VS Code等IDE直接点击运行的分层GCN入口。"""
+"""供PyCharm、VS Code等IDE直接点击运行的阶段二和阶段三入口。"""
 
 from __future__ import annotations
 
@@ -9,12 +9,14 @@ from typing import Optional
 
 
 # PyCharm中直接运行本文件时，只需修改这里。
-# smoke_cpu：本机两轮CPU冒烟；server_cuda：服务器CUDA验证配置。
+# smoke_cpu/server_cuda用于阶段二GCN，transe_*用于阶段三TransE。
 DEFAULT_PROFILE = "smoke_cpu"
 
 PROFILE_CONFIGS = {
     "smoke_cpu": "smoke_cora_cpu.yaml",
     "server_cuda": "server_cora_cuda.yaml",
+    "transe_smoke_cpu": "smoke_transe_synthetic_cpu.yaml",
+    "transe_server_cuda": "server_fb15k237_transe_cuda.yaml",
 }
 
 
@@ -49,6 +51,16 @@ def prepare_fedml_arguments(profile: str) -> Path:
     return config_path
 
 
+def resolve_entrypoint(profile: str):
+    """根据IDE运行方案返回GCN或TransE主函数。"""
+
+    if str(profile).startswith("transe_"):
+        from HFLSnF_KG.run_transe import main
+    else:
+        from HFLSnF_KG.run_hfl_kg import main
+    return main
+
+
 def run_from_ide(profile: Optional[str] = None) -> None:
     """准备项目导入路径并调用与终端完全一致的训练入口。"""
 
@@ -63,8 +75,7 @@ def run_from_ide(profile: Optional[str] = None) -> None:
     print("FedML配置文件：{}".format(config_path))
 
     # 延迟导入保证任意IDE工作目录都能找到项目包。
-    from HFLSnF_KG.run_hfl_kg import main
-
+    main = resolve_entrypoint(selected_profile)
     main()
 
 
