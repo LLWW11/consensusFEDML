@@ -1,6 +1,6 @@
 # HFLSnF知识图谱迁移框架
 
-本目录已经实现迁移计划的阶段一、阶段二和阶段三：先建立任务无关的单进程分层联邦核心，再将已经验证的Cora/Citeseer两层GCN作为第一个任务适配器接入，最后增加FB15k-237集中式TransE知识图谱补全基线。阶段二GCN的终端入口和IDE入口默认运行FedML框架版，不再以自定义简易模拟器作为正式入口。
+本目录已经实现迁移计划的阶段一至阶段四：任务无关分层联邦核心、FedML版Cora/Citeseer GCN、FB15k-237集中式TransE基线，以及37客户端普通联邦TransE。阶段二GCN和阶段四TransE都使用FedML Client/ClientTrainer接口，不以自定义简易模拟器作为正式入口。
 
 默认运行链如下：
 
@@ -20,7 +20,7 @@ FedML Client → FedML ClientTrainer
 完整图训练/验证/测试评估
 ```
 
-阶段三已经实现FB15k-237文本读取、TransE、filtered负采样、最佳验证模型选择，以及头尾双向filtered MRR、Mean Rank和Hits@1/3/10。它是集中式准确性基线，不执行客户端划分或联邦聚合；37客户端联邦TransE、实体关系行级掩码聚合和动态知识源失效实验仍属于后续阶段。
+阶段四已经实现37客户端头实体均衡划分、全客户端参与、按本地正三元组数加权的单层稠密FedAvg，以及最佳全局模型的filtered评估。MAT分层拓扑、实体关系行级掩码聚合和动态知识源失效实验仍属于后续阶段。
 
 ## 工程边界
 
@@ -30,6 +30,7 @@ FedML Client → FedML ClientTrainer
 - `fedml_framework/` 是默认正式运行链，结构来自 `HFLSnF_dynEdge/` 的Runner、Simulator、Client、Group和Trainer。
 - `core/simulator.py` 只保留为任务无关参考实现和等价性测试基准，不再由默认入口调用。
 - `tasks/kge/` 是阶段三集中式TransE组件；它使用FedML解析YAML和选择设备，但集中式基线本身不伪装成联邦训练。
+- `fedml_kge/` 是阶段四普通联邦TransE链路，继承FedML `Client` 和 `ClientTrainer`，只执行客户端到云端的单层FedAvg。
 - 本地只执行CPU轻量验证；服务器配置明确要求CUDA，不允许静默回退CPU。
 
 ## 核心设计
@@ -93,14 +94,22 @@ TransE间隔排序损失与filtered负采样
 
 FB15k-237文件放置方式见 `data/README.md`。内置 `synthetic-kg` 只用于无网络CPU流程验证，不能用其指标判断论文效果。
 
+## 阶段四：普通联邦TransE
+
+阶段四将全部训练三元组按头实体归属分给37个知识客户端。同一头实体的事实不会跨客户端，头实体按照三元组数量贪心分配到当前负载最低的客户端。种子42下，当前FB15k-237每个客户端持有7,354–7,355条训练三元组，全部272,115条训练三元组无重复、无遗漏。
+
+每个客户端维护统一编号下的完整实体和关系嵌入表，但本地损失只使用自己的三元组。每轮37个客户端都从同一个全局模型出发训练1个本地epoch，再按本地正三元组数直接执行云端FedAvg。未被客户端使用的嵌入行仍参与完整模型平均，这是普通稠密FedAvg对照组的预期局限；行级掩码聚合不属于本阶段。
+
+阶段四详细方法和实验口径见 `STAGE4_FEDERATED_TRANSE.md`。
+
 ## 在IDE中直接运行
 
 打开 `HFLSnF_KG/run_from_ide.py`，点击PyCharm或VS Code的“运行Python文件”即可。
 
-文件顶部默认配置为：
+文件顶部运行方案由 `DEFAULT_PROFILE` 决定。当前工作树保留用户设置：
 
 ```python
-DEFAULT_PROFILE = "smoke_cpu"
+DEFAULT_PROFILE = "transe_server_cuda"
 ```
 
 可选值：
@@ -109,6 +118,8 @@ DEFAULT_PROFILE = "smoke_cpu"
 - `server_cuda`：Cora、6个客户端、3个边缘组、100轮通信、每轮3个本地epoch，强制CUDA。
 - `transe_smoke_cpu`：内置微型知识图谱、3个集中式epoch、CPU轻量验证；
 - `transe_server_cuda`：FB15k-237、100个集中式epoch、完整测试集filtered评估，强制CUDA。
+- `fedtranse_smoke_cpu`：3个知识客户端、2轮普通FedAvg、CPU轻量验证；
+- `fedtranse_server_cuda`：37个知识客户端、100轮普通FedAvg、每轮1个本地epoch，强制CUDA。
 
 也可以通过环境变量选择：
 
@@ -149,11 +160,26 @@ python -m HFLSnF_KG.run_transe \
   --cf HFLSnF_KG/configs/server_fb15k237_transe_cuda.yaml
 ```
 
+阶段四普通联邦TransE本地CPU冒烟：
+
+```powershell
+& 'D:\Anaconda3\Scripts\conda.exe' run --no-capture-output -n py37 python `
+  -m HFLSnF_KG.run_federated_transe `
+  --cf HFLSnF_KG/configs/smoke_fedtranse_synthetic_cpu.yaml
+```
+
+阶段四FB15k-237服务器训练：
+
+```bash
+python -m HFLSnF_KG.run_federated_transe \
+  --cf HFLSnF_KG/configs/server_fb15k237_fedtranse_cuda.yaml
+```
+
 服务器需要安装与CUDA驱动匹配的PyTorch，以及FedML、SciPy、NetworkX和NumPy。服务器配置中的 `require_cuda: true` 会在CUDA不可用时于训练前报错。
 
 ## 运行测试
 
-阶段一至阶段三及FedML框架等价性测试：
+阶段一至阶段四及FedML框架等价性测试：
 
 ```powershell
 & 'D:\Anaconda3\Scripts\conda.exe' run --no-capture-output -n py37 python `
@@ -190,3 +216,11 @@ python -m HFLSnF_KG.run_transe \
 - `metrics.csv`：逐epoch训练损失和按配置周期计算的验证集filtered指标；
 - `summary.json`：最佳epoch及最终验证、测试filtered指标；
 - `model_best.pt`：最佳TransE参数、编号映射和训练汇总。
+
+阶段四结果目录另外包含：
+
+- `client_partition_summary.json`：划分指纹、客户端负载、知识范围及实体重叠统计；
+- `participation_schedule.jsonl`：逐轮37客户端参与、贡献及聚合权重；
+- `metrics.csv`：逐轮本地加权损失和按周期计算的全局验证指标；
+- `summary.json`：最佳轮、完整filtered指标、集中式测试MRR参考值及差值；
+- `model_best.pt`：最佳全局TransE参数、统一编号映射和分区摘要。

@@ -9,15 +9,26 @@ from typing import Dict, Optional, TextIO
 
 
 class ExperimentResultWriter:
-    """把逐轮指标和拓扑记录写入一个独立结果目录。"""
+    """把逐轮指标和调度记录写入一个独立结果目录。"""
 
-    def __init__(self, result_dir: Path):
-        """创建结果目录并准备逐轮拓扑输出文件。"""
+    def __init__(
+        self,
+        result_dir: Path,
+        schedule_filename: str = "topology_schedule.jsonl",
+    ):
+        """创建结果目录并准备指定名称的逐轮调度输出文件。"""
 
         self.result_dir = Path(result_dir).expanduser().resolve()
         self.result_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_path = self.result_dir / "metrics.csv"
-        self.topology_path = self.result_dir / "topology_schedule.jsonl"
+        schedule_filename = str(schedule_filename).strip()
+        if (
+            not schedule_filename
+            or Path(schedule_filename).name != schedule_filename
+            or not schedule_filename.endswith(".jsonl")
+        ):
+            raise ValueError("调度文件名必须是当前目录下的.jsonl文件")
+        self.topology_path = self.result_dir / schedule_filename
         self._metrics_file: Optional[TextIO] = None
         self._metrics_writer: Optional[csv.DictWriter] = None
         self._metric_fields = None

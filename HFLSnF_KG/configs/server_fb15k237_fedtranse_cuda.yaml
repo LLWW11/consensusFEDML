@@ -5,30 +5,31 @@ common_args:
 data_args:
   dataset: "fb15k-237"
   data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
 
 model_args:
   model: "transe"
-  embedding_dim: 256
-  distance_norm: 2
+  embedding_dim: 128
+  distance_norm: 1
 
 train_args:
-  federated_optimizer: "CentralizedTransE"
-
-  client_num_in_total: 1
-  client_num_per_round: 1
-  comm_round: 1
-  epochs: 1000
+  federated_optimizer: "FedAvgTransE"
+  client_num_in_total: 37
+  client_num_per_round: 37
+  comm_round: 100
+  epochs: 1
   batch_size: 1024
+  client_optimizer: "adam"
   learning_rate: 0.001
   lr: 0.001
   margin: 1.0
-  negative_sample_count: 30
-  eval_every: 5
-  validation_max_triples: 10
+  negative_sample_count: 1
+  eval_every: 10
+  validation_max_triples: 1000
   final_validation_max_triples: 0
   test_max_triples: 0
   evaluation_candidate_batch_size: 4096
-  early_stopping_patience: 20
+  centralized_reference_mrr: 0.19557177000249226
 
 device_args:
   using_gpu: true
@@ -41,5 +42,5 @@ comm_args:
 tracking_args:
   enable_wandb: false
   using_mlops: false
-  run_name: "hflsnf_kg_fb15k237_transe_server_cuda"
+  run_name: "hflsnf_kg_fb15k237_fedtranse_server_cuda"
   result_root: "results"

@@ -15,4 +15,6 @@
 
 原项目的MAT拓扑解析当前通过 `MatlabTopologyProvider` 只读复用，阶段二的Cora冒烟使用静态拓扑。后续接入37槽位FB15k实验时，再将MAT候选槽位与37个知识客户端一一对应。
 
-阶段三的 `tasks/kge/` 是新增集中式TransE准确性基线，不从MNIST训练器复制任务逻辑。它继续复用 `run_hfl_kg.py` 中的FedML YAML初始化、统一随机种子、设备解析和独立结果目录接口。阶段四将以阶段三的数据、模型、负采样和filtered评估组件为基础，再接入本表中的FedML Client、Group和分层Trainer结构。
+阶段三的 `tasks/kge/` 是新增集中式TransE准确性基线，不从MNIST训练器复制任务逻辑。它继续复用 `run_hfl_kg.py` 中的FedML YAML初始化、统一随机种子、设备解析和独立结果目录接口。
+
+阶段四新增 `fedml_kge/`，其中Client和ClientTrainer分别继承FedML官方基类，Runner与训练循环沿用 `HFLSnF_dynEdge` 的单进程结构，但只执行客户端到云端的直接FedAvg，不创建边缘组。阶段五将在这一普通联邦基线上接入MAT拓扑和边缘—云两级聚合。

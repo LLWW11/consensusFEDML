@@ -13,12 +13,13 @@ from HFLSnF_KG import run_from_ide
 class IdeEntryTest(unittest.TestCase):
     """验证IDE配置选择不会依赖当前工作目录。"""
 
-    def test_default_profile_is_cpu_smoke(self) -> None:
-        """验证未设置环境变量时默认选择本地CPU冒烟。"""
+    def test_default_profile_matches_file_setting(self) -> None:
+        """验证未设置环境变量时采用文件顶部当前运行方案。"""
 
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(
-                run_from_ide.resolve_ide_profile(), "smoke_cpu"
+                run_from_ide.resolve_ide_profile(),
+                run_from_ide.DEFAULT_PROFILE,
             )
 
     def test_prepare_arguments_uses_existing_config(self) -> None:
@@ -45,6 +46,25 @@ class IdeEntryTest(unittest.TestCase):
                 "transe_smoke_cpu"
             )
             self.assertEqual(entrypoint.__module__, "HFLSnF_KG.run_transe")
+            self.assertTrue(config_path.is_file())
+        finally:
+            sys.argv = original_argv
+
+    def test_fedtranse_profile_selects_stage_four_entrypoint(self) -> None:
+        """验证阶段四IDE方案选择普通联邦TransE入口。"""
+
+        original_argv = list(sys.argv)
+        try:
+            config_path = run_from_ide.prepare_fedml_arguments(
+                "fedtranse_smoke_cpu"
+            )
+            entrypoint = run_from_ide.resolve_entrypoint(
+                "fedtranse_smoke_cpu"
+            )
+            self.assertEqual(
+                entrypoint.__module__,
+                "HFLSnF_KG.run_federated_transe",
+            )
             self.assertTrue(config_path.is_file())
         finally:
             sys.argv = original_argv

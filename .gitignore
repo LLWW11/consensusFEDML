@@ -10,7 +10,7 @@
 *.7z
 *.ps1
 *.pyc
-
+*.xz
 
 */result/*
 /idea
@@ -22,3 +22,4 @@
 /1paperabout
 /zOld
 /计划
+/FB15k-237
