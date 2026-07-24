@@ -18,7 +18,7 @@ input_file = fullfile(script_directory, ...
 
 % 设置目标方差比例，取值范围为 [0,1]。
 % 例如 0.5 表示目标方差为零值修复后原方差的 50%。
-varAlpha = 0;
+varAlpha = 0.1;
 
 % 根据 varAlpha 自动生成清晰的最终训练文件名。
 alpha_token = sprintf('%.6g', varAlpha);

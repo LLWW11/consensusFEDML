@@ -1,0 +1,44 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "cora"
+  data_cache_dir: "../1paperAbout/Collaborative_Reasoning/data"
+  iid_fraction: 0.5
+
+model_args:
+  model: "gcn"
+  hidden_dim: 16
+  dropout: 0.5
+
+train_args:
+  federated_optimizer: "HierarchicalGCN"
+  client_id_list: "[]"
+  client_num_in_total: 6
+  client_num_per_round: 6
+  comm_round: 100
+  epochs: 3
+  client_optimizer: "sgd"
+  learning_rate: 0.5
+  lr: 0.5
+  weight_decay: 0.0005
+  aggregation_mode: "hierarchical"
+
+topology_args:
+  topology_type: "static"
+  edge_num: 3
+
+device_args:
+  using_gpu: true
+  gpu_id: 0
+  require_cuda: true
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_cora_server_cuda"
+  result_root: "results"

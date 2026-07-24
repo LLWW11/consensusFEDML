@@ -2,7 +2,7 @@
 *.txt
 *.csv
 *.json
-!.vscode/launch.json
+*.vscode/launch.json
 *.jsonl
 *.html
 *.zip
@@ -21,3 +21,4 @@
 /.workbuddy
 /1paperabout
 /zOld
+/计划
