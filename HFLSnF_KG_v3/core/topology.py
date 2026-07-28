@@ -191,11 +191,18 @@ class MatlabTopologyProvider(TopologyProvider):
         edge_mode: str,
         util: float,
         client_count: int,
+        schedule_policy: str = "strict",
     ):
-        """加载旧项目的只读MAT调度，并使用客户端编号直接对应候选槽位。"""
+        """加载只读MAT调度，并配置越过源轮数时严格报错或循环复用。"""
 
         from HFLSnF_dynEdge.topology_schedule import MatlabTopologySchedule
 
+        normalized_policy = str(schedule_policy).strip().lower()
+        if normalized_policy not in {"strict", "cycle"}:
+            raise ValueError(
+                "MAT拓扑调度策略必须是strict或cycle"
+            )
+        self._schedule_policy = normalized_policy
         self._schedule = MatlabTopologySchedule(
             mat_path=str(Path(mat_path).expanduser().resolve()),
             architecture=str(architecture),
@@ -213,12 +220,18 @@ class MatlabTopologyProvider(TopologyProvider):
         return int(self._schedule.round_count)
 
     def get_round(self, round_index: int) -> RoundTopology:
-        """读取MAT指定行并转换为新模拟器使用的通信轮拓扑。"""
+        """按严格或循环策略读取MAT源行，并保留真实源轮次编号。"""
 
-        original = self._schedule.get_round(int(round_index))
+        requested_round_index = int(round_index)
+        if requested_round_index < 0:
+            raise ValueError("round_index不能小于0")
+        source_round_index = requested_round_index
+        if self._schedule_policy == "cycle":
+            source_round_index %= self.round_count
+        original = self._schedule.get_round(source_round_index)
         return RoundTopology.from_groups(
             original.copy_groups(),
-            int(round_index),
+            source_round_index,
             edge_node_ids=original.edge_node_ids,
         )
 
@@ -228,4 +241,8 @@ class MatlabTopologyProvider(TopologyProvider):
         metadata = dict(self._schedule.to_metadata())
         metadata["provider_type"] = "matlab_adapter"
         metadata["slot_mapping"] = "identity"
+        metadata["topology_schedule_policy"] = (
+            self._schedule_policy
+        )
+        metadata["source_round_count"] = self.round_count
         return metadata

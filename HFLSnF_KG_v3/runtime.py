@@ -114,4 +114,7 @@ def build_topology_provider(
         ),
         util=float(getattr(args, "topology_util", 0.5)),
         client_count=len(client_ids),
+        schedule_policy=str(
+            getattr(args, "topology_schedule_policy", "strict")
+        ),
     )

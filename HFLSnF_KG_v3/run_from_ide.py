@@ -26,6 +26,34 @@ PROFILE_TO_CONFIG = {
         "configs/hflsnf37_strong_transe_cuda.yaml",
         "hflsnf",
     ),
+    "hflsnf37_benchmark_cuda": (
+        "configs/benchmark_hflsnf37_accelerated_cuda.yaml",
+        "hflsnf",
+    ),
+    "hflsnf37_profile_cuda": (
+        "configs/benchmark_hflsnf37_profile_cuda.yaml",
+        "hflsnf",
+    ),
+    "hflsnf37_row_count_benchmark_cuda": (
+        "configs/benchmark_hflsnf37_row_count_cuda.yaml",
+        "hflsnf",
+    ),
+    "hflsnf37_row_count_screen40_cuda": (
+        "configs/screen_hflsnf37_row_count_seed42_40round_cuda.yaml",
+        "hflsnf",
+    ),
+    "hflsnf37_varalpha0p1_formal300_cuda": (
+        "configs/hflsnf37_row_count_varalpha0p1_seed42_300round_cuda.yaml",
+        "hflsnf",
+    ),
+    "fixed37_fixed6_reset_adam_screen80_cuda": (
+        "configs/screen_fixed37_fixed6_reset_adam_seed42_80round_cuda.yaml",
+        "hflsnf",
+    ),
+    "fixed37_fixed6_persistent_adam_screen80_cuda": (
+        "configs/screen_fixed37_fixed6_persistent_adam_seed42_80round_cuda.yaml",
+        "hflsnf",
+    ),
 }
 
 

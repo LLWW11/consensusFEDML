@@ -138,3 +138,59 @@ class RowMaskedAggregateStats:
                 raise ValueError("参数{}的逐行分母必须是一维".format(name))
             if int(numerator.shape[0]) != int(denominator.shape[0]):
                 raise ValueError("参数{}的逐行分子和分母长度不一致".format(name))
+
+
+@dataclass
+class RowCountWeightedAggregateStats:
+    """保存可跨边缘无损合并的逐行计数加权统计。"""
+
+    row_sums: Dict[str, torch.Tensor]
+    row_denominators: Dict[str, torch.Tensor]
+    row_contributor_counts: Dict[str, torch.Tensor]
+    constant_tensors: Dict[str, torch.Tensor]
+    contributor_ids: Tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        """校验逐行分子、出现次数分母和贡献客户端计数。"""
+
+        self.contributor_ids = tuple(
+            int(value) for value in self.contributor_ids
+        )
+        if not self.contributor_ids:
+            raise ValueError("逐行计数聚合必须包含至少一个贡献客户端")
+        expected_keys = set(self.row_sums)
+        if expected_keys != set(self.row_denominators):
+            raise ValueError("逐行计数聚合分子和分母的参数键不一致")
+        if expected_keys != set(self.row_contributor_counts):
+            raise ValueError("逐行计数聚合分子和客户端计数的参数键不一致")
+        for name, numerator in self.row_sums.items():
+            denominator = self.row_denominators[name]
+            contributors = self.row_contributor_counts[name]
+            if numerator.ndim <= 0:
+                raise ValueError(
+                    "逐行计数聚合参数{}必须至少是一维".format(name)
+                )
+            for label, values in (
+                ("出现次数分母", denominator),
+                ("贡献客户端计数", contributors),
+            ):
+                if values.ndim != 1:
+                    raise ValueError(
+                        "参数{}的{}必须是一维".format(name, label)
+                    )
+                if int(values.shape[0]) != int(numerator.shape[0]):
+                    raise ValueError(
+                        "参数{}的{}长度与分子不一致".format(
+                            name, label
+                        )
+                    )
+                if not values.is_floating_point():
+                    raise TypeError(
+                        "参数{}的{}必须是浮点张量".format(
+                            name, label
+                        )
+                    )
+                if bool(torch.any(values < 0)):
+                    raise ValueError(
+                        "参数{}的{}不能包含负数".format(name, label)
+                    )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Dict
+from typing import Dict, Tuple
 
 import torch
 from fedml.core import ClientTrainer
@@ -46,6 +46,13 @@ class FedMLTransEModelTrainer(ClientTrainer):
             )
         )
         self._subsampling_weight_cache: Dict[int, torch.Tensor] = {}
+        self._client_optimizer_state_mode = (
+            self._resolve_optimizer_state_mode(args)
+        )
+        # 持久模式让每个客户端保留独立Adam动量，同时继续共享当前模型参数对象。
+        self._client_optimizer_cache: Dict[
+            int, torch.optim.Optimizer
+        ] = {}
 
     def get_model_params(self) -> Dict[str, torch.Tensor]:
         """返回共享TransE当前参数的CPU深拷贝。"""
@@ -61,7 +68,7 @@ class FedMLTransEModelTrainer(ClientTrainer):
 
     @staticmethod
     def _build_optimizer(model, args) -> torch.optim.Optimizer:
-        """按配置创建每次本地调用独立的Adam优化器。"""
+        """按配置为共享TransE参数创建一个Adam优化器。"""
 
         optimizer_name = str(
             getattr(args, "client_optimizer", "adam")
@@ -78,6 +85,68 @@ class FedMLTransEModelTrainer(ClientTrainer):
         if learning_rate <= 0.0:
             raise ValueError("learning_rate必须大于0")
         return torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+    @staticmethod
+    def _resolve_optimizer_state_mode(args) -> str:
+        """读取并校验客户端Adam状态采用重置或逐客户端持久模式。"""
+
+        mode = str(
+            getattr(args, "client_optimizer_state_mode", "reset")
+        ).strip().lower()
+        if mode not in {"reset", "persistent_per_client"}:
+            raise ValueError(
+                "client_optimizer_state_mode必须是reset或"
+                "persistent_per_client"
+            )
+        return mode
+
+    def _optimizer_for_client(
+        self,
+        client_id: int,
+        args,
+    ) -> Tuple[torch.optim.Optimizer, bool]:
+        """返回本次客户端调用的Adam及其状态是否来自先前通信轮。"""
+
+        runtime_mode = self._resolve_optimizer_state_mode(args)
+        if runtime_mode != self._client_optimizer_state_mode:
+            raise ValueError(
+                "运行期间不能修改client_optimizer_state_mode"
+            )
+        if runtime_mode == "reset":
+            return self._build_optimizer(self.model, args), False
+
+        normalized_client_id = int(client_id)
+        optimizer = self._client_optimizer_cache.get(
+            normalized_client_id
+        )
+        reused = optimizer is not None
+        if optimizer is None:
+            optimizer = self._build_optimizer(self.model, args)
+            self._client_optimizer_cache[
+                normalized_client_id
+            ] = optimizer
+        return optimizer, reused
+
+    @staticmethod
+    def _optimizer_step(optimizer: torch.optim.Optimizer) -> float:
+        """返回Adam参数状态中的最大步数，尚未更新时返回零。"""
+
+        steps = []
+        for state in optimizer.state.values():
+            raw_step = state.get("step")
+            if raw_step is None:
+                continue
+            if torch.is_tensor(raw_step):
+                steps.append(float(raw_step.detach().cpu().item()))
+            else:
+                steps.append(float(raw_step))
+        return max(steps) if steps else 0.0
+
+    @property
+    def optimizer_state_cache_size(self) -> int:
+        """返回当前已经建立持久Adam状态的客户端数量。"""
+
+        return len(self._client_optimizer_cache)
 
     @staticmethod
     def _synchronize_for_timing(
@@ -183,7 +252,13 @@ class FedMLTransEModelTrainer(ClientTrainer):
                 client_seed + 313,
             )
         self.model.to(device)
-        optimizer = self._build_optimizer(self.model, args)
+        optimizer, optimizer_state_reused = (
+            self._optimizer_for_client(
+                int(train_data.client_id),
+                args,
+            )
+        )
+        optimizer_step_before = self._optimizer_step(optimizer)
         loss_sum = 0.0
         positive_count = 0
         directional_loss_sums = {"head": 0.0, "tail": 0.0}
@@ -321,6 +396,7 @@ class FedMLTransEModelTrainer(ClientTrainer):
                 batch_sequence += 1
         if positive_count <= 0:
             raise RuntimeError("知识客户端没有产生本地训练批次")
+        optimizer_step_after = self._optimizer_step(optimizer)
         if not profile_training_timing:
             timing = {
                 key: float("nan") for key in timing
@@ -329,6 +405,17 @@ class FedMLTransEModelTrainer(ClientTrainer):
             "train_loss": loss_sum / float(positive_count),
             "train_triple_count": float(train_data.triple_count),
             "optimizer_step_positive_count": float(positive_count),
+            "client_optimizer_state_mode": (
+                self._client_optimizer_state_mode
+            ),
+            "optimizer_state_reused": float(
+                bool(optimizer_state_reused)
+            ),
+            "optimizer_step_before": optimizer_step_before,
+            "optimizer_step_after": optimizer_step_after,
+            "optimizer_state_cache_size": float(
+                self.optimizer_state_cache_size
+            ),
             "local_objective": local_objective,
             "negative_sampling_backend": (
                 negative_sampler.backend

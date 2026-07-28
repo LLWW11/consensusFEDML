@@ -12,7 +12,10 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from ..core.aggregation import RowMaskedFedAvgAggregator
+from ..core.aggregation import (
+    RowCountWeightedFedAvgAggregator,
+    RowMaskedFedAvgAggregator,
+)
 from ..core.device import as_bool
 from ..core.result_writer import ExperimentResultWriter
 from ..core.topology import RoundTopology, TopologyProvider
@@ -107,10 +110,11 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
         if self.aggregation_mode not in {
             "dense_triple_weighted",
             "row_mask_presence",
+            "row_count_weighted",
         }:
             raise ValueError(
                 "aggregation_mode必须是dense_triple_weighted"
-                "或row_mask_presence"
+                "、row_mask_presence或row_count_weighted"
             )
         if self.local_objective not in {
             "margin_ranking",
@@ -123,6 +127,9 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 "bidirectional_self_adversarial"
             )
         self.row_masked_aggregator = RowMaskedFedAvgAggregator()
+        self.row_count_weighted_aggregator = (
+            RowCountWeightedFedAvgAggregator()
+        )
         self._round_topologies = tuple(
             topology_provider.get_round(round_index)
             for round_index in range(self.comm_round)
@@ -181,9 +188,15 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
         if self.architecture not in {"fl", "hfl"}:
             raise ValueError("动态TransE拓扑结构必须是fl或hfl")
         available_rounds = self.topology_metadata.get("round_count")
+        schedule_policy = str(
+            self.topology_metadata.get(
+                "topology_schedule_policy", "strict"
+            )
+        ).strip().lower()
         if (
             available_rounds is not None
             and self.comm_round > int(available_rounds)
+            and schedule_policy != "cycle"
         ):
             raise ValueError(
                 "comm_round={}超过MAT可用轮数{}".format(
@@ -248,7 +261,15 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 )
             )
 
-        if self.aggregation_mode == "row_mask_presence":
+        if self.aggregation_mode == "row_count_weighted":
+            new_global_state, aggregation_details = (
+                self._aggregate_row_count_weighted_updates(
+                    updates=updates,
+                    topology=topology,
+                    global_state=global_state,
+                )
+            )
+        elif self.aggregation_mode == "row_mask_presence":
             new_global_state, aggregation_details = (
                 self._aggregate_row_masked_updates(
                     updates=updates,
@@ -310,7 +331,7 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             }
 
         self.model_trainer.set_model_params(new_global_state)
-        # 两种聚合都会改变实体行范数，因此在云端统一投影。
+        # 所有聚合方式都会改变实体行范数，因此在云端统一投影。
         self.model_trainer.model.to(self.device)
         self.model_trainer.model.normalize_entity_embeddings()
         return tuple(updates), aggregation_details
@@ -394,6 +415,108 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             ),
             "parameter_row_statistics": parameter_statistics,
             "group_parameter_row_statistics": group_row_statistics,
+        }
+
+    def _aggregate_row_count_weighted_updates(
+        self,
+        updates: Sequence[ClientUpdate],
+        topology: RoundTopology,
+        global_state: Dict[str, torch.Tensor],
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, object]]:
+        """按正事实行出现次数执行边缘聚合，并在云端无损合并统计。"""
+
+        aggregator = self.row_count_weighted_aggregator
+        if self.architecture == "fl":
+            cloud_statistics = aggregator.accumulate(updates)
+            group_statistics = {"0": cloud_statistics}
+            group_contributors = {
+                "0": [
+                    int(update.client_id) for update in updates
+                ]
+            }
+        else:
+            update_by_client = {
+                int(update.client_id): update for update in updates
+            }
+            edge_statistics = []
+            group_statistics = {}
+            group_contributors = {}
+            for group_id, client_ids in (
+                topology.group_to_client_indexes.items()
+            ):
+                group_updates = [
+                    update_by_client[int(client_id)]
+                    for client_id in client_ids
+                ]
+                statistics = aggregator.accumulate(group_updates)
+                edge_statistics.append(statistics)
+                group_statistics[str(group_id)] = statistics
+                group_contributors[str(group_id)] = [
+                    int(value) for value in client_ids
+                ]
+            cloud_statistics = aggregator.merge(edge_statistics)
+
+        new_global_state = aggregator.finalize(
+            cloud_statistics, global_state
+        )
+        parameter_statistics = aggregator.summarize(
+            cloud_statistics
+        )
+        group_row_statistics = {
+            str(group_id): aggregator.summarize(statistics)
+            for group_id, statistics in group_statistics.items()
+        }
+        group_state_hashes = {
+            str(group_id): _state_dict_sha256(
+                aggregator.finalize(statistics, global_state)
+            )
+            for group_id, statistics in group_statistics.items()
+        }
+        group_row_occurrence_weights = {
+            str(group_id): {
+                str(name): float(denominator.sum().item())
+                for name, denominator in (
+                    statistics.row_denominators.items()
+                )
+            }
+            for group_id, statistics in group_statistics.items()
+        }
+        return new_global_state, {
+            "aggregation": (
+                "hierarchical_two_level_row_count_weighted"
+                if self.architecture == "hfl"
+                else "direct_row_count_weighted"
+            ),
+            "aggregation_weight_basis": (
+                "local_positive_triple_row_occurrences"
+            ),
+            "row_count_source": "local_positive_train_triples",
+            "edge_group_count": (
+                len(topology.group_to_client_indexes)
+                if self.architecture == "hfl"
+                else 0
+            ),
+            "edge_node_ids": {
+                str(group_id): int(edge_id)
+                for group_id, edge_id in (
+                    topology.edge_node_ids.items()
+                )
+            },
+            "group_aggregation_weights": (
+                group_row_occurrence_weights
+            ),
+            "group_contributing_client_indexes": (
+                group_contributors
+            ),
+            "parameter_row_statistics": parameter_statistics,
+            "group_parameter_row_statistics": group_row_statistics,
+            "group_parameter_state_hashes": group_state_hashes,
+            "cloud_parameter_state_hash": _state_dict_sha256(
+                new_global_state
+            ),
+            "parameter_hash_stage": (
+                "after_aggregation_before_entity_normalization"
+            ),
         }
 
     @staticmethod
@@ -482,9 +605,28 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             self.dataset.train_triples.shape[0]
         )
         local_epochs = int(getattr(self.args, "epochs", 1))
+        source_round_count = int(
+            self.topology_metadata.get(
+                "source_round_count",
+                self.topology_metadata.get(
+                    "round_count", self.comm_round
+                ),
+            )
+        )
+        schedule_policy = str(
+            self.topology_metadata.get(
+                "topology_schedule_policy", "strict"
+            )
+        )
         return {
             "topology_metadata": self.topology_metadata,
             "used_round_count": self.comm_round,
+            "topology_schedule_policy": schedule_policy,
+            "source_round_count": source_round_count,
+            # 循环策略下明确记录超出源MAT首轮覆盖范围的复用轮数。
+            "cycled_round_count": max(
+                0, self.comm_round - source_round_count
+            ),
             "schedule_hash": digest.hexdigest(),
             "participant_count_min": min(participant_counts),
             "participant_count_max": max(participant_counts),
@@ -629,6 +771,16 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 weighted_local_loss = self._weighted_local_loss(
                     updates
                 )
+                optimizer_step_before = (
+                    self._local_metric_statistics(
+                        updates, "optimizer_step_before"
+                    )
+                )
+                optimizer_step_after = (
+                    self._local_metric_statistics(
+                        updates, "optimizer_step_after"
+                    )
+                )
                 round_seconds = (
                     time.perf_counter() - round_started_at
                 )
@@ -675,6 +827,36 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                             updates, "forward_backward_seconds"
                         )
                     ),
+                    "client_optimizer_state_mode": str(
+                        getattr(
+                            self.args,
+                            "client_optimizer_state_mode",
+                            "reset",
+                        )
+                    ),
+                    "optimizer_state_reused_client_count": (
+                        self._summed_local_metric(
+                            updates, "optimizer_state_reused"
+                        )
+                    ),
+                    "optimizer_step_before_min": (
+                        optimizer_step_before["min"]
+                    ),
+                    "optimizer_step_before_mean": (
+                        optimizer_step_before["mean"]
+                    ),
+                    "optimizer_step_before_max": (
+                        optimizer_step_before["max"]
+                    ),
+                    "optimizer_step_after_min": (
+                        optimizer_step_after["min"]
+                    ),
+                    "optimizer_step_after_mean": (
+                        optimizer_step_after["mean"]
+                    ),
+                    "optimizer_step_after_max": (
+                        optimizer_step_after["max"]
+                    ),
                     "aggregation_mode": self.aggregation_mode,
                     "local_objective": self.local_objective,
                     "entity_updated_row_count": (
@@ -707,6 +889,26 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                     ),
                     "round_seconds": round_seconds,
                 }
+                for prefix, parameter_name in (
+                    ("entity", "entity_embeddings.weight"),
+                    ("relation", "relation_embeddings.weight"),
+                ):
+                    for statistic_name in (
+                        "min_row_contributors",
+                        "mean_row_contributors",
+                        "max_row_contributors",
+                        "min_row_occurrences",
+                        "mean_row_occurrences",
+                        "max_row_occurrences",
+                        "total_row_occurrences",
+                    ):
+                        metric_row[
+                            "{}_{}".format(prefix, statistic_name)
+                        ] = self._row_statistic_value(
+                            aggregation_details,
+                            parameter_name,
+                            statistic_name,
+                        )
                 metric_row.update(
                     self._validation_fields(validation_metrics)
                 )
@@ -727,14 +929,41 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                             topology.source_round_index + 1
                         ),
                         "scenario": self.scenario_name,
-                        "dynamic_client_selection": True,
-                        "dynamic_grouping": True,
+                        "dynamic_client_selection": bool(
+                            self.participation_summary[
+                                "dynamic_client_selection"
+                            ]
+                        ),
+                        "dynamic_grouping": bool(
+                            self.participation_summary[
+                                "dynamic_grouping"
+                            ]
+                        ),
                         "fedml_client_lifecycle": True,
                         "architecture": self.architecture,
                         "snf_enabled": bool(self.snf_enabled),
                         "edge_mode": self.edge_mode,
                         "aggregation_mode": self.aggregation_mode,
                         "local_objective": self.local_objective,
+                        "client_optimizer_state_mode": str(
+                            getattr(
+                                self.args,
+                                "client_optimizer_state_mode",
+                                "reset",
+                            )
+                        ),
+                        "optimizer_state_reused_client_count": (
+                            self._summed_local_metric(
+                                updates,
+                                "optimizer_state_reused",
+                            )
+                        ),
+                        "optimizer_step_before": (
+                            optimizer_step_before
+                        ),
+                        "optimizer_step_after": (
+                            optimizer_step_after
+                        ),
                         **aggregation_details,
                         "active_client_indexes": [
                             int(value)
@@ -865,8 +1094,33 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                     ]
                 ),
                 "comm_round": self.comm_round,
+                "topology_schedule_policy": (
+                    self.participation_summary[
+                        "topology_schedule_policy"
+                    ]
+                ),
+                "source_topology_round_count": (
+                    self.participation_summary[
+                        "source_round_count"
+                    ]
+                ),
+                "cycled_topology_round_count": (
+                    self.participation_summary[
+                        "cycled_round_count"
+                    ]
+                ),
                 "local_epochs": int(
                     getattr(self.args, "epochs", 1)
+                ),
+                "client_optimizer_state_mode": str(
+                    getattr(
+                        self.args,
+                        "client_optimizer_state_mode",
+                        "reset",
+                    )
+                ),
+                "optimizer_state_cached_client_count": int(
+                    self.model_trainer.optimizer_state_cache_size
                 ),
                 "embedding_dim": int(
                     self.model_trainer.model.embedding_dim
@@ -894,6 +1148,12 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 ),
                 "aggregation": (
                     (
+                        "hierarchical_two_level_row_count_weighted"
+                        if self.architecture == "hfl"
+                        else "direct_row_count_weighted"
+                    )
+                    if self.aggregation_mode == "row_count_weighted"
+                    else (
                         "hierarchical_two_level_row_mask_presence"
                         if self.architecture == "hfl"
                         else "direct_row_mask_presence"
@@ -906,9 +1166,19 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                     )
                 ),
                 "aggregation_weight_basis": (
-                    "parameter_row_presence_equal"
-                    if self.aggregation_mode == "row_mask_presence"
-                    else "local_positive_triples"
+                    "local_positive_triple_row_occurrences"
+                    if self.aggregation_mode == "row_count_weighted"
+                    else (
+                        "parameter_row_presence_equal"
+                        if self.aggregation_mode
+                        == "row_mask_presence"
+                        else "local_positive_triples"
+                    )
+                ),
+                "row_count_source": (
+                    "local_positive_train_triples"
+                    if self.aggregation_mode == "row_count_weighted"
+                    else None
                 ),
                 "negative_sampling_backend": (
                     "torch_device_searchsorted"
@@ -954,6 +1224,9 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 ),
                 "metrics_file": str(writer.metrics_path),
                 "topology_schedule_file": str(
+                    writer.topology_path
+                ),
+                "aggregation_audit_file": str(
                     writer.topology_path
                 ),
                 "topology_metadata_file": str(

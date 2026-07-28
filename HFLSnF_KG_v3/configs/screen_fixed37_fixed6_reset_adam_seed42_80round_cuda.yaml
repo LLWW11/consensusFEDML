@@ -13,40 +13,43 @@ model_args:
   distance_norm: 1
 
 train_args:
+  # Step-1 baseline: all 37 clients and six edge groups stay fixed.
   federated_optimizer: "DynamicTopologyTransE"
-  comparison_scenario: "V3-HFLSnF37-Strong-TransE"
+  comparison_scenario: "V3-Fixed37-Fixed6-ResetAdam-Seed42-Screen80"
   client_num_in_total: 37
   client_num_per_round: 37
-  topology_type: "matlab"
+  topology_type: "static"
   topology_architecture: "hfl"
-  topology_snf: true
-  topology_edge_mode: "dynamic"
-  topology_util: 0.5
-  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat"
-  # V3阶段3：按本地正事实中的实体行和关系行出现次数执行两级加权。
+  topology_snf: false
+  topology_edge_mode: "fixed"
+  edge_num: 6
   aggregation_mode: "row_count_weighted"
   local_objective: "bidirectional_self_adversarial"
   fede_gamma: 9.0
   adversarial_temperature: 1.0
   expected_partition_hash: "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19"
-  expected_topology_schedule_hash: "811b2940bada978fea233b968dbfa873fcef2e7664842945c3d3fb60e5836066"
-  comm_round: 200
+  # This hash covers the fixed six-group topology over all 80 rounds.
+  expected_topology_schedule_hash: "69b9d605d4b8fa7da0d1f1900a081966f35ec1ffa84ca3d96baf1047ad25fc9c"
+  comm_round: 80
   epochs: 2
   batch_size: 1024
+  # Adam is intentionally rebuilt for every client call in this baseline.
   client_optimizer: "adam"
+  client_optimizer_state_mode: "reset"
   learning_rate: 0.00005
   lr: 0.00005
   margin: 1.0
   negative_sample_count: 256
+  # Use the same monitoring protocol as the dynamic 40/300-round runs.
   eval_every: 10
   validation_max_triples: 4096
   validation_selection: "relation_stratified"
-  final_validation_max_triples: 0
-  test_max_triples: 0
+  final_validation_max_triples: 4096
+  # The small test subset checks the pipeline and never selects the method.
+  test_max_triples: 512
   evaluation_query_batch_size: 64
   evaluation_candidate_batch_size: 8192
   profile_training_timing: false
-  # 2026-07-28完整官方测试集实测集中式基准。
   centralized_reference_mrr: 0.3869668845438231
 
 device_args:
@@ -60,5 +63,5 @@ comm_args:
 tracking_args:
   enable_wandb: false
   using_mlops: false
-  run_name: "hflsnf_kg_v3_hflsnf37_strong_transe_cuda"
+  run_name: "hflsnf_kg_v3_screen_fixed37_fixed6_reset_adam_seed42_80round_cuda"
   result_root: "results"

@@ -21,7 +21,7 @@ train_args:
   topology_snf: false
   topology_edge_mode: "fixed"
   edge_num: 2
-  aggregation_mode: "row_mask_presence"
+  aggregation_mode: "row_count_weighted"
   local_objective: "fede_self_adversarial"
   fede_gamma: 6.0
   adversarial_temperature: 1.0

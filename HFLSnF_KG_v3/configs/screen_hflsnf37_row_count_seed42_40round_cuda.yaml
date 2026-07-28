@@ -13,8 +13,9 @@ model_args:
   distance_norm: 1
 
 train_args:
+  # 阶段4前置筛选：观察40轮验证趋势，不作为最终测试结论。
   federated_optimizer: "DynamicTopologyTransE"
-  comparison_scenario: "V3-HFLSnF37-Strong-TransE"
+  comparison_scenario: "V3-HFLSnF37-Row-Count-Seed42-Screen40"
   client_num_in_total: 37
   client_num_per_round: 37
   topology_type: "matlab"
@@ -23,14 +24,14 @@ train_args:
   topology_edge_mode: "dynamic"
   topology_util: 0.5
   dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat"
-  # V3阶段3：按本地正事实中的实体行和关系行出现次数执行两级加权。
   aggregation_mode: "row_count_weighted"
   local_objective: "bidirectional_self_adversarial"
   fede_gamma: 9.0
   adversarial_temperature: 1.0
   expected_partition_hash: "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19"
-  expected_topology_schedule_hash: "811b2940bada978fea233b968dbfa873fcef2e7664842945c3d3fb60e5836066"
-  comm_round: 200
+  # 同一正式MAT调度前40轮的独立哈希。
+  expected_topology_schedule_hash: "c1dee647ab91c44189b9f7dd5864b2f86bc84113467be3a02dc3f53bda3753ca"
+  comm_round: 40
   epochs: 2
   batch_size: 1024
   client_optimizer: "adam"
@@ -38,15 +39,16 @@ train_args:
   lr: 0.00005
   margin: 1.0
   negative_sample_count: 256
+  # 固定在第10、20、30、40轮使用同一关系分层验证子集。
   eval_every: 10
   validation_max_triples: 4096
   validation_selection: "relation_stratified"
-  final_validation_max_triples: 0
-  test_max_triples: 0
+  final_validation_max_triples: 4096
+  # 筛选阶段只保留512条测试链路检查，不用它选择方案。
+  test_max_triples: 512
   evaluation_query_batch_size: 64
   evaluation_candidate_batch_size: 8192
   profile_training_timing: false
-  # 2026-07-28完整官方测试集实测集中式基准。
   centralized_reference_mrr: 0.3869668845438231
 
 device_args:
@@ -60,5 +62,5 @@ comm_args:
 tracking_args:
   enable_wandb: false
   using_mlops: false
-  run_name: "hflsnf_kg_v3_hflsnf37_strong_transe_cuda"
+  run_name: "hflsnf_kg_v3_screen_hflsnf37_row_count_seed42_40round_cuda"
   result_root: "results"

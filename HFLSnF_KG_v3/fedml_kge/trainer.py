@@ -247,6 +247,31 @@ class FedMLFederatedTransETrainer:
             return float("nan")
         return float(sum(values))
 
+    @staticmethod
+    def _local_metric_statistics(
+        updates: Sequence[ClientUpdate],
+        field: str,
+    ) -> Dict[str, float]:
+        """返回一个有限客户端指标的最小值、均值和最大值。"""
+
+        values = [
+            float(update.local_metrics.get(field, float("nan")))
+            for update in updates
+        ]
+        if not values or not all(
+            math.isfinite(value) for value in values
+        ):
+            return {
+                "min": float("nan"),
+                "mean": float("nan"),
+                "max": float("nan"),
+            }
+        return {
+            "min": float(min(values)),
+            "mean": float(sum(values) / len(values)),
+            "max": float(max(values)),
+        }
+
     def _evaluate_validation(self, max_triples: int) -> Dict[str, float]:
         """在全局验证集上计算filtered排名指标。"""
 
@@ -466,6 +491,16 @@ class FedMLFederatedTransETrainer:
                 )
                 weighted_local_loss = self._weighted_local_loss(updates)
                 round_seconds = time.perf_counter() - round_started_at
+                optimizer_step_before = (
+                    self._local_metric_statistics(
+                        updates, "optimizer_step_before"
+                    )
+                )
+                optimizer_step_after = (
+                    self._local_metric_statistics(
+                        updates, "optimizer_step_after"
+                    )
+                )
                 metric_row: Dict[str, object] = {
                     "round": round_number,
                     "scenario": scenario_name,
@@ -494,6 +529,36 @@ class FedMLFederatedTransETrainer:
                         self._summed_local_metric(
                             updates, "forward_backward_seconds"
                         )
+                    ),
+                    "client_optimizer_state_mode": str(
+                        getattr(
+                            self.args,
+                            "client_optimizer_state_mode",
+                            "reset",
+                        )
+                    ),
+                    "optimizer_state_reused_client_count": (
+                        self._summed_local_metric(
+                            updates, "optimizer_state_reused"
+                        )
+                    ),
+                    "optimizer_step_before_min": (
+                        optimizer_step_before["min"]
+                    ),
+                    "optimizer_step_before_mean": (
+                        optimizer_step_before["mean"]
+                    ),
+                    "optimizer_step_before_max": (
+                        optimizer_step_before["max"]
+                    ),
+                    "optimizer_step_after_min": (
+                        optimizer_step_after["min"]
+                    ),
+                    "optimizer_step_after_mean": (
+                        optimizer_step_after["mean"]
+                    ),
+                    "optimizer_step_after_max": (
+                        optimizer_step_after["max"]
                     ),
                     "round_seconds": round_seconds,
                 }
@@ -598,6 +663,16 @@ class FedMLFederatedTransETrainer:
                 },
                 "comm_round": self.comm_round,
                 "local_epochs": int(getattr(self.args, "epochs", 1)),
+                "client_optimizer_state_mode": str(
+                    getattr(
+                        self.args,
+                        "client_optimizer_state_mode",
+                        "reset",
+                    )
+                ),
+                "optimizer_state_cached_client_count": int(
+                    self.model_trainer.optimizer_state_cache_size
+                ),
                 "effective_global_passes": (
                     self.comm_round * int(getattr(self.args, "epochs", 1))
                 ),

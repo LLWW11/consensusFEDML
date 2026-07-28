@@ -9,6 +9,7 @@ import torch
 from .types import (
     AggregateStats,
     ClientUpdate,
+    RowCountWeightedAggregateStats,
     RowMaskedAggregateStats,
     clone_state_dict,
 )
@@ -384,5 +385,315 @@ class RowMaskedFedAvgAggregator:
         global_state: Mapping[str, torch.Tensor],
     ) -> Dict[str, torch.Tensor]:
         """直接完成单层逐行聚合，供FL路径和等价性测试使用。"""
+
+        return self.finalize(self.accumulate(updates), global_state)
+
+
+class RowCountWeightedFedAvgAggregator:
+    """按本地正三元组行出现次数执行可两级合并的逐行加权。"""
+
+    @staticmethod
+    def _validate_counts(
+        name: str,
+        value: torch.Tensor,
+        update: ClientUpdate,
+    ) -> torch.Tensor:
+        """读取并校验客户端针对一个参数提供的非负行出现次数。"""
+
+        if name not in update.row_counts:
+            raise ValueError(
+                "客户端{}没有为参数{}提供逐行出现次数".format(
+                    update.client_id, name
+                )
+            )
+        counts = update.row_counts[name]
+        if counts.ndim != 1 or not counts.is_floating_point():
+            raise TypeError(
+                "参数{}的行出现次数必须是一维浮点张量".format(name)
+            )
+        if int(counts.shape[0]) != int(value.shape[0]):
+            raise ValueError(
+                "参数{}的行出现次数长度与参数首维不一致".format(name)
+            )
+        if bool(torch.any(counts < 0)):
+            raise ValueError("参数{}的行出现次数不能为负数".format(name))
+        return counts.to(device=value.device, dtype=value.dtype)
+
+    def accumulate(
+        self, updates: Iterable[ClientUpdate]
+    ) -> RowCountWeightedAggregateStats:
+        """把客户端状态乘行出现次数，形成边缘端可继续合并的统计。"""
+
+        update_list = list(updates)
+        if not update_list:
+            raise ValueError("逐行计数聚合至少需要一个客户端更新")
+        reference_state = update_list[0].state_dict
+        reference_keys = tuple(reference_state.keys())
+        row_sums: Dict[str, torch.Tensor] = {}
+        row_denominators: Dict[str, torch.Tensor] = {}
+        row_contributor_counts: Dict[str, torch.Tensor] = {}
+        constant_tensors: Dict[str, torch.Tensor] = {}
+        contributor_ids: List[int] = []
+
+        for update in update_list:
+            _assert_same_keys(reference_keys, update.state_dict, "客户端更新")
+            contributor_ids.append(int(update.client_id))
+            for name in reference_keys:
+                value = update.state_dict[name].detach()
+                reference_value = reference_state[name]
+                if value.shape != reference_value.shape:
+                    raise ValueError("参数{}形状不一致".format(name))
+                if value.dtype != reference_value.dtype:
+                    raise ValueError("参数{}数据类型不一致".format(name))
+                if _is_weighted_tensor(value):
+                    if value.ndim <= 0:
+                        raise ValueError(
+                            "逐行计数聚合不支持零维浮点参数{}".format(
+                                name
+                            )
+                        )
+                    counts = self._validate_counts(
+                        name, value, update
+                    )
+                    contributors = (counts > 0).to(
+                        dtype=value.dtype
+                    )
+                    broadcast_shape = [int(value.shape[0])] + [
+                        1 for _ in range(value.ndim - 1)
+                    ]
+                    contribution = value * counts.reshape(
+                        broadcast_shape
+                    )
+                    if name not in row_sums:
+                        row_sums[name] = contribution.clone()
+                        row_denominators[name] = counts.clone()
+                        row_contributor_counts[name] = (
+                            contributors.clone()
+                        )
+                    else:
+                        row_sums[name] = (
+                            row_sums[name] + contribution
+                        )
+                        row_denominators[name] = (
+                            row_denominators[name] + counts
+                        )
+                        row_contributor_counts[name] = (
+                            row_contributor_counts[name]
+                            + contributors
+                        )
+                else:
+                    if name not in constant_tensors:
+                        constant_tensors[name] = value.clone()
+                    elif not torch.equal(
+                        constant_tensors[name], value
+                    ):
+                        raise ValueError(
+                            "非浮点缓冲区{}在客户端之间不一致".format(
+                                name
+                            )
+                        )
+        if len(set(contributor_ids)) != len(contributor_ids):
+            raise ValueError("同一客户端不能在一个边缘组内重复贡献")
+        return RowCountWeightedAggregateStats(
+            row_sums=row_sums,
+            row_denominators=row_denominators,
+            row_contributor_counts=row_contributor_counts,
+            constant_tensors=constant_tensors,
+            contributor_ids=tuple(contributor_ids),
+        )
+
+    def merge(
+        self,
+        statistics: Iterable[RowCountWeightedAggregateStats],
+    ) -> RowCountWeightedAggregateStats:
+        """在云端合并边缘逐行分子、出现次数和贡献客户端计数。"""
+
+        stats_list = list(statistics)
+        if not stats_list:
+            raise ValueError("至少需要一个边缘逐行计数统计")
+        reference = stats_list[0]
+        row_keys = tuple(reference.row_sums.keys())
+        constant_keys = tuple(reference.constant_tensors.keys())
+        row_sums = clone_state_dict(
+            reference.row_sums, to_cpu=False
+        )
+        row_denominators = clone_state_dict(
+            reference.row_denominators, to_cpu=False
+        )
+        row_contributor_counts = clone_state_dict(
+            reference.row_contributor_counts, to_cpu=False
+        )
+        constant_tensors = clone_state_dict(
+            reference.constant_tensors, to_cpu=False
+        )
+        contributor_ids = list(reference.contributor_ids)
+
+        for stats in stats_list[1:]:
+            _assert_same_keys(row_keys, stats.row_sums, "边缘逐行分子")
+            _assert_same_keys(
+                row_keys, stats.row_denominators, "边缘逐行出现次数"
+            )
+            _assert_same_keys(
+                row_keys,
+                stats.row_contributor_counts,
+                "边缘逐行贡献客户端计数",
+            )
+            _assert_same_keys(
+                constant_keys, stats.constant_tensors, "边缘常量"
+            )
+            duplicate_ids = set(contributor_ids).intersection(
+                stats.contributor_ids
+            )
+            if duplicate_ids:
+                raise ValueError(
+                    "客户端不能跨边缘组重复贡献：{}".format(
+                        sorted(duplicate_ids)
+                    )
+                )
+            for name in row_keys:
+                if row_sums[name].shape != stats.row_sums[name].shape:
+                    raise ValueError(
+                        "边缘参数{}的分子形状不一致".format(name)
+                    )
+                if (
+                    row_denominators[name].shape
+                    != stats.row_denominators[name].shape
+                ):
+                    raise ValueError(
+                        "边缘参数{}的出现次数形状不一致".format(name)
+                    )
+                if (
+                    row_contributor_counts[name].shape
+                    != stats.row_contributor_counts[name].shape
+                ):
+                    raise ValueError(
+                        "边缘参数{}的客户端计数形状不一致".format(name)
+                    )
+                row_sums[name] = (
+                    row_sums[name] + stats.row_sums[name]
+                )
+                row_denominators[name] = (
+                    row_denominators[name]
+                    + stats.row_denominators[name]
+                )
+                row_contributor_counts[name] = (
+                    row_contributor_counts[name]
+                    + stats.row_contributor_counts[name]
+                )
+            for name in constant_keys:
+                if not torch.equal(
+                    constant_tensors[name], stats.constant_tensors[name]
+                ):
+                    raise ValueError(
+                        "边缘非浮点缓冲区{}不一致".format(name)
+                    )
+            contributor_ids.extend(stats.contributor_ids)
+        return RowCountWeightedAggregateStats(
+            row_sums=row_sums,
+            row_denominators=row_denominators,
+            row_contributor_counts=row_contributor_counts,
+            constant_tensors=constant_tensors,
+            contributor_ids=tuple(contributor_ids),
+        )
+
+    def finalize(
+        self,
+        statistics: RowCountWeightedAggregateStats,
+        global_state: Mapping[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """按累计出现次数归一化，并为零分母行保留轮初全局值。"""
+
+        expected_keys = tuple(statistics.row_sums.keys()) + tuple(
+            statistics.constant_tensors.keys()
+        )
+        _assert_same_keys(expected_keys, global_state, "轮初全局状态")
+        averaged_state: Dict[str, torch.Tensor] = {}
+        for name, numerator in statistics.row_sums.items():
+            denominator = statistics.row_denominators[name]
+            global_value = global_state[name].detach().to(
+                device=numerator.device, dtype=numerator.dtype
+            )
+            if global_value.shape != numerator.shape:
+                raise ValueError(
+                    "全局参数{}形状与逐行统计不一致".format(name)
+                )
+            broadcast_shape = [int(denominator.shape[0])] + [
+                1 for _ in range(numerator.ndim - 1)
+            ]
+            safe_denominator = torch.where(
+                denominator > 0,
+                denominator,
+                torch.ones_like(denominator),
+            )
+            averaged = numerator / safe_denominator.reshape(
+                broadcast_shape
+            )
+            active_rows = (denominator > 0).reshape(broadcast_shape)
+            averaged_state[name] = torch.where(
+                active_rows, averaged, global_value
+            )
+        for name, value in statistics.constant_tensors.items():
+            averaged_state[name] = value.detach().clone()
+        return averaged_state
+
+    @staticmethod
+    def summarize(
+        statistics: RowCountWeightedAggregateStats,
+    ) -> Dict[str, Dict[str, float]]:
+        """汇总有效行、贡献客户端数和累计正三元组出现次数。"""
+
+        summary: Dict[str, Dict[str, float]] = {}
+        for name, denominator in statistics.row_denominators.items():
+            active = denominator > 0
+            occurrence_values = denominator[active]
+            contributor_values = (
+                statistics.row_contributor_counts[name][active]
+            )
+            summary[name] = {
+                "row_count": int(denominator.numel()),
+                "updated_row_count": int(active.sum().item()),
+                "fallback_row_count": int((~active).sum().item()),
+                "total_row_occurrences": float(
+                    occurrence_values.sum().item()
+                ),
+                "min_row_occurrences": (
+                    float(occurrence_values.min().item())
+                    if int(occurrence_values.numel()) > 0
+                    else 0.0
+                ),
+                "mean_row_occurrences": (
+                    float(occurrence_values.mean().item())
+                    if int(occurrence_values.numel()) > 0
+                    else 0.0
+                ),
+                "max_row_occurrences": (
+                    float(occurrence_values.max().item())
+                    if int(occurrence_values.numel()) > 0
+                    else 0.0
+                ),
+                "min_row_contributors": (
+                    float(contributor_values.min().item())
+                    if int(contributor_values.numel()) > 0
+                    else 0.0
+                ),
+                "mean_row_contributors": (
+                    float(contributor_values.mean().item())
+                    if int(contributor_values.numel()) > 0
+                    else 0.0
+                ),
+                "max_row_contributors": (
+                    float(contributor_values.max().item())
+                    if int(contributor_values.numel()) > 0
+                    else 0.0
+                ),
+            }
+        return summary
+
+    def aggregate(
+        self,
+        updates: Iterable[ClientUpdate],
+        global_state: Mapping[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """直接完成单层逐行计数聚合，供黄金和两级等价测试使用。"""
 
         return self.finalize(self.accumulate(updates), global_state)
