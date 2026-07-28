@@ -1,0 +1,59 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  federated_optimizer: "DynamicTopologyTransE"
+  comparison_scenario: "V3-Stage0-V2-C-Regression"
+  client_num_in_total: 37
+  client_num_per_round: 37
+  topology_type: "matlab"
+  topology_architecture: "hfl"
+  topology_snf: true
+  topology_edge_mode: "dynamic"
+  topology_util: 0.5
+  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat"
+  aggregation_mode: "row_mask_presence"
+  local_objective: "fede_self_adversarial"
+  fede_gamma: 10.0
+  adversarial_temperature: 1.0
+  expected_partition_hash: "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19"
+  expected_topology_schedule_hash: "811b2940bada978fea233b968dbfa873fcef2e7664842945c3d3fb60e5836066"
+  comm_round: 200
+  epochs: 1
+  batch_size: 4096
+  client_optimizer: "adam"
+  learning_rate: 0.001
+  lr: 0.001
+  margin: 1.0
+  negative_sample_count: 5
+  eval_every: 10
+  validation_max_triples: 1000
+  final_validation_max_triples: 0
+  test_max_triples: 0
+  evaluation_candidate_batch_size: 16384
+  centralized_reference_mrr: 0.19557177000249226
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_v3_stage0_v2_c_regression_cuda"
+  result_root: "results"

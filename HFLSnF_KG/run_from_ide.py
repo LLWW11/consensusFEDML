@@ -1,5 +1,3 @@
-"""供PyCharm、VS Code等IDE直接点击运行的阶段二至阶段四入口。"""
-
 from __future__ import annotations
 
 import os
@@ -9,16 +7,36 @@ from typing import Optional
 
 
 # PyCharm中直接运行本文件时，只需修改这里。
-# smoke_cpu/server_cuda用于阶段二，transe_*用于阶段三，fedtranse_*用于阶段四。
-DEFAULT_PROFILE = "transe_server_cuda"
+# smoke_cpu/server_cuda用于阶段二，transe_*用于阶段三，
+# fedtranse_*用于阶段四，fixed_fedtranse_*用于固定四方案对照，
+# dynamic_fedtranse_*用于MAT逐轮动态采样与分组。
+DEFAULT_PROFILE = "dynamic_fedtranse_hflsnf_mat_cuda"
 
 PROFILE_CONFIGS = {
     "smoke_cpu": "smoke_cora_cpu.yaml",
     "server_cuda": "server_cora_cuda.yaml",
     "transe_smoke_cpu": "smoke_transe_synthetic_cpu.yaml",
     "transe_server_cuda": "server_fb15k237_transe_cuda.yaml",
+    "transe_server_cuda_fast": (
+        "server_fb15k237_transe_cuda_fast.yaml"
+    ),
     "fedtranse_smoke_cpu": "smoke_fedtranse_synthetic_cpu.yaml",
     "fedtranse_server_cuda": "server_fb15k237_fedtranse_cuda.yaml",
+    "fixed_fedtranse_flnosnf_cuda": (
+        "server_fb15k237_flnosnf_fixed_cuda.yaml"
+    ),
+    "fixed_fedtranse_flsnf_cuda": (
+        "server_fb15k237_flsnf_fixed_cuda.yaml"
+    ),
+    "fixed_fedtranse_hflnosnf_cuda": (
+        "server_fb15k237_hflnosnf_fixed_cuda.yaml"
+    ),
+    "fixed_fedtranse_hflsnf_cuda": (
+        "server_fb15k237_hflsnf_fixed_cuda.yaml"
+    ),
+    "dynamic_fedtranse_hflsnf_mat_cuda": (
+        "server_fb15k237_hflsnf_dynamic_mat_cuda.yaml"
+    ),
 }
 
 
@@ -56,7 +74,11 @@ def prepare_fedml_arguments(profile: str) -> Path:
 def resolve_entrypoint(profile: str):
     """根据IDE运行方案返回GCN、集中式或联邦TransE主函数。"""
 
-    if str(profile).startswith("fedtranse_"):
+    if str(profile).startswith("dynamic_fedtranse_"):
+        from HFLSnF_KG.run_dynamic_federated_transe import main
+    elif str(profile).startswith("fixed_fedtranse_"):
+        from HFLSnF_KG.run_fixed_federated_transe import main
+    elif str(profile).startswith("fedtranse_"):
         from HFLSnF_KG.run_federated_transe import main
     elif str(profile).startswith("transe_"):
         from HFLSnF_KG.run_transe import main

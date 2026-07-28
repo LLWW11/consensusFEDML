@@ -88,6 +88,15 @@ def main() -> None:
     )
     args = initialize_fedml_runtime()
     device = resolve_fedml_device(args)
+    device_name = (
+        torch.cuda.get_device_name(device)
+        if device.type == "cuda"
+        else "CPU"
+    )
+    print(
+        "TransE运行设备：{}（{}）".format(device, device_name),
+        flush=True,
+    )
     dataset = load_configured_dataset(args)
     model = build_transe(
         args, dataset.num_entities, dataset.num_relations

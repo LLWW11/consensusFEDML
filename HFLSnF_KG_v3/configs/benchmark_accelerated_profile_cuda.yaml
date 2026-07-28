@@ -1,0 +1,50 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  # 本配置用于定位耗时构成，不用于最终MRR或正式吞吐结论。
+  client_num_in_total: 1
+  client_num_per_round: 1
+  local_objective: "bidirectional_self_adversarial"
+  fede_gamma: 9.0
+  adversarial_temperature: 1.0
+  epochs: 3
+  batch_size: 1024
+  learning_rate: 0.00005
+  lr: 0.00005
+  margin: 1.0
+  negative_sample_count: 256
+  eval_every: 3
+  validation_max_triples: 512
+  validation_selection: "relation_stratified"
+  final_validation_max_triples: 512
+  test_max_triples: 512
+  evaluation_query_batch_size: 64
+  evaluation_candidate_batch_size: 8192
+  # 开启后逐段同步CUDA，metrics.csv会记录可解释的分段耗时。
+  profile_training_timing: true
+  early_stopping_patience: 0
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_v3_benchmark_accelerated_profile_cuda"
+  result_root: "results"

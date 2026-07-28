@@ -1,0 +1,59 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 2
+
+train_args:
+  federated_optimizer: "DynamicTopologyTransE"
+  comparison_scenario: "HFLSnF-Dynamic-MAT"
+  client_num_in_total: 37
+  # 该值是FedML候选池上限；实际每轮人数由MAT当前行决定。
+  client_num_per_round: 37
+
+  topology_type: "matlab"
+  topology_architecture: "hfl"
+  topology_snf: true
+  topology_edge_mode: "dynamic"
+  topology_util: 0.5
+  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat"
+
+  # 使用MAT的完整200轮。每轮平均约35.7/37个客户端参与。
+  comm_round: 200
+  epochs: 1
+  batch_size: 4096
+  client_optimizer: "adam"
+  learning_rate: 0.001
+  lr: 0.001
+  margin: 1.0
+  negative_sample_count: 5
+
+  # 每个epoch打印训练信息，每10轮执行一次较昂贵的排名评估。
+  eval_every: 10
+  validation_max_triples: 1000
+  final_validation_max_triples: 0
+  test_max_triples: 0
+  evaluation_candidate_batch_size: 16384
+  centralized_reference_mrr: 0.19557177000249226
+
+device_args:
+  using_gpu: true
+  gpu_id: 0
+  require_cuda: true
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_fb15k237_hflsnf_dynamic_mat_cuda"
+  result_root: "results"

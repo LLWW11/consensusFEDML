@@ -1,0 +1,56 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 2
+
+train_args:
+  federated_optimizer: "FixedTopologyTransE"
+  comparison_scenario: "FLnoSnF"
+  client_num_in_total: 37
+  client_num_per_round: 5
+  participant_selection: "fixed_once"
+  fixed_client_seed: 42
+  enforce_comparison_budget: true
+  topology_architecture: "fl"
+  topology_snf: false
+  topology_edge_mode: "fixed"
+  group_num: 1
+
+  comm_round: 200
+  epochs: 1
+  batch_size: 4096
+  client_optimizer: "adam"
+  learning_rate: 0.001
+  lr: 0.001
+  margin: 1.0
+  negative_sample_count: 5
+
+  eval_every: 10
+  validation_max_triples: 1000
+  final_validation_max_triples: 0
+  test_max_triples: 0
+  evaluation_candidate_batch_size: 16384
+  centralized_reference_mrr: 0.19557177000249226
+
+device_args:
+  using_gpu: true
+  gpu_id: 0
+  require_cuda: true
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_fb15k237_flnosnf_fixed_cuda"
+  result_root: "results"
