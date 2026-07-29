@@ -1,4 +1,4 @@
-"""知识图谱客户端分区类型与头实体均衡划分。"""
+"""知识图谱客户端分区类型、互斥头实体和关系分层划分。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,18 @@ import numpy as np
 import torch
 
 from .data import KnowledgeGraphDataset
+
+
+BALANCED_HEAD_ENTITY = "balanced_head_entity"
+RELATION_STRATIFIED_TRIPLE_BALANCED = (
+    "relation_stratified_triple_balanced"
+)
+SUPPORTED_PARTITION_STRATEGIES = frozenset(
+    {
+        BALANCED_HEAD_ENTITY,
+        RELATION_STRATIFIED_TRIPLE_BALANCED,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +56,35 @@ class KnowledgeGraphClientPartition:
                 raise ValueError("{}必须是一维long张量".format(field_name))
             if int(values.numel()) <= 0:
                 raise ValueError("{}不能为空".format(field_name))
+        expected_values = (
+            (
+                "head_entity_ids",
+                torch.unique(self.train_triples[:, 0], sorted=True),
+                self.head_entity_ids,
+            ),
+            (
+                "entity_ids",
+                torch.unique(
+                    self.train_triples[:, (0, 2)], sorted=True
+                ),
+                self.entity_ids,
+            ),
+            (
+                "relation_ids",
+                torch.unique(self.train_triples[:, 1], sorted=True),
+                self.relation_ids,
+            ),
+        )
+        for field_name, expected, actual in expected_values:
+            if not torch.equal(
+                expected.detach().cpu(),
+                actual.detach().cpu(),
+            ):
+                raise ValueError(
+                    "{}必须与客户端训练三元组中的实际编号一致".format(
+                        field_name
+                    )
+                )
 
     @property
     def triple_count(self) -> int:
@@ -78,6 +119,15 @@ class FederatedKnowledgeGraphData:
 
         if not self.partitions:
             raise ValueError("联邦知识图谱至少需要一个客户端分区")
+        normalized_strategy = str(self.partition_strategy).strip().lower()
+        if normalized_strategy not in SUPPORTED_PARTITION_STRATEGIES:
+            raise ValueError(
+                "不支持的客户端划分策略：{}".format(
+                    self.partition_strategy
+                )
+            )
+        if normalized_strategy != self.partition_strategy:
+            raise ValueError("客户端划分策略必须使用规范化小写名称")
         client_ids = [int(partition.client_id) for partition in self.partitions]
         if client_ids != list(range(len(self.partitions))):
             raise ValueError("知识客户端编号必须从0开始连续排列")
@@ -91,15 +141,17 @@ class FederatedKnowledgeGraphData:
         if sorted(combined_rows) != source_rows:
             raise ValueError("客户端分区没有完整覆盖训练三元组")
 
-        head_owners: Dict[int, int] = {}
-        for partition in self.partitions:
-            for head_id in partition.head_entity_ids.tolist():
-                head_id = int(head_id)
-                if head_id in head_owners:
-                    raise ValueError(
-                        "头实体{}被分配给多个客户端".format(head_id)
-                    )
-                head_owners[head_id] = int(partition.client_id)
+        # 旧策略的实验语义要求头实体互斥；关系分层策略则有意允许重叠。
+        if normalized_strategy == BALANCED_HEAD_ENTITY:
+            head_owners: Dict[int, int] = {}
+            for partition in self.partitions:
+                for head_id in partition.head_entity_ids.tolist():
+                    head_id = int(head_id)
+                    if head_id in head_owners:
+                        raise ValueError(
+                            "头实体{}被分配给多个客户端".format(head_id)
+                        )
+                    head_owners[head_id] = int(partition.client_id)
 
     @property
     def client_count(self) -> int:
@@ -141,6 +193,94 @@ class FederatedKnowledgeGraphData:
             "entity_jaccard_max": float(np.max(overlaps)),
         }
 
+    @staticmethod
+    def _coverage_counts(
+        partitions: Sequence[KnowledgeGraphClientPartition],
+        field_name: str,
+    ) -> List[int]:
+        """统计每个知识编号出现在多少个客户端的局部集合中。"""
+
+        coverage: Dict[int, int] = {}
+        for partition in partitions:
+            values = getattr(partition, field_name)
+            for value in values.tolist():
+                normalized_value = int(value)
+                coverage[normalized_value] = (
+                    coverage.get(normalized_value, 0) + 1
+                )
+        return list(coverage.values())
+
+    @classmethod
+    def _coverage_statistics(
+        cls,
+        partitions: Sequence[KnowledgeGraphClientPartition],
+    ) -> Dict[str, object]:
+        """汇总头实体、全部实体和关系的跨客户端覆盖程度。"""
+
+        head_counts = cls._coverage_counts(
+            partitions, "head_entity_ids"
+        )
+        entity_counts = cls._coverage_counts(partitions, "entity_ids")
+        relation_counts = cls._coverage_counts(
+            partitions, "relation_ids"
+        )
+        return {
+            "head_entity_unique_count": len(head_counts),
+            "head_entity_client_count_min": int(min(head_counts)),
+            "head_entity_client_count_mean": float(
+                np.mean(head_counts)
+            ),
+            "head_entity_client_count_max": int(max(head_counts)),
+            "head_entity_multi_client_fraction": float(
+                np.mean(
+                    [
+                        1.0 if count > 1 else 0.0
+                        for count in head_counts
+                    ]
+                )
+            ),
+            "entity_unique_count": len(entity_counts),
+            "entity_client_count_min": int(min(entity_counts)),
+            "entity_client_count_mean": float(
+                np.mean(entity_counts)
+            ),
+            "entity_client_count_max": int(max(entity_counts)),
+            "relation_unique_count": len(relation_counts),
+            "relation_client_count_min": int(min(relation_counts)),
+            "relation_client_count_mean": float(
+                np.mean(relation_counts)
+            ),
+            "relation_client_count_max": int(max(relation_counts)),
+        }
+
+    @staticmethod
+    def _relation_balance_statistics(
+        partitions: Sequence[KnowledgeGraphClientPartition],
+        num_relations: int,
+    ) -> Dict[str, float]:
+        """计算每个关系在客户端之间的三元组数量极差。"""
+
+        per_client_counts = []
+        for partition in partitions:
+            counts = torch.bincount(
+                partition.train_triples[:, 1].detach().cpu(),
+                minlength=int(num_relations),
+            )
+            per_client_counts.append(counts.to(dtype=torch.float64))
+        count_matrix = torch.stack(per_client_counts, dim=0)
+        relation_imbalances = (
+            count_matrix.max(dim=0).values
+            - count_matrix.min(dim=0).values
+        )
+        return {
+            "relation_triple_count_imbalance_mean": float(
+                relation_imbalances.mean().item()
+            ),
+            "relation_triple_count_imbalance_max": float(
+                relation_imbalances.max().item()
+            ),
+        }
+
     def summary(self) -> Dict[str, object]:
         """返回数据集、划分方法、负载和实体重叠摘要。"""
 
@@ -157,7 +297,13 @@ class FederatedKnowledgeGraphData:
             "min_client_triple_count": int(min(triple_counts)),
             "max_client_triple_count": int(max(triple_counts)),
             "mean_client_triple_count": float(np.mean(triple_counts)),
+            "std_client_triple_count": float(np.std(triple_counts)),
             **self._overlap_statistics(self.partitions),
+            **self._coverage_statistics(self.partitions),
+            **self._relation_balance_statistics(
+                self.partitions,
+                self.dataset.num_relations,
+            ),
             "clients": [
                 partition.summary() for partition in self.partitions
             ],
@@ -201,6 +347,42 @@ def _partition_hash(
     return digest.hexdigest()
 
 
+def _build_partitions_from_row_indices(
+    dataset: KnowledgeGraphDataset,
+    client_row_indices: Sequence[Sequence[int]],
+) -> Tuple[KnowledgeGraphClientPartition, ...]:
+    """把每个客户端的训练集行号转换为完整分区对象。"""
+
+    partitions = []
+    for client_id, raw_row_indices in enumerate(client_row_indices):
+        row_indices = sorted(int(value) for value in raw_row_indices)
+        if not row_indices:
+            raise ValueError(
+                "关系分层后客户端{}没有训练三元组".format(client_id)
+            )
+        local_triples = dataset.train_triples.index_select(
+            0, torch.tensor(row_indices, dtype=torch.long)
+        )
+        # 三类局部编号都从最终三元组重新计算，避免分配元数据漂移。
+        local_heads = torch.unique(local_triples[:, 0], sorted=True)
+        local_entities = torch.unique(
+            local_triples[:, (0, 2)], sorted=True
+        )
+        local_relations = torch.unique(
+            local_triples[:, 1], sorted=True
+        )
+        partitions.append(
+            KnowledgeGraphClientPartition(
+                client_id=client_id,
+                train_triples=local_triples,
+                head_entity_ids=local_heads,
+                entity_ids=local_entities,
+                relation_ids=local_relations,
+            )
+        )
+    return tuple(partitions)
+
+
 def partition_train_triples_by_head(
     dataset: KnowledgeGraphDataset,
     client_count: int,
@@ -239,38 +421,95 @@ def partition_train_triples_by_head(
         client_heads[client_id].append(int(head_id))
         client_loads[client_id] += int(head_counts[head_id])
 
-    partitions = []
-    for client_id, head_ids in enumerate(client_heads):
-        row_indices = sorted(
+    client_row_indices = [
+        sorted(
             row_index
             for head_id in head_ids
             for row_index in head_to_row_indices[head_id]
         )
-        local_triples = dataset.train_triples.index_select(
-            0, torch.tensor(row_indices, dtype=torch.long)
-        )
-        local_entities = torch.unique(
-            local_triples[:, (0, 2)], sorted=True
-        )
-        local_relations = torch.unique(
-            local_triples[:, 1], sorted=True
-        )
-        partitions.append(
-            KnowledgeGraphClientPartition(
-                client_id=client_id,
-                train_triples=local_triples,
-                head_entity_ids=torch.tensor(
-                    sorted(head_ids), dtype=torch.long
-                ),
-                entity_ids=local_entities,
-                relation_ids=local_relations,
-            )
-        )
-    partition_tuple = tuple(partitions)
+        for head_ids in client_heads
+    ]
+    partition_tuple = _build_partitions_from_row_indices(
+        dataset, client_row_indices
+    )
     return FederatedKnowledgeGraphData(
         dataset=dataset,
         partitions=partition_tuple,
-        partition_strategy="balanced_head_entity",
+        partition_strategy=BALANCED_HEAD_ENTITY,
+        partition_seed=int(seed),
+        partition_hash=_partition_hash(partition_tuple),
+    )
+
+
+def partition_train_triples_by_relation_stratified(
+    dataset: KnowledgeGraphDataset,
+    client_count: int,
+    seed: int,
+) -> FederatedKnowledgeGraphData:
+    """按关系分层并同时均衡关系计数和总行数构造客户端分区。"""
+
+    client_count = int(client_count)
+    if client_count <= 0:
+        raise ValueError("client_count必须大于0")
+    train_triple_count = int(dataset.train_triples.shape[0])
+    if client_count > train_triple_count:
+        raise ValueError(
+            "客户端数{}超过训练三元组数{}".format(
+                client_count, train_triple_count
+            )
+        )
+
+    relation_to_row_indices: Dict[int, List[int]] = {}
+    for row_index, relation_id in enumerate(
+        dataset.train_triples[:, 1].tolist()
+    ):
+        relation_to_row_indices.setdefault(
+            int(relation_id), []
+        ).append(int(row_index))
+
+    rng = np.random.RandomState(int(seed))
+    client_loads = [0 for _ in range(client_count)]
+    client_row_indices: List[List[int]] = [
+        [] for _ in range(client_count)
+    ]
+    for relation_id in sorted(relation_to_row_indices):
+        shuffled_rows = np.asarray(
+            relation_to_row_indices[relation_id],
+            dtype=np.int64,
+        )
+        rng.shuffle(shuffled_rows)
+        client_tie_order = [
+            int(value) for value in rng.permutation(client_count)
+        ]
+        client_tie_rank = {
+            client_id: rank
+            for rank, client_id in enumerate(client_tie_order)
+        }
+        relation_client_loads = [
+            0 for _ in range(client_count)
+        ]
+        for row_index in shuffled_rows.tolist():
+            # 先保证当前关系均匀，再用总负载和种子顺序稳定打破平局。
+            client_id = min(
+                range(client_count),
+                key=lambda value: (
+                    relation_client_loads[value],
+                    client_loads[value],
+                    client_tie_rank[value],
+                    value,
+                ),
+            )
+            client_row_indices[client_id].append(int(row_index))
+            relation_client_loads[client_id] += 1
+            client_loads[client_id] += 1
+
+    partition_tuple = _build_partitions_from_row_indices(
+        dataset, client_row_indices
+    )
+    return FederatedKnowledgeGraphData(
+        dataset=dataset,
+        partitions=partition_tuple,
+        partition_strategy=RELATION_STRATIFIED_TRIPLE_BALANCED,
         partition_seed=int(seed),
         partition_hash=_partition_hash(partition_tuple),
     )

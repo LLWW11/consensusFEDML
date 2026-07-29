@@ -1,4 +1,4 @@
-"""V3集中式和37客户端HFLSnF入口共享的实验构造函数。"""
+"""固定人数四组联邦TransE入口共享的实验构造函数。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import torch
 
 from .runtime import resolve_package_path
 from .tasks.kge import (
+    BALANCED_HEAD_ENTITY,
     TransE,
     build_synthetic_knowledge_graph,
     load_fb15k237,
@@ -55,20 +56,23 @@ def build_transe(
 
 
 def build_federated_data(args, dataset):
-    """按固定头实体均衡策略构造37个互斥知识客户端。"""
+    """按头实体均衡策略构造四组实验共享的客户端数据。"""
 
     strategy = str(
-        getattr(args, "partition_strategy", "balanced_head_entity")
+        getattr(args, "partition_strategy", BALANCED_HEAD_ENTITY)
     ).strip().lower()
-    if strategy != "balanced_head_entity":
+    if strategy != BALANCED_HEAD_ENTITY:
         raise ValueError(
-            "V3阶段0只支持balanced_head_entity划分"
+            "四组对照只支持partition_strategy={}".format(
+                BALANCED_HEAD_ENTITY
+            )
         )
-    return partition_train_triples_by_head(
-        dataset,
-        client_count=int(args.client_num_in_total),
-        seed=int(args.random_seed),
-    )
+    partition_arguments = {
+        "dataset": dataset,
+        "client_count": int(args.client_num_in_total),
+        "seed": int(args.random_seed),
+    }
+    return partition_train_triples_by_head(**partition_arguments)
 
 
 def checkpoint_payload(

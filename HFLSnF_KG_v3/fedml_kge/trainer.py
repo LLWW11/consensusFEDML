@@ -69,7 +69,7 @@ class FedMLFederatedTransETrainer:
         self.client_registry = self._build_client_registry()
 
     def _validate_configuration(self) -> None:
-        """校验阶段四为全客户端参与的单层普通联邦实验。"""
+        """校验普通全参与、固定拓扑或动态拓扑的客户端人数合同。"""
 
         if self.comm_round <= 0:
             raise ValueError("comm_round必须大于0")
@@ -100,8 +100,28 @@ class FedMLFederatedTransETrainer:
                     configured_total, expected_client_count
                 )
             )
-        if self.fixed_topology is None and (
-            configured_per_round != expected_client_count
+        optimizer_name = str(
+            getattr(self.args, "federated_optimizer", "")
+        ).strip().lower()
+        uses_dynamic_topology = (
+            optimizer_name == "dynamictopologytranse"
+        )
+        if uses_dynamic_topology and not (
+            0 < configured_per_round <= expected_client_count
+        ):
+            raise ValueError(
+                "动态拓扑client_num_per_round必须位于1和{}之间，"
+                "实际为{}".format(
+                    expected_client_count,
+                    configured_per_round,
+                )
+            )
+        if (
+            self.fixed_topology is None
+            and not uses_dynamic_topology
+            and (
+                configured_per_round != expected_client_count
+            )
         ):
             raise ValueError(
                 "阶段四要求每轮全部{}个客户端参与，实际为{}".format(

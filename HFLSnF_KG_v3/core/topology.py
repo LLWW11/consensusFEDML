@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+import random
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
@@ -180,6 +181,226 @@ class SequenceTopologyProvider(TopologyProvider):
         }
 
 
+class FixedCountTopologyProvider(TopologyProvider):
+    """按YAML指定人数构造SnF投影或noSnF均匀轮换拓扑。"""
+
+    def __init__(
+        self,
+        client_ids: Sequence[int],
+        participant_count: int,
+        architecture: str,
+        group_count: int,
+        selection_mode: str,
+        seed: int,
+        source_provider: Optional[TopologyProvider] = None,
+    ):
+        """校验固定人数合同并保存可选MAT来源拓扑。"""
+
+        normalized_clients = tuple(int(value) for value in client_ids)
+        if not normalized_clients or len(set(normalized_clients)) != len(
+            normalized_clients
+        ):
+            raise ValueError("固定人数调度的客户端池必须非空且无重复")
+        self._client_ids = normalized_clients
+        self._client_set = set(normalized_clients)
+        self._participant_count = int(participant_count)
+        if not 0 < self._participant_count <= len(self._client_ids):
+            raise ValueError("固定参与人数必须位于1和客户端池大小之间")
+        self._architecture = str(architecture).strip().lower()
+        if self._architecture not in {"hfl", "fl"}:
+            raise ValueError("固定人数调度architecture必须是hfl或fl")
+        self._group_count = int(group_count)
+        if self._architecture == "fl":
+            if self._group_count != 1:
+                raise ValueError("FL固定人数调度必须只有1个组")
+        elif not 0 < self._group_count <= self._participant_count:
+            raise ValueError("HFL组数必须位于1和固定参与人数之间")
+        self._selection_mode = str(selection_mode).strip().lower()
+        if self._selection_mode not in {
+            "snf_mat_projected",
+            "seeded_round_robin",
+        }:
+            raise ValueError(
+                "fixed_count_selection_mode必须是"
+                "snf_mat_projected或seeded_round_robin"
+            )
+        if (
+            self._selection_mode == "snf_mat_projected"
+            and source_provider is None
+        ):
+            raise ValueError("SnF固定人数投影必须提供MAT来源拓扑")
+        if (
+            self._selection_mode == "seeded_round_robin"
+            and source_provider is not None
+        ):
+            raise ValueError("noSnF均匀轮换不能读取MAT选择结果")
+        self._source_provider = source_provider
+        self._seed = int(seed)
+        seeded_order = list(self._client_ids)
+        random.Random(self._seed).shuffle(seeded_order)
+        self._round_robin_order = tuple(seeded_order)
+
+    def _seeded_round_order(
+        self,
+        round_index: int,
+        candidates: Sequence[int],
+        salt: int,
+    ) -> Tuple[int, ...]:
+        """按轮次和盐值生成可复现的候选客户端顺序。"""
+
+        ordered = list(int(value) for value in candidates)
+        random.Random(
+            self._seed + 1000003 * int(round_index) + int(salt)
+        ).shuffle(ordered)
+        return tuple(ordered)
+
+    def _project_snf_participants(
+        self,
+        round_index: int,
+        source_topology: RoundTopology,
+    ) -> Tuple[int, ...]:
+        """优先保留MAT选中客户端，并补齐或裁剪到YAML固定人数。"""
+
+        source_active = tuple(
+            int(value) for value in source_topology.active_client_indexes
+        )
+        if not set(source_active).issubset(self._client_set):
+            raise ValueError("MAT来源拓扑包含客户端池之外的编号")
+        active_order = self._seeded_round_order(
+            round_index,
+            source_active,
+            salt=17,
+        )
+        if len(active_order) >= self._participant_count:
+            return tuple(
+                sorted(active_order[: self._participant_count])
+            )
+        inactive = tuple(
+            client_id
+            for client_id in self._client_ids
+            if client_id not in set(source_active)
+        )
+        fill_order = self._seeded_round_order(
+            round_index,
+            inactive,
+            salt=31,
+        )
+        selected = active_order + fill_order[
+            : self._participant_count - len(active_order)
+        ]
+        return tuple(sorted(selected))
+
+    def _round_robin_participants(
+        self,
+        round_index: int,
+    ) -> Tuple[int, ...]:
+        """按循环窗口选择固定人数，使长期参与次数尽量均衡。"""
+
+        client_count = len(self._round_robin_order)
+        start = (
+            int(round_index) * self._participant_count
+        ) % client_count
+        selected = tuple(
+            self._round_robin_order[(start + offset) % client_count]
+            for offset in range(self._participant_count)
+        )
+        return tuple(sorted(selected))
+
+    def _groups_for_participants(
+        self,
+        participants: Sequence[int],
+    ) -> Dict[int, List[int]]:
+        """把选中客户端稳定轮转分入HFL六组或FL单组。"""
+
+        if self._architecture == "fl":
+            return {0: [int(value) for value in participants]}
+        groups: Dict[int, List[int]] = {
+            group_id: [] for group_id in range(self._group_count)
+        }
+        for offset, client_id in enumerate(participants):
+            groups[offset % self._group_count].append(int(client_id))
+        return groups
+
+    def get_round(self, round_index: int) -> RoundTopology:
+        """返回客户端人数严格等于YAML设定值的一轮拓扑。"""
+
+        round_index = int(round_index)
+        if round_index < 0:
+            raise ValueError("round_index不能小于0")
+        source_round_index = round_index
+        if self._selection_mode == "snf_mat_projected":
+            source = self._source_provider.get_round(round_index)
+            source_round_index = int(source.source_round_index)
+            participants = self._project_snf_participants(
+                round_index,
+                source,
+            )
+        else:
+            participants = self._round_robin_participants(round_index)
+        groups = self._groups_for_participants(participants)
+        topology = RoundTopology.from_groups(
+            groups,
+            source_round_index,
+        )
+        if topology.participant_count != self._participant_count:
+            raise RuntimeError("固定人数拓扑构造后参与人数发生漂移")
+        return topology
+
+    def describe(self) -> Dict[str, object]:
+        """返回固定人数、选择语义和可选MAT来源元数据。"""
+
+        source_metadata = (
+            dict(self._source_provider.describe())
+            if self._source_provider is not None
+            else None
+        )
+        return {
+            "provider_type": "fixed_count",
+            "architecture": self._architecture,
+            "snf_enabled": (
+                self._selection_mode == "snf_mat_projected"
+            ),
+            "edge_mode": (
+                "fixed" if self._architecture == "hfl" else "none"
+            ),
+            "fixed_participant_count": self._participant_count,
+            "fixed_group_count": self._group_count,
+            "fixed_count_selection_mode": self._selection_mode,
+            "fixed_count_seed": self._seed,
+            "source_topology": source_metadata,
+            "mat_file": (
+                source_metadata.get("mat_file")
+                if isinstance(source_metadata, dict)
+                else None
+            ),
+            "topology_util": (
+                source_metadata.get("topology_util")
+                if isinstance(source_metadata, dict)
+                else None
+            ),
+            "round_count": (
+                source_metadata.get("round_count")
+                if isinstance(source_metadata, dict)
+                else None
+            ),
+            "source_round_count": (
+                source_metadata.get(
+                    "source_round_count",
+                    source_metadata.get("round_count"),
+                )
+                if isinstance(source_metadata, dict)
+                else None
+            ),
+            "topology_schedule_policy": (
+                source_metadata.get(
+                    "topology_schedule_policy", "unbounded"
+                )
+                if isinstance(source_metadata, dict)
+                else "unbounded"
+            ),
+        }
+
+
 class MatlabTopologyProvider(TopologyProvider):
     """把原HFLSnF的MATLAB拓扑调度包装为任务无关提供器。"""
 
@@ -195,7 +416,8 @@ class MatlabTopologyProvider(TopologyProvider):
     ):
         """加载只读MAT调度，并配置越过源轮数时严格报错或循环复用。"""
 
-        from HFLSnF_dynEdge.topology_schedule import MatlabTopologySchedule
+        # 使用工程内置解析器，避免运行时依赖外部 HFLSnF_dynEdge 工程。
+        from .matlab_topology_schedule import MatlabTopologySchedule
 
         normalized_policy = str(schedule_policy).strip().lower()
         if normalized_policy not in {"strict", "cycle"}:

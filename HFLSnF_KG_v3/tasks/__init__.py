@@ -1,5 +1,3 @@
-"""可插入分层联邦核心的具体学习任务。"""
+"""固定人数四组实验使用的任务实现。"""
 
-from .base import FederatedTask
-
-__all__ = ["FederatedTask"]
+__all__ = []

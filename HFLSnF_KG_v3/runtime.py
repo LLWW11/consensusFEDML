@@ -1,4 +1,4 @@
-"""V3知识图谱实验的FedML配置、路径和结果目录工具。"""
+"""固定人数四组实验的FedML配置、路径和结果目录工具。"""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ from fedml.constants import (
 from .core.randomness import seed_everything
 from .core.device import as_bool
 from .core.topology import (
+    FixedCountTopologyProvider,
     MatlabTopologyProvider,
-    StaticTopologyProvider,
     TopologyProvider,
 )
 
@@ -81,40 +81,90 @@ def build_topology_provider(
     args,
     client_ids,
 ) -> TopologyProvider:
-    """根据配置创建MAT动态拓扑或用于CPU冒烟的静态拓扑。"""
+    """根据配置创建固定人数或MAT原样回放拓扑。"""
 
     topology_type = str(
-        getattr(args, "topology_type", "matlab")
+        getattr(args, "topology_type", "fixed_count")
     ).strip().lower()
     client_ids = tuple(int(value) for value in client_ids)
-    if topology_type == "static":
-        return StaticTopologyProvider.round_robin(
-            client_ids,
-            int(getattr(args, "edge_num", 1)),
+    architecture = str(
+        getattr(args, "topology_architecture", "hfl")
+    ).strip().lower()
+    snf_enabled = as_bool(getattr(args, "topology_snf", True))
+    if topology_type == "matlab_direct":
+        mat_path = resolve_package_path(
+            getattr(
+                args,
+                "dynamic_group_mat_file",
+                "matlab/result-U-6fixedge_epoch200_"
+                "varAlpha_0p1_trainable.mat",
+            )
         )
-    if topology_type != "matlab":
-        raise ValueError("topology_type必须是matlab或static")
-    mat_path = resolve_package_path(
+        return MatlabTopologyProvider(
+            mat_path=mat_path,
+            architecture=architecture,
+            snf_enabled=snf_enabled,
+            edge_mode=str(
+                getattr(args, "topology_edge_mode", "fixed")
+            ),
+            util=float(getattr(args, "topology_util", 0.5)),
+            client_count=len(client_ids),
+            schedule_policy=str(
+                getattr(
+                    args,
+                    "topology_schedule_policy",
+                    "strict",
+                )
+            ),
+        )
+    if topology_type != "fixed_count":
+        raise ValueError(
+            "topology_type必须是fixed_count或matlab_direct"
+        )
+    selection_mode = str(
         getattr(
             args,
-            "dynamic_group_mat_file",
-            "matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat",
+            "fixed_count_selection_mode",
+            (
+                "snf_mat_projected"
+                if snf_enabled
+                else "seeded_round_robin"
+            ),
         )
-    )
-    return MatlabTopologyProvider(
-        mat_path=mat_path,
-        architecture=str(
-            getattr(args, "topology_architecture", "hfl")
-        ),
-        snf_enabled=as_bool(
-            getattr(args, "topology_snf", True)
-        ),
-        edge_mode=str(
-            getattr(args, "topology_edge_mode", "dynamic")
-        ),
-        util=float(getattr(args, "topology_util", 0.5)),
-        client_count=len(client_ids),
-        schedule_policy=str(
-            getattr(args, "topology_schedule_policy", "strict")
-        ),
+    ).strip().lower()
+    source_provider = None
+    if selection_mode == "snf_mat_projected":
+        mat_path = resolve_package_path(
+            getattr(
+                args,
+                "dynamic_group_mat_file",
+                "matlab/result-U-6fixedge_epoch200_"
+                "varAlpha_0p1_trainable.mat",
+            )
+        )
+        source_provider = MatlabTopologyProvider(
+            mat_path=mat_path,
+            architecture=architecture,
+            snf_enabled=True,
+            edge_mode=str(
+                getattr(args, "topology_edge_mode", "fixed")
+            ),
+            util=float(getattr(args, "topology_util", 0.5)),
+            client_count=len(client_ids),
+            schedule_policy=str(
+                getattr(
+                    args,
+                    "topology_schedule_policy",
+                    "strict",
+                )
+            ),
+        )
+    return FixedCountTopologyProvider(
+        client_ids=client_ids,
+        participant_count=int(args.client_num_per_round),
+        architecture=architecture,
+        group_count=int(getattr(args, "edge_num", 1)),
+        selection_mode=selection_mode,
+        seed=int(getattr(args, "fixed_count_seed", args.random_seed)),
+        source_provider=source_provider,
     )

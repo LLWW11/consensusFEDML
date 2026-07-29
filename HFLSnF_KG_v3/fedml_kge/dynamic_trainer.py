@@ -18,6 +18,7 @@ from ..core.aggregation import (
 )
 from ..core.device import as_bool
 from ..core.result_writer import ExperimentResultWriter
+from ..core.server_optimization import RowWiseFedAdamOptimizer
 from ..core.topology import RoundTopology, TopologyProvider
 from ..core.types import ClientUpdate, clone_state_dict
 from .trainer import FedMLFederatedTransETrainer
@@ -130,6 +131,39 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
         self.row_count_weighted_aggregator = (
             RowCountWeightedFedAvgAggregator()
         )
+        self.server_optimizer_name = str(
+            getattr(args, "server_optimizer", "fedavg")
+        ).strip().lower()
+        if self.server_optimizer_name not in {"fedavg", "fedadam"}:
+            raise ValueError(
+                "server_optimizer必须是fedavg或fedadam"
+            )
+        if (
+            self.server_optimizer_name == "fedadam"
+            and self.aggregation_mode != "row_count_weighted"
+        ):
+            raise ValueError(
+                "服务器端FedAdam当前只支持row_count_weighted聚合"
+            )
+        self.server_fedadam_optimizer: Optional[
+            RowWiseFedAdamOptimizer
+        ] = None
+        if self.server_optimizer_name == "fedadam":
+            self.server_fedadam_optimizer = RowWiseFedAdamOptimizer(
+                learning_rate=float(
+                    getattr(args, "server_learning_rate", 0.1)
+                ),
+                beta1=float(getattr(args, "server_beta1", 0.9)),
+                beta2=float(getattr(args, "server_beta2", 0.99)),
+                tau=float(getattr(args, "server_tau", 0.001)),
+                bias_correction=as_bool(
+                    getattr(
+                        args,
+                        "server_bias_correction",
+                        False,
+                    )
+                ),
+            )
         self._round_topologies = tuple(
             topology_provider.get_round(round_index)
             for round_index in range(self.comm_round)
@@ -456,9 +490,50 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 ]
             cloud_statistics = aggregator.merge(edge_statistics)
 
-        new_global_state = aggregator.finalize(
+        fedavg_candidate_state = aggregator.finalize(
             cloud_statistics, global_state
         )
+        active_row_masks = {
+            str(name): denominator > 0
+            for name, denominator in (
+                cloud_statistics.row_denominators.items()
+            )
+        }
+        if self.server_fedadam_optimizer is not None:
+            new_global_state, server_optimizer_details = (
+                self.server_fedadam_optimizer.step(
+                    global_state=global_state,
+                    candidate_state=fedavg_candidate_state,
+                    active_row_masks=active_row_masks,
+                )
+            )
+            server_optimizer_details[
+                "server_optimizer_state_hash"
+            ] = _state_dict_sha256(
+                self.server_fedadam_optimizer.state_dict()
+            )
+        else:
+            new_global_state = fedavg_candidate_state
+            server_optimizer_details = {
+                "server_optimizer": "fedavg",
+                "server_optimizer_step": 0,
+                "server_learning_rate": 1.0,
+                "server_beta1": 0.0,
+                "server_beta2": 0.0,
+                "server_tau": 0.0,
+                "server_bias_correction": False,
+                "server_active_row_count": int(
+                    sum(
+                        int(mask.sum().item())
+                        for mask in active_row_masks.values()
+                    )
+                ),
+                "server_model_delta_l2": 0.0,
+                "server_update_l2": 0.0,
+                "server_update_max_abs": 0.0,
+                "server_parameter_statistics": {},
+                "server_optimizer_state_hash": "",
+            }
         parameter_statistics = aggregator.summarize(
             cloud_statistics
         )
@@ -511,12 +586,16 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             "parameter_row_statistics": parameter_statistics,
             "group_parameter_row_statistics": group_row_statistics,
             "group_parameter_state_hashes": group_state_hashes,
+            "fedavg_candidate_state_hash": _state_dict_sha256(
+                fedavg_candidate_state
+            ),
             "cloud_parameter_state_hash": _state_dict_sha256(
                 new_global_state
             ),
             "parameter_hash_stage": (
-                "after_aggregation_before_entity_normalization"
+                "after_server_optimizer_before_entity_normalization"
             ),
+            **server_optimizer_details,
         }
 
     @staticmethod
@@ -529,6 +608,24 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
 
         parameter_statistics = aggregation_details.get(
             "parameter_row_statistics", {}
+        )
+        if not isinstance(parameter_statistics, dict):
+            return 0.0
+        values = parameter_statistics.get(parameter_name, {})
+        if not isinstance(values, dict):
+            return 0.0
+        return float(values.get(statistic_name, 0.0))
+
+    @staticmethod
+    def _server_parameter_statistic_value(
+        aggregation_details: Dict[str, object],
+        parameter_name: str,
+        statistic_name: str,
+    ) -> float:
+        """安全读取服务器优化器的逐参数统计，FedAvg模式返回零。"""
+
+        parameter_statistics = aggregation_details.get(
+            "server_parameter_statistics", {}
         )
         if not isinstance(parameter_statistics, dict):
             return 0.0
@@ -605,13 +702,15 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             self.dataset.train_triples.shape[0]
         )
         local_epochs = int(getattr(self.args, "epochs", 1))
-        source_round_count = int(
-            self.topology_metadata.get(
-                "source_round_count",
-                self.topology_metadata.get(
-                    "round_count", self.comm_round
-                ),
-            )
+        raw_source_round_count = self.topology_metadata.get(
+            "source_round_count",
+            self.topology_metadata.get("round_count"),
+        )
+        # noSnF固定人数调度可按规则无限生成，不存在有限MAT源轮数。
+        source_round_count = (
+            int(raw_source_round_count)
+            if raw_source_round_count is not None
+            else int(self.comm_round)
         )
         schedule_policy = str(
             self.topology_metadata.get(
@@ -711,6 +810,26 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             flush=True,
         )
 
+    def _reset_cuda_peak_memory(self) -> None:
+        """在CUDA训练轮开始前重置设备峰值显存统计。"""
+
+        if self.device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(self.device)
+
+    def _cuda_peak_memory_megabytes(self) -> Tuple[float, float]:
+        """返回当前轮CUDA峰值已分配和保留显存，CPU返回零。"""
+
+        if self.device.type != "cuda":
+            return 0.0, 0.0
+        megabyte = float(1024 ** 2)
+        allocated = float(
+            torch.cuda.max_memory_allocated(self.device)
+        ) / megabyte
+        reserved = float(
+            torch.cuda.max_memory_reserved(self.device)
+        ) / megabyte
+        return allocated, reserved
+
     def train(self, result_dir: Path) -> Dict[str, object]:
         """执行动态采样联邦TransE、恢复最佳模型并完成完整评估。"""
 
@@ -722,6 +841,8 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
         total_train_triples = int(
             self.dataset.train_triples.shape[0]
         )
+        round_cuda_allocated_mb: List[float] = []
+        round_cuda_reserved_mb: List[float] = []
 
         with ExperimentResultWriter(
             result_dir,
@@ -741,6 +862,7 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             for round_index, topology in enumerate(
                 self._round_topologies
             ):
+                self._reset_cuda_peak_memory()
                 round_started_at = time.perf_counter()
                 updates, aggregation_details = (
                     self._train_dynamic_round(
@@ -784,6 +906,14 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 round_seconds = (
                     time.perf_counter() - round_started_at
                 )
+                (
+                    cuda_peak_allocated_mb,
+                    cuda_peak_reserved_mb,
+                ) = self._cuda_peak_memory_megabytes()
+                round_cuda_allocated_mb.append(
+                    cuda_peak_allocated_mb
+                )
+                round_cuda_reserved_mb.append(cuda_peak_reserved_mb)
                 metric_row: Dict[str, object] = {
                     "round": round_number,
                     "ablation_suite": str(
@@ -858,6 +988,70 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                         optimizer_step_after["max"]
                     ),
                     "aggregation_mode": self.aggregation_mode,
+                    "server_optimizer": self.server_optimizer_name,
+                    "server_optimizer_step": int(
+                        aggregation_details.get(
+                            "server_optimizer_step", 0
+                        )
+                    ),
+                    "server_learning_rate": float(
+                        aggregation_details.get(
+                            "server_learning_rate", 1.0
+                        )
+                    ),
+                    "server_beta1": float(
+                        aggregation_details.get("server_beta1", 0.0)
+                    ),
+                    "server_beta2": float(
+                        aggregation_details.get("server_beta2", 0.0)
+                    ),
+                    "server_tau": float(
+                        aggregation_details.get("server_tau", 0.0)
+                    ),
+                    "server_bias_correction": bool(
+                        aggregation_details.get(
+                            "server_bias_correction", False
+                        )
+                    ),
+                    "server_active_row_count": int(
+                        aggregation_details.get(
+                            "server_active_row_count", 0
+                        )
+                    ),
+                    "server_model_delta_l2": float(
+                        aggregation_details.get(
+                            "server_model_delta_l2", 0.0
+                        )
+                    ),
+                    "server_update_l2": float(
+                        aggregation_details.get(
+                            "server_update_l2", 0.0
+                        )
+                    ),
+                    "server_update_max_abs": float(
+                        aggregation_details.get(
+                            "server_update_max_abs", 0.0
+                        )
+                    ),
+                    "server_optimizer_state_hash": str(
+                        aggregation_details.get(
+                            "server_optimizer_state_hash", ""
+                        )
+                    ),
+                    "entity_server_active_row_count": (
+                        self._server_parameter_statistic_value(
+                            aggregation_details,
+                            "entity_embeddings.weight",
+                            "active_row_count",
+                        )
+                    ),
+                    "relation_server_active_row_count": (
+                        self._server_parameter_statistic_value(
+                            aggregation_details,
+                            "relation_embeddings.weight",
+                            "active_row_count",
+                        )
+                    ),
                     "local_objective": self.local_objective,
                     "entity_updated_row_count": (
                         self._row_statistic_value(
@@ -888,6 +1082,12 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                         )
                     ),
                     "round_seconds": round_seconds,
+                    "cuda_peak_memory_allocated_mb": (
+                        cuda_peak_allocated_mb
+                    ),
+                    "cuda_peak_memory_reserved_mb": (
+                        cuda_peak_reserved_mb
+                    ),
                 }
                 for prefix, parameter_name in (
                     ("entity", "entity_embeddings.weight"),
@@ -944,6 +1144,9 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                         "snf_enabled": bool(self.snf_enabled),
                         "edge_mode": self.edge_mode,
                         "aggregation_mode": self.aggregation_mode,
+                        "server_optimizer": (
+                            self.server_optimizer_name
+                        ),
                         "local_objective": self.local_objective,
                         "client_optimizer_state_mode": str(
                             getattr(
@@ -1028,6 +1231,19 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 if math.isfinite(self.centralized_reference_mrr)
                 else float("nan")
             )
+            is_matlab_direct = (
+                self.topology_metadata.get("provider_type")
+                == "matlab_adapter"
+            )
+            configured_per_round = int(
+                getattr(
+                    self.args,
+                    "client_num_per_round",
+                    self.participation_summary[
+                        "participant_count_max"
+                    ],
+                )
+            )
             summary: Dict[str, object] = {
                 "task": (
                     "dynamic_mat_federated_knowledge_graph_completion"
@@ -1045,6 +1261,48 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 "snf_enabled": bool(self.snf_enabled),
                 "edge_mode": self.edge_mode,
                 "aggregation_mode": self.aggregation_mode,
+                "server_optimizer": self.server_optimizer_name,
+                "server_learning_rate": (
+                    float(
+                        self.server_fedadam_optimizer.learning_rate
+                    )
+                    if self.server_fedadam_optimizer is not None
+                    else 1.0
+                ),
+                "server_beta1": (
+                    float(self.server_fedadam_optimizer.beta1)
+                    if self.server_fedadam_optimizer is not None
+                    else 0.0
+                ),
+                "server_beta2": (
+                    float(self.server_fedadam_optimizer.beta2)
+                    if self.server_fedadam_optimizer is not None
+                    else 0.0
+                ),
+                "server_tau": (
+                    float(self.server_fedadam_optimizer.tau)
+                    if self.server_fedadam_optimizer is not None
+                    else 0.0
+                ),
+                "server_bias_correction": (
+                    bool(
+                        self.server_fedadam_optimizer.bias_correction
+                    )
+                    if self.server_fedadam_optimizer is not None
+                    else False
+                ),
+                "server_optimizer_step_count": (
+                    int(self.server_fedadam_optimizer.step_count)
+                    if self.server_fedadam_optimizer is not None
+                    else 0
+                ),
+                "server_optimizer_state_hash": (
+                    _state_dict_sha256(
+                        self.server_fedadam_optimizer.state_dict()
+                    )
+                    if self.server_fedadam_optimizer is not None
+                    else ""
+                ),
                 "local_objective": self.local_objective,
                 "dynamic_client_selection": bool(
                     self.participation_summary[
@@ -1058,7 +1316,19 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 "client_num_in_total": (
                     self.federated_data.client_count
                 ),
-                "client_num_per_round": "from_matlab",
+                "client_num_per_round": (
+                    self.participation_summary[
+                        "participant_count_max"
+                    ]
+                    if is_matlab_direct
+                    else configured_per_round
+                ),
+                "client_num_per_round_config": configured_per_round,
+                "client_num_per_round_source": (
+                    "matlab"
+                    if is_matlab_direct
+                    else "yaml_fixed_count"
+                ),
                 "participant_count_min": (
                     self.participation_summary[
                         "participant_count_min"
@@ -1196,6 +1466,16 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                         "profile_training_timing",
                         False,
                     )
+                ),
+                "cuda_peak_memory_allocated_mb_max": float(
+                    max(round_cuda_allocated_mb)
+                    if round_cuda_allocated_mb
+                    else 0.0
+                ),
+                "cuda_peak_memory_reserved_mb_max": float(
+                    max(round_cuda_reserved_mb)
+                    if round_cuda_reserved_mb
+                    else 0.0
                 ),
                 "evaluation_query_batch_size": self.query_batch_size,
                 "evaluation_candidate_batch_size": (

@@ -1,5 +1,0 @@
-__pycache__/
-*.py[cod]
-results/
-data/FB15k-237/
-!run_fixed_fedtranse_comparisons.ps1

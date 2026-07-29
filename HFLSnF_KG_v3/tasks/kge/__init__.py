@@ -1,4 +1,4 @@
-"""V3集中式与37客户端HFLSnF知识图谱嵌入组件。"""
+"""固定人数四组对照使用的知识图谱嵌入组件。"""
 
 from .data import (
     KnowledgeGraphDataset,
@@ -16,6 +16,7 @@ from .directional import (
 )
 from .evaluator import FilteredRankingEvaluator
 from .federated_data import (
+    BALANCED_HEAD_ENTITY,
     FederatedKnowledgeGraphData,
     KnowledgeGraphClientPartition,
     partition_train_triples_by_head,
@@ -23,33 +24,38 @@ from .federated_data import (
 from .model import TransE
 from .negative_sampling import (
     FilteredNegativeSampler,
-    LegacyFilteredNegativeSampler,
     VectorizedFilteredNegativeSampler,
+)
+from .official_evaluation import (
+    build_official_evaluation_contract,
+    run_best_checkpoint_official_evaluation,
+    write_official_evaluation_report,
 )
 from .objectives import self_adversarial_loss
 from .subsampling import TripleFrequencySubsampler
-from .trainer import CentralizedTransETrainer
 
 __all__ = [
     "BatchedDirectionalEvaluator",
-    "CentralizedTransETrainer",
+    "BALANCED_HEAD_ENTITY",
     "FederatedKnowledgeGraphData",
     "FilteredNegativeSampler",
     "FilteredRankingEvaluator",
     "KnowledgeGraphClientPartition",
     "KnowledgeGraphDataset",
-    "LegacyFilteredNegativeSampler",
     "TransE",
     "TransEEmbeddingBundle",
     "TripleFrequencySubsampler",
     "VectorizedFilteredNegativeSampler",
     "build_knowledge_graph_dataset",
+    "build_official_evaluation_contract",
     "build_synthetic_knowledge_graph",
     "load_fb15k237",
     "load_project_checkpoint",
     "metrics_from_ranks",
     "partition_train_triples_by_head",
+    "run_best_checkpoint_official_evaluation",
     "run_directional_diagnostic",
     "select_test_triples",
     "self_adversarial_loss",
+    "write_official_evaluation_report",
 ]
