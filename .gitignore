@@ -11,6 +11,7 @@
 *.ps1
 *.pyc
 *.xz
+*.h5
 
 */result/*
 /idea
@@ -23,3 +24,4 @@
 /zOld
 /计划
 /FB15k-237
+/dataset
