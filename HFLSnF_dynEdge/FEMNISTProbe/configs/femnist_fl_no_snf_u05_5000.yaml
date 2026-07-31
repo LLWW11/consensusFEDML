@@ -7,7 +7,7 @@ data_args:
   data_cache_dir: "dataset/FEMNIST"
   partition_method: "dirichlet"
   split_policy: "non-iid"
-  partition_alpha: 0.2
+  partition_alpha: 0.1
   partition_seed: 0
   client_num_in_total: 250
   client_num_per_round: 37
