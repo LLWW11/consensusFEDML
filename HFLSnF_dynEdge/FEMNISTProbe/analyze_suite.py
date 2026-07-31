@@ -124,8 +124,16 @@ def _validate_h5(run_dir, metadata):
 
 
 def _validate_schedule(schedule_lines, metadata, run_name):
-    """逐轮校验5000条全局epoch、MAT循环和书写者映射记录。"""
-    candidate_writers = list(metadata["candidate_writer_ids"])
+    """逐轮校验5000条全局epoch、MAT循环、候选映射和全量同步记录。"""
+    is_v2 = str(metadata.get("schema_version", "")).endswith("_v2")
+    candidate_clients = list(
+        metadata.get(
+            "candidate_client_ids",
+            metadata.get("candidate_writer_ids", []),
+        )
+    )
+    if len(candidate_clients) != 37:
+        raise ValueError("{}候选客户端清单不是37人。".format(run_name))
     candidate_hash = str(metadata["candidate_manifest_hash"])
     for expected_epoch, line in enumerate(schedule_lines):
         row = json.loads(line)
@@ -138,15 +146,27 @@ def _validate_schedule(schedule_lines, metadata, run_name):
         if str(row["candidate_manifest_hash"]) != candidate_hash:
             raise ValueError("{}拓扑候选哈希错误。".format(run_name))
         active_slots = [int(value) for value in row["active_candidate_slots"]]
-        expected_writers = [
-            candidate_writers[slot] for slot in active_slots
+        expected_clients = [
+            candidate_clients[slot] for slot in active_slots
         ]
-        if list(row["active_writer_ids"]) != expected_writers:
-            raise ValueError("{}活跃槽位与书写者未对齐。".format(run_name))
-        if row.get("synchronized_candidate_slots") != list(range(37)):
-            raise ValueError("{}未记录37名候选全量同步。".format(run_name))
-        if row.get("synchronized_writer_ids") != candidate_writers:
-            raise ValueError("{}同步槽位与书写者未对齐。".format(run_name))
+        active_key = "active_client_ids" if is_v2 else "active_writer_ids"
+        if list(row[active_key]) != expected_clients:
+            raise ValueError("{}活跃槽位与客户端未对齐。".format(run_name))
+        if is_v2:
+            population_count = int(metadata["population_client_count"])
+            if row.get("synchronized_client_ids") != list(
+                    range(population_count)
+            ):
+                raise ValueError("{}未记录250个逻辑客户端全量同步。".format(run_name))
+            if int(row.get("synchronized_client_count", -1)) != population_count:
+                raise ValueError("{}全量同步客户端数量错误。".format(run_name))
+            if int(row.get("mat_participant_count", -1)) != len(active_slots):
+                raise ValueError("{}MAT参与人数与活跃槽位不一致。".format(run_name))
+        else:
+            if row.get("synchronized_candidate_slots") != list(range(37)):
+                raise ValueError("{}未记录37名候选全量同步。".format(run_name))
+            if row.get("synchronized_writer_ids") != candidate_clients:
+                raise ValueError("{}同步槽位与书写者未对齐。".format(run_name))
 
 
 def _stage_summary(rows, start_epoch, end_epoch):
@@ -251,6 +271,11 @@ def _load_run(run_dir):
             "test_accuracy": test_row["test_accuracy"],
             "test_loss": test_row["test_loss"],
         }))
+        if str(metadata.get("schema_version", "")).endswith("_v2"):
+            if int(float(test_row["evaluated_client_count"])) != 250:
+                raise ValueError("{}测试没有覆盖250个客户端。".format(run_dir.name))
+            if int(float(test_row["test_samples"])) != 77483:
+                raise ValueError("{}测试样本数不是77483。".format(run_dir.name))
     h5_audit = _validate_h5(run_dir, metadata)
     return {
         "path": run_dir,
@@ -377,11 +402,25 @@ def build_report(runs):
                 "{:.4f}".format(values["q"]),
             ])
     shared = ordered[0]["metadata"]
+    if str(shared.get("schema_version", "")).endswith("_v2"):
+        data_description = (
+            "四方案共同使用完整FEMNIST的250客户端Dirichlet划分"
+            "（alpha={alpha:g}、seed={seed}）、固定37个逻辑客户端槽位、"
+            "固定620张探针、同一初始模型和同一varAlpha=0.1 MAT。"
+        ).format(
+            alpha=float(shared["partition_alpha"]),
+            seed=int(shared["partition_seed"]),
+        )
+    else:
+        data_description = (
+            "四方案共同使用固定37名书写者、固定620张探针、"
+            "同一初始模型和同一varAlpha=0.1 MAT。"
+        )
     return """# FEMNIST MAT四方案探针机制探索报告
 
 ## 结论边界
 
-本报告基于单随机种子0，仅用于描述四种MAT拓扑机制下共识、覆盖率和准确率的变化，不声明统计显著性或因果关系。四方案共同使用固定37名书写者、固定620张探针、同一初始模型和同一varAlpha=0.1 MAT。
+本报告基于单随机种子0，仅用于描述四种MAT拓扑机制下共识、覆盖率和准确率的变化，不声明统计显著性或因果关系。{data_description}
 
 ## 完整性审计
 
@@ -423,6 +462,7 @@ def build_report(runs):
 原始候选有效共识S会受到未活跃候选仍保留云模型的影响，方案比较必须同时读取活跃正确/错误有效共识与主指标 `Q=活跃覆盖率×活跃正确有效共识`。SnF和no-SnF的MAT参与人数不同，因此不能把准确率或S的单一差异直接解释成SnF的独立因果效应。
 """.format(
         candidate_hash=shared["candidate_manifest_hash"],
+        data_description=data_description,
         probe_hash=shared["probe_hash"],
         model_hash=shared["initial_model_hash"],
         mat_hash=shared["mat_file_hash"],
@@ -472,6 +512,7 @@ def main():
         raise ValueError("四方案集合错误：{}。".format(sorted(scenarios)))
     for key in [
         "candidate_manifest_hash",
+        "partition_hash",
         "probe_hash",
         "initial_model_hash",
         "mat_file_hash",

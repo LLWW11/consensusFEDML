@@ -4,3 +4,4 @@ result/originalData/*
 !result/originalData/analyze_experiment_suite.py
 !result/originalData/run_report_from_ide.py
 !result/originalData/test_analyze_experiment_suite.py
+!run_femnist_250_four_experiments.ps1

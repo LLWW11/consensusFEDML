@@ -7,6 +7,7 @@ import csv
 from datetime import datetime
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -115,12 +116,51 @@ def _validate_gate_identity(gate, gpu_identity, gate_name):
 def _run_group(commands, log_dir, parallelism):
     """按并行上限运行子进程并返回总耗时和退出码。"""
     log_dir.mkdir(parents=True, exist_ok=True)
+    parallelism = int(parallelism)
+    start_time = time.perf_counter()
+
+    if parallelism == 1:
+        return_codes = []
+        child_environment = os.environ.copy()
+        # 强制子进程逐行刷新UTF-8输出，保证每轮日志实时到达终端。
+        child_environment["PYTHONUNBUFFERED"] = "1"
+        child_environment["PYTHONIOENCODING"] = "utf-8"
+        for job_index, command in enumerate(commands):
+            log_path = log_dir / "job_{:02d}.log".format(job_index)
+            with log_path.open("w", encoding="utf-8") as log_file:
+                process = subprocess.Popen(
+                    command,
+                    cwd=str(PROJECT_ROOT),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    bufsize=1,
+                    env=child_environment,
+                )
+                if process.stdout is None:
+                    raise RuntimeError("无法读取子进程标准输出。")
+                for line in process.stdout:
+                    log_file.write(line)
+                    log_file.flush()
+                    print(line, end="", flush=True)
+                process.stdout.close()
+                return_codes.append(int(process.wait()))
+        elapsed = time.perf_counter() - start_time
+        if any(code != 0 for code in return_codes):
+            raise RuntimeError(
+                "至少一个套件子任务失败，退出码为{}；请检查{}。".format(
+                    return_codes, log_dir
+                )
+            )
+        return elapsed, return_codes
+
     pending = list(enumerate(commands))
     running = []
     return_codes = {}
-    start_time = time.perf_counter()
     while pending or running:
-        while pending and len(running) < int(parallelism):
+        while pending and len(running) < parallelism:
             job_index, command = pending.pop(0)
             log_path = log_dir / "job_{:02d}.log".format(job_index)
             log_file = log_path.open("w", encoding="utf-8")
@@ -239,6 +279,7 @@ def _validate_benchmark_pair(reference_dir, fast_dir):
     )
     for key in [
         "candidate_manifest_hash",
+        "partition_hash",
         "probe_hash",
         "initial_model_hash",
         "mat_file_hash",
@@ -265,6 +306,7 @@ def _compare_amp_runs(fp32_dir, amp_dir):
     )
     for key in [
         "candidate_manifest_hash",
+        "partition_hash",
         "probe_hash",
         "initial_model_hash",
         "mat_file_hash",

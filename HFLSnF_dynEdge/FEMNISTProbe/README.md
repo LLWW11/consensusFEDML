@@ -1,15 +1,18 @@
 # FEMNIST MAT 探针实验
 
-本目录实现固定 37 名 FEMNIST 书写者、固定 620 张类别均衡探针和 200 轮 MAT 拓扑显式循环的四方案机制实验。旧 MNIST 入口未被替换，新增代码使用独立入口运行。
+本目录实现完整 FEMNIST 的 250 个狄利克雷逻辑客户端、37 个固定训练槽位、620 张类别均衡探针和 200 轮 MAT 拓扑显式循环的四方案机制实验。源 H5 中的书写者 ID 只用于读取文件，不参与客户端划分。旧 MNIST 入口未被替换。
 
 ## 实验边界
 
 - 数据来自 `dataset/FEMNIST/fed_emnist_train.h5` 和 `fed_emnist_test.h5`。
-- seed 0 从 3400 名书写者中无放回固定选择 37 人，并要求其训练数据覆盖全部 62 类。
-- 四方案使用相同书写者顺序、初始模型、探针、MAT 文件和训练随机种子。
+- 完整 671585 张训练图片和 77483 张测试图片使用同一个 `62×250` 类别比例矩阵进行 Dirichlet non-IID 划分，默认 `partition_alpha=0.2`、`partition_seed=0`。
+- 训练集和测试集分别确定性打乱类内样本，全部样本只分配一次，并拒绝任何空客户端。
+- 37 个固定槽位严格对应逻辑客户端 `[123–128, 41–46, 0–5, 164–169, 82–87, 205–210, 129]`。
+- 四方案使用相同逻辑客户端划分、固定槽位顺序、初始模型、探针、MAT 文件和训练随机种子。
 - MAT 文件固定为 `matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat`，固定 `u=0.5`。
 - 第 `global_epoch` 轮使用 MAT 第 `global_epoch % 200` 行，循环编号为 `global_epoch // 200`。
-- 聚合权重只使用各书写者的真实训练样本数。本地批大小固定为 20，尾批不会丢弃。
+- MAT 每轮只提供有效组数 `k` 和参与人数 `n`。37 个固定槽位被切成 `k` 个连续候选段，每组先取 `n//k` 人，再把余数依次补给前面的组；不使用 MAT 的具体客户端身份。
+- 聚合权重只使用各逻辑客户端的真实训练样本数。本地批大小固定为 20，尾批不会丢弃。
 - 本实验只有 seed 0，结果仅用于机制探索，不声明统计显著性。
 
 四个正式配置位于 `configs/`：
@@ -21,11 +24,32 @@
 
 ## GPU 快速路径
 
-训练器只保留一个共享 CNN、一个可复用无动量 SGD 优化器和本轮活跃客户端的扁平 FP32 参数矩阵，不创建 37 份长期客户端模型。客户端到边缘、边缘到云的聚合均使用 GPU 张量的样本加权求和。
+训练器只保留一个共享 CNN、一个可复用无动量 SGD 优化器和本轮活跃客户端的扁平 FP32 参数矩阵，不创建 250 份内容相同的长期客户端模型。客户端到边缘、边缘到云的聚合均使用 GPU 张量的样本加权求和。
 
-候选训练数据和探针启动时常驻 GPU。完整测试集在预留至少 2 GB 显存后仍可容纳时常驻 GPU；否则保留在固定内存，并在测试阶段异步分批传输。24 GB 档使用 620 张探针批次和 4096 张测试批次，8 GB 档使用 256 与 1024。
+只物化 37 个固定候选的训练图片；候选训练数据和探针启动时常驻 GPU。完整测试集及逐图片逻辑客户端编号在预留至少 2 GB 显存后仍可容纳时常驻 GPU，否则保留在固定内存并在测试阶段异步分批传输。每个评估点按 250 个本地测试分区累计正确数、样本数和损失，再生成总体测试指标。
 
 CUDA 模式启用 `channels_last`、TF32、固定形状 cuDNN benchmark，以及 PyTorch 1.13 的 `torch.cuda.amp`。模型参数、聚合、softmax、共识计算和 HDF5 均保持 FP32。AMP 是否用于正式实验由 200 轮配对校验自动决定。
+
+## 一键运行四组正式实验
+
+Windows PowerShell 或 VS Code 终端在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run_femnist_250_four_experiments.ps1
+```
+
+脚本会依次运行 HFL+SnF、HFL-noSnF、FL+SnF 和 FL-noSnF 四组 5000 轮正式实验。四份配置都会在启动前接受检查，并且必须共同指向 `matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat`。脚本固定使用串行模式，避免四组逐轮日志在终端交错；每行输出也会同步保存到正式套件目录的 `logs/job_XX.log`。
+
+默认使用 `D:\Anaconda3\Scripts\conda.exe`、`py37` 环境和 0 号 GPU。路径、环境名或 GPU 编号不同时可显式覆盖：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run_femnist_250_four_experiments.ps1 `
+  -CondaExecutable "C:\Miniconda3\Scripts\conda.exe" `
+  -CondaEnvironment "femnist-probe-py37-gpu" `
+  -GpuId 1
+```
+
+正式套件仍执行原有 GPU 身份、AMP 门禁和性能门禁校验；首次在新 GPU 环境运行时，应先按下文完成 `calibrate` 与 `benchmark`。
 
 ## 服务器环境
 
@@ -103,21 +127,21 @@ python -m FEMNISTProbe.run_experiment \
   --resume_checkpoint result/FEMNISTProbe/某次运行/checkpoint_latest.pt
 ```
 
-恢复逻辑会按检查点坐标截断多余 CSV 和 JSONL 行，从 `next_epoch` 继续，避免重复或遗漏轮次。不得用另一方案、另一 MAT、另一候选清单或不同 AMP 模式的检查点恢复。
+恢复逻辑会按检查点坐标截断多余 CSV 和 JSONL 行，从 `next_epoch` 继续，避免重复或遗漏轮次。不得用另一方案、另一 MAT、另一候选清单或不同 AMP 模式的检查点恢复。旧版 37 书写者检查点与新版 250 客户端划分不兼容，加载时会被明确拒绝。
 
 ## 结果文件
 
 每个方案目录包含：
 
-- `shared_manifest.json`：37 名候选、训练样本数、620 张探针索引及公共哈希。
-- `topology_schedule.jsonl`：每轮循环编号、MAT 行、活跃槽位、真实书写者和边缘映射。
+- `shared_manifest.json`：Dirichlet 参数、250 端样本数、固定 37 槽位、620 张探针索引及公共哈希。
+- `topology_schedule.jsonl`：每轮循环编号、MAT 行、k/n 平衡分组、活跃逻辑客户端和 250 端全量同步范围。
 - `probe_probabilities.h5`：客户端、边缘和云端 FP32 概率，按时间点分块并使用 gzip。
 - `probe_epoch_summary.csv`：A、C、S、正确 S、错误 S、覆盖率、组内/边缘/云共识和 Q。
-- `test_metrics.csv`：完整 77483 张测试图片的损失与准确率。
+- `test_metrics.csv`：250 个本地测试分区汇总得到的完整 77483 张测试图片损失与准确率。
 - `stage_timing.csv`：训练、聚合、探针、测试和检查点累计耗时。
 - `gpu_monitor.csv`：每 30 秒记录的 GPU 利用率、显存、温度、功率和时钟。
 - `checkpoint_latest.pt`：云模型、AMP 缩放器、随机状态与恢复坐标。
 
 HFL 的 HDF5 形状为客户端 `[101,37,620,62]`、边缘 `[101,6,620,62]`、云端 `[101,620,62]`。普通 FL 保留一个未激活的边缘槽位以维持统一读取接口。
 
-客户端探针快照表示“本轮本地训练完成、聚合后全量同步发生之前”的状态：活跃槽位使用本轮本地模型，未活跃槽位使用该轮开始时已同步的云模型。调度日志中的 `synchronized_candidate_slots` 与 `synchronized_writer_ids` 则记录聚合后接收新云模型的全部 37 名候选。下一轮所有活跃客户端都从该新云模型加载参数。
+客户端探针快照表示“本轮本地训练完成、聚合后全量同步发生之前”的状态：活跃槽位使用本轮本地模型，未活跃槽位使用该轮开始时已同步的云模型。调度日志中的 `synchronized_client_ids` 记录聚合后接收新云模型的全部 250 个逻辑客户端；下一轮所有活跃槽位都从该新云模型加载参数。

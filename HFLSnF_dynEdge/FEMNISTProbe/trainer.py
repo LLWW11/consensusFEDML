@@ -31,6 +31,7 @@ TEST_COLUMNS = [
     "global_epoch",
     "topology_cycle_index",
     "mat_topology_index",
+    "evaluated_client_count",
     "test_samples",
     "test_correct",
     "test_accuracy",
@@ -98,7 +99,8 @@ class FastFEMNISTMatTrainer:
         self.data = data_bundle
         self.model = model
         self.topology = cyclic_topology
-        self.candidate_count = len(self.data.candidate_writer_ids)
+        self.candidate_count = len(self.data.candidate_client_ids)
+        self.population_client_count = int(self.data.population_client_count)
         self.class_count = int(self.data.class_count)
         self.comm_round = int(self.args.comm_round)
         self.eval_interval = int(getattr(self.args, "eval_interval", 50))
@@ -142,6 +144,10 @@ class FastFEMNISTMatTrainer:
         """校验正式实验不变量，避免快速路径静默改变算法。"""
         if self.candidate_count != 37:
             raise ValueError("FEMNIST MAT实验固定要求37个候选客户端。")
+        if self.population_client_count != 250:
+            raise ValueError("FEMNIST MAT实验固定要求250个逻辑客户端。")
+        if self.topology.schedule.assignment_mode != "balanced_counts":
+            raise ValueError("FEMNIST 250客户端实验必须使用balanced_counts拓扑模式。")
         if self.local_batch_size != 20:
             raise ValueError("正式快速路径固定要求本地batch_size=20。")
         if str(getattr(self.args, "client_optimizer", "sgd")).lower() != "sgd":
@@ -312,6 +318,8 @@ class FastFEMNISTMatTrainer:
                 * self.data.global_test_inputs.element_size()
                 + self.data.global_test_labels.numel()
                 * self.data.global_test_labels.element_size()
+                + self.data.global_test_client_ids.numel()
+                * self.data.global_test_client_ids.element_size()
             )
             reserve = int(getattr(
                 self.args, "gpu_memory_reserve_mb", 2048
@@ -328,9 +336,17 @@ class FastFEMNISTMatTrainer:
             self.global_test_labels = self.data.global_test_labels.to(
                 self.device, non_blocking=self.device.type == "cuda"
             )
+            self.global_test_client_ids = (
+                self.data.global_test_client_ids.to(
+                    self.device, non_blocking=self.device.type == "cuda"
+                )
+            )
         else:
             self.global_test_inputs = self.data.global_test_inputs.pin_memory()
             self.global_test_labels = self.data.global_test_labels.pin_memory()
+            self.global_test_client_ids = (
+                self.data.global_test_client_ids.pin_memory()
+            )
 
     def _autocast(self):
         """返回兼容PyTorch 1.13的CUDA AMP上下文。"""
@@ -607,21 +623,28 @@ class FastFEMNISTMatTrainer:
         )
 
     def _evaluate_cloud(self, global_epoch, cycle_index, mat_index):
-        """在完整77483张测试图片上评估当前云模型。"""
+        """按 250 个本地测试分区累计正确数并评估当前共享云模型。"""
         self._copy_vector_to_model(self.cloud_vector)
         self.model.eval()
         batch_size = int(self.profile["test_batch_size"])
-        correct = 0
         loss_sum = 0.0
         total = int(self.data.global_test_labels.shape[0])
+        client_correct = torch.zeros(
+            self.population_client_count,
+            dtype=torch.int64,
+            device=self.device,
+        )
+        client_seen = torch.zeros_like(client_correct)
         with torch.inference_mode():
             for start in range(0, total, batch_size):
                 end = min(start + batch_size, total)
                 inputs = self.global_test_inputs[start:end]
                 labels = self.global_test_labels[start:end]
+                client_ids = self.global_test_client_ids[start:end]
                 if not self.test_cached_on_device:
                     inputs = inputs.to(self.device, non_blocking=True)
                     labels = labels.to(self.device, non_blocking=True)
+                    client_ids = client_ids.to(self.device, non_blocking=True)
                 if self.device.type == "cuda":
                     inputs = inputs.contiguous(
                         memory_format=torch.channels_last
@@ -632,13 +655,29 @@ class FastFEMNISTMatTrainer:
                 loss_sum += float(nn.functional.cross_entropy(
                     logits_float, labels, reduction="sum"
                 ).item())
-                correct += int(
-                    torch.sum(torch.argmax(logits_float, dim=1) == labels).item()
+                correct_mask = torch.argmax(logits_float, dim=1) == labels
+                client_seen += torch.bincount(
+                    client_ids,
+                    minlength=self.population_client_count,
                 )
+                client_correct += torch.bincount(
+                    client_ids[correct_mask],
+                    minlength=self.population_client_count,
+                )
+        actual_client_counts = client_seen.detach().cpu().numpy()
+        expected_client_counts = np.asarray(
+            self.data.client_test_sample_counts, dtype=np.int64
+        )
+        if not np.array_equal(actual_client_counts, expected_client_counts):
+            raise RuntimeError("250个本地测试分区的评估样本数与数据清单不一致。")
+        correct = int(torch.sum(client_correct).item())
+        if int(torch.sum(client_seen).item()) != total:
+            raise RuntimeError("本地测试分区汇总没有覆盖完整测试集。")
         return {
             "global_epoch": int(global_epoch),
             "topology_cycle_index": int(cycle_index),
             "mat_topology_index": int(mat_index),
+            "evaluated_client_count": self.population_client_count,
             "test_samples": total,
             "test_correct": correct,
             "test_accuracy": float(correct) / float(total),
@@ -689,7 +728,7 @@ class FastFEMNISTMatTrainer:
         next_cycle_index = int(next_epoch) // self.topology.round_count
         next_mat_index = int(next_epoch) % self.topology.round_count
         payload = {
-            "schema_version": "femnist_probe_checkpoint_v1",
+            "schema_version": "femnist_probe_checkpoint_v2",
             "next_epoch": int(next_epoch),
             "next_topology_cycle_index": next_cycle_index,
             "next_mat_topology_index": next_mat_index,
@@ -700,6 +739,7 @@ class FastFEMNISTMatTrainer:
             "numpy_random_state": np.random.get_state(),
             "torch_random_state": torch.get_rng_state(),
             "candidate_manifest_hash": self.data.candidate_manifest_hash,
+            "partition_hash": self.data.partition_hash,
             "probe_hash": self.data.probe_hash,
             "initial_model_hash": self.initial_model_hash,
             "mat_file_hash": self.mat_file_hash,
@@ -733,8 +773,11 @@ class FastFEMNISTMatTrainer:
     def _load_checkpoint(self, checkpoint_path):
         """加载并校验公共哈希、场景、精度和恢复坐标。"""
         payload = torch.load(str(checkpoint_path), map_location="cpu")
+        if payload.get("schema_version") != "femnist_probe_checkpoint_v2":
+            raise ValueError("旧版37书写者检查点不能用于250客户端狄利克雷实验。")
         expected = {
             "candidate_manifest_hash": self.data.candidate_manifest_hash,
+            "partition_hash": self.data.partition_hash,
             "probe_hash": self.data.probe_hash,
             "initial_model_hash": self.initial_model_hash,
             "mat_file_hash": self.mat_file_hash,
@@ -806,16 +849,24 @@ class FastFEMNISTMatTrainer:
         """原子更新实验元数据和当前完成位置。"""
         metadata = self.topology.to_metadata()
         metadata.update({
-            "schema_version": "femnist_mat_probe_fast_v1",
+            "schema_version": "femnist_mat_probe_fast_v2",
             "status": str(status),
             "dataset": "femnist",
             "class_count": self.class_count,
+            "partition_method": "dirichlet",
+            "partition_alpha": float(self.data.partition_alpha),
+            "partition_seed": int(self.data.partition_seed),
+            "partition_hash": self.data.partition_hash,
             "population_client_count": self.data.population_client_count,
+            "source_writer_count": self.data.source_writer_count,
             "population_train_sample_count": int(
                 self.data.population_train_sample_count
             ),
+            "population_test_sample_count": int(
+                self.data.population_test_sample_count
+            ),
             "candidate_client_count": self.candidate_count,
-            "candidate_writer_ids": self.data.candidate_writer_ids,
+            "candidate_client_ids": self.data.candidate_client_ids,
             "candidate_train_sample_counts": [
                 int(value)
                 for value in self.data.candidate_train_sample_counts
@@ -868,7 +919,7 @@ class FastFEMNISTMatTrainer:
         os.replace(str(temporary_path), str(output_path))
 
     def _append_schedule(self, file_obj, cyclic_round, groups, active_slots):
-        """写入一条全局epoch到MAT源行及真实书写者的审计记录。"""
+        """写入 MAT k/n、固定槽位和 250 端全量同步的审计记录。"""
         row = {
             "global_epoch": int(cyclic_round.global_epoch),
             "topology_cycle_index": int(
@@ -877,31 +928,68 @@ class FastFEMNISTMatTrainer:
             "mat_topology_index": int(cyclic_round.mat_topology_index),
             "scenario": self.topology.schedule.scenario_name,
             "candidate_manifest_hash": self.data.candidate_manifest_hash,
+            "partition_hash": self.data.partition_hash,
             "active_candidate_slots": [int(value) for value in active_slots],
-            "active_writer_ids": [
-                self.data.candidate_writer_ids[int(value)]
+            "active_client_ids": [
+                self.data.candidate_client_ids[int(value)]
                 for value in active_slots
             ],
+            "mat_group_count": len(groups),
+            "mat_participant_count": len(active_slots),
             "group_to_candidate_slots": {
                 str(group_index): [int(value) for value in slots]
                 for group_index, slots in groups.items()
             },
-            "group_to_writer_ids": {
+            "group_to_client_ids": {
                 str(group_index): [
-                    self.data.candidate_writer_ids[int(value)]
+                    self.data.candidate_client_ids[int(value)]
                     for value in slots
                 ]
                 for group_index, slots in groups.items()
             },
-            "synchronized_candidate_slots": list(
-                range(self.candidate_count)
+            "synchronized_client_ids": list(
+                range(self.population_client_count)
             ),
-            "synchronized_writer_ids": list(
-                self.data.candidate_writer_ids
-            ),
+            "synchronized_client_count": self.population_client_count,
         }
         file_obj.write(json.dumps(row, ensure_ascii=False) + "\n")
         file_obj.flush()
+
+    def _print_round_progress(
+            self, global_epoch, cyclic_round, groups, active_slots
+    ):
+        """按旧训练器样式实时打印当前全局轮次及MAT调度详情。"""
+        group_client_ids = {
+            int(group_index): [
+                int(self.data.candidate_client_ids[int(slot)])
+                for slot in slots
+            ]
+            for group_index, slots in groups.items()
+        }
+        # 保留旧版运行日志的全局通信轮次标题，便于直接对照既有实验。
+        print(
+            "################Global Communication Round : {}".format(
+                int(global_epoch)
+            ),
+            flush=True,
+        )
+        # 紧随标题打印本轮真实使用的MAT行、k/n和逻辑客户端分组。
+        print(
+            (
+                "epoch={}/{}, scenario={}, mat_cycle={}, mat_round={}, "
+                "k={}, n={}, groups={}"
+            ).format(
+                int(global_epoch) + 1,
+                self.comm_round,
+                self.topology.schedule.scenario_name,
+                int(cyclic_round.topology_cycle_index),
+                int(cyclic_round.mat_topology_index),
+                len(groups),
+                len(active_slots),
+                group_client_ids,
+            ),
+            flush=True,
+        )
 
     def _write_observation_rows(
             self, observation, groups, summary_path, test_path
@@ -1016,6 +1104,9 @@ class FastFEMNISTMatTrainer:
                     groups = round_topology.copy_groups()
                     active_slots = list(
                         round_topology.active_candidate_slots
+                    )
+                    self._print_round_progress(
+                        global_epoch, cyclic_round, groups, active_slots
                     )
                     cloud_before = self.cloud_vector.detach().clone()
 

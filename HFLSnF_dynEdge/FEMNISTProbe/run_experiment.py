@@ -138,6 +138,9 @@ def build_topology(args):
         util=float(args.topology_util),
         client_num_in_total=int(args.client_num_in_total),
         candidate_client_count=int(args.client_num_per_round),
+        assignment_mode=str(getattr(
+            args, "topology_assignment_mode", "mat_mapping"
+        )),
     )
     return CyclicMatlabTopology(
         schedule,
@@ -153,12 +156,18 @@ def main():
     )
     if str(args.dataset).lower() != "femnist":
         raise ValueError("新入口当前只接受dataset=femnist。")
+    if str(getattr(args, "split_policy", "non-iid")).lower() != "non-iid":
+        raise ValueError("FEMNIST 250客户端实验只接受split_policy=non-iid。")
+    if str(getattr(args, "partition_method", "dirichlet")).lower() != "dirichlet":
+        raise ValueError("FEMNIST 250客户端实验只接受partition_method=dirichlet。")
     seed_everything(getattr(args, "random_seed", 0))
     device = select_device(args)
     data_bundle = load_femnist_experiment_data(
         data_dir=_resolve_project_path(args.data_cache_dir),
+        client_count=int(args.client_num_in_total),
         candidate_count=int(args.client_num_per_round),
-        candidate_seed=int(args.candidate_seed),
+        partition_alpha=float(getattr(args, "partition_alpha", 0.2)),
+        partition_seed=int(getattr(args, "partition_seed", 0)),
         probe_samples_per_class=int(args.probe_samples_per_class),
         probe_seed=int(args.probe_seed),
     )

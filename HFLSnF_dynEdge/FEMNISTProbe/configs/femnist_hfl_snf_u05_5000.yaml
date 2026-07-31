@@ -5,8 +5,11 @@ common_args:
 data_args:
   dataset: "femnist"
   data_cache_dir: "dataset/FEMNIST"
-  candidate_seed: 0
-  client_num_in_total: 37
+  partition_method: "dirichlet"
+  split_policy: "non-iid"
+  partition_alpha: 0.2
+  partition_seed: 0
+  client_num_in_total: 250
   client_num_per_round: 37
 
 model_args:
@@ -19,6 +22,7 @@ train_args:
   learning_rate: 0.001
   lr: 0.001
   topology_repeat_mode: "cycle"
+  topology_assignment_mode: "balanced_counts"
   dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat"
   topology_architecture: "hfl"
   topology_snf: true

@@ -112,6 +112,70 @@ def _parse_bool(value, context):
     raise ValueError("{} 必须是布尔值，实际为 {!r}".format(context, value))
 
 
+def build_balanced_candidate_groups(candidate_count, group_count, participant_count):
+    """把固定候选槽位按连续候选段均衡选入指定数量的非空组。
+
+    先把全部候选槽位切成 ``group_count`` 个连续段，前面的段长度为
+    ``candidate_count // group_count``，最后一段接收候选尾数。每段先取
+    ``participant_count // group_count`` 个槽位，参与人数余数再依次补给前面的组。
+    """
+    candidate_count = _coerce_integer(candidate_count, "candidate_count")
+    group_count = _coerce_integer(group_count, "group_count")
+    participant_count = _coerce_integer(
+        participant_count, "participant_count"
+    )
+    if candidate_count <= 0:
+        raise ValueError("candidate_count 必须大于 0")
+    if group_count <= 0 or group_count > candidate_count:
+        raise ValueError(
+            "group_count={} 必须位于 1..{}。".format(
+                group_count, candidate_count
+            )
+        )
+    if participant_count < group_count or participant_count > candidate_count:
+        raise ValueError(
+            "participant_count={} 必须位于 group_count={} 与 candidate_count={} 之间。".format(
+                participant_count, group_count, candidate_count
+            )
+        )
+
+    segment_size = candidate_count // group_count
+    segments = []
+    for group_index in range(group_count):
+        start = group_index * segment_size
+        end = (
+            candidate_count
+            if group_index == group_count - 1
+            else start + segment_size
+        )
+        segments.append(list(range(start, end)))
+
+    base_count = participant_count // group_count
+    remainder = participant_count % group_count
+    groups = {}
+    for group_index, segment in enumerate(segments):
+        take_count = base_count + (1 if group_index < remainder else 0)
+        if take_count > len(segment):
+            raise ValueError(
+                "组 {} 的候选段容量 {} 小于需要人数 {}。".format(
+                    group_index, len(segment), take_count
+                )
+            )
+        groups[group_index] = tuple(segment[:take_count])
+
+    active_slots = [
+        client_slot
+        for group_index in range(group_count)
+        for client_slot in groups[group_index]
+    ]
+    if (
+            len(active_slots) != participant_count
+            or len(set(active_slots)) != participant_count
+    ):
+        raise RuntimeError("平衡分组没有生成预期数量的唯一候选槽位。")
+    return groups
+
+
 @dataclass(frozen=True)
 class RoundTopology:
     """保存一个本地 epoch 中参与候选槽位及其边缘分组。"""
@@ -157,8 +221,9 @@ class MatlabTopologySchedule:
             util,
             client_num_in_total=None,
             candidate_client_count=None,
+            assignment_mode="mat_mapping",
     ):
-        """加载 MAT，并解耦真实客户端池与 MAT 的 37 个候选槽位。"""
+        """加载 MAT，并解耦真实客户端池与 MAT 的固定候选槽位。"""
         self.mat_path = os.path.abspath(mat_path)
         if not os.path.isfile(self.mat_path):
             raise FileNotFoundError("找不到 MATLAB 拓扑文件：{}".format(self.mat_path))
@@ -174,6 +239,11 @@ class MatlabTopologySchedule:
             self.edge_mode = "none"
 
         self.requested_util = float(util)
+        self.assignment_mode = str(assignment_mode).strip().lower()
+        if self.assignment_mode not in {"mat_mapping", "balanced_counts"}:
+            raise ValueError(
+                "topology_assignment_mode 必须是 mat_mapping 或 balanced_counts"
+            )
         if client_num_in_total is None and candidate_client_count is None:
             raise ValueError("必须提供 client_num_in_total 或 candidate_client_count")
 
@@ -258,9 +328,13 @@ class MatlabTopologySchedule:
             self.client_count_field = "client_num_{}".format(method_name)
             self.policy_index = None
 
-        required_fields = {self.mapping_field, self.client_count_field}
-        if self.edge_field is not None:
-            required_fields.update({self.edge_field, self.group_count_field})
+        required_fields = {self.client_count_field}
+        if self.architecture == "hfl":
+            required_fields.add(self.group_count_field)
+        if self.assignment_mode == "mat_mapping":
+            required_fields.add(self.mapping_field)
+            if self.edge_field is not None:
+                required_fields.add(self.edge_field)
         missing_fields = sorted(required_fields.difference(self._data))
         if missing_fields:
             raise KeyError(
@@ -322,6 +396,34 @@ class MatlabTopologySchedule:
         context = "{} round {} util {}".format(
             self.scenario_name, round_index, self.requested_util
         )
+        expected_group_count = self._expected_scalar(
+            self.group_count_field, round_index
+        )
+        expected_client_count = self._expected_scalar(
+            self.client_count_field, round_index
+        )
+        if self.assignment_mode == "balanced_counts":
+            groups = build_balanced_candidate_groups(
+                self.candidate_client_count,
+                expected_group_count,
+                expected_client_count,
+            )
+            active_clients = tuple(sorted(
+                client_slot
+                for client_slots in groups.values()
+                for client_slot in client_slots
+            ))
+            return RoundTopology(
+                round_index=round_index,
+                group_to_client_indexes=groups,
+                active_client_indexes=active_clients,
+                edge_node_ids={
+                    group_index: group_index
+                    for group_index in range(expected_group_count)
+                },
+                participant_count=len(active_clients),
+            )
+
         raw_mapping_cell = _matrix_value(
             self._data[self.mapping_field], round_index, self.util_index, self.mapping_field
         )
@@ -347,8 +449,6 @@ class MatlabTopologySchedule:
 
         if len(set(all_clients)) != len(all_clients):
             raise ValueError("{} 的不同边缘组之间存在重复客户端".format(context))
-        expected_group_count = self._expected_scalar(self.group_count_field, round_index)
-        expected_client_count = self._expected_scalar(self.client_count_field, round_index)
         if len(groups) != expected_group_count:
             raise ValueError(
                 "{} 映射得到 {} 个有效组，但 {} 记录为 {}".format(
@@ -380,11 +480,26 @@ class MatlabTopologySchedule:
         context = "{} round {} util {}".format(
             self.scenario_name, round_index, self.requested_util
         )
+        expected_client_count = self._expected_scalar(
+            self.client_count_field, round_index
+        )
+        if self.assignment_mode == "balanced_counts":
+            groups = build_balanced_candidate_groups(
+                self.candidate_client_count, 1, expected_client_count
+            )
+            client_indexes = list(groups[0])
+            return RoundTopology(
+                round_index=round_index,
+                group_to_client_indexes=groups,
+                active_client_indexes=tuple(client_indexes),
+                edge_node_ids={},
+                participant_count=len(client_indexes),
+            )
+
         raw_mapping = _matrix_value(
             self._data[self.mapping_field], round_index, self.util_index, self.mapping_field
         )
         client_indexes = self._convert_client_ids(raw_mapping, context + " mapping")
-        expected_client_count = self._expected_scalar(self.client_count_field, round_index)
         if len(client_indexes) != expected_client_count:
             raise ValueError(
                 "{} 映射得到 {} 个客户端，但 {} 记录为 {}".format(
@@ -436,6 +551,7 @@ class MatlabTopologySchedule:
             "architecture": self.architecture,
             "snf_enabled": self.snf_enabled,
             "edge_mode": self.edge_mode,
+            "assignment_mode": self.assignment_mode,
             "topology_util": self.requested_util,
             "util_index": self.util_index,
             "available_utils": list(self.total_utils),
