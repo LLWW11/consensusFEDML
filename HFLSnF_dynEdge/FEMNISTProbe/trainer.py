@@ -148,8 +148,8 @@ class FastFEMNISTMatTrainer:
             raise ValueError("FEMNIST MAT实验固定要求250个逻辑客户端。")
         if self.topology.schedule.assignment_mode != "balanced_counts":
             raise ValueError("FEMNIST 250客户端实验必须使用balanced_counts拓扑模式。")
-        if self.local_batch_size != 20:
-            raise ValueError("正式快速路径固定要求本地batch_size=20。")
+        if self.local_batch_size <= 0:
+            raise ValueError("本地batch_size必须是正整数。")
         if str(getattr(self.args, "client_optimizer", "sgd")).lower() != "sgd":
             raise ValueError("GPU快速路径只支持无动量SGD。")
         if self.comm_round <= 0 or self.eval_interval <= 0:
@@ -409,10 +409,26 @@ class FastFEMNISTMatTrainer:
             )
             if not self.reference_baseline or self.device.type != "cuda":
                 permutation = permutation.to(self.device)
+            shuffled_inputs = None
+            shuffled_labels = None
+            if not self.reference_baseline:
+                # 每个客户端只执行一次大索引，后续小批次使用连续切片，
+                # 避免为数千个batch重复启动index_select CUDA内核。
+                shuffled_inputs = inputs.index_select(0, permutation)
+                shuffled_labels = labels.index_select(0, permutation)
+                if self.device.type == "cuda":
+                    shuffled_inputs = shuffled_inputs.contiguous(
+                        memory_format=torch.channels_last
+                    )
             for start in range(0, int(labels.shape[0]), self.local_batch_size):
-                batch_indexes = permutation[start:start + self.local_batch_size]
-                batch_inputs = inputs.index_select(0, batch_indexes)
-                batch_labels = labels.index_select(0, batch_indexes)
+                end = start + self.local_batch_size
+                if self.reference_baseline:
+                    batch_indexes = permutation[start:end]
+                    batch_inputs = inputs.index_select(0, batch_indexes)
+                    batch_labels = labels.index_select(0, batch_indexes)
+                else:
+                    batch_inputs = shuffled_inputs[start:end]
+                    batch_labels = shuffled_labels[start:end]
                 if self.reference_baseline and self.device.type == "cuda":
                     batch_inputs = batch_inputs.to(
                         self.device, non_blocking=True
@@ -728,7 +744,7 @@ class FastFEMNISTMatTrainer:
         next_cycle_index = int(next_epoch) // self.topology.round_count
         next_mat_index = int(next_epoch) % self.topology.round_count
         payload = {
-            "schema_version": "femnist_probe_checkpoint_v2",
+            "schema_version": "femnist_probe_checkpoint_v3",
             "next_epoch": int(next_epoch),
             "next_topology_cycle_index": next_cycle_index,
             "next_mat_topology_index": next_mat_index,
@@ -744,6 +760,7 @@ class FastFEMNISTMatTrainer:
             "initial_model_hash": self.initial_model_hash,
             "mat_file_hash": self.mat_file_hash,
             "scenario": self.topology.schedule.scenario_name,
+            "local_batch_size": int(self.local_batch_size),
             "amp_enabled": bool(self.amp_enabled),
             "reference_baseline": bool(self.reference_baseline),
             "amp_scale_backoff_count": int(
@@ -773,8 +790,16 @@ class FastFEMNISTMatTrainer:
     def _load_checkpoint(self, checkpoint_path):
         """加载并校验公共哈希、场景、精度和恢复坐标。"""
         payload = torch.load(str(checkpoint_path), map_location="cpu")
-        if payload.get("schema_version") != "femnist_probe_checkpoint_v2":
+        schema_version = payload.get("schema_version")
+        if schema_version not in {
+                "femnist_probe_checkpoint_v2",
+                "femnist_probe_checkpoint_v3",
+        }:
             raise ValueError("旧版37书写者检查点不能用于250客户端狄利克雷实验。")
+        checkpoint_batch_size = payload.get(
+            "local_batch_size",
+            20 if schema_version == "femnist_probe_checkpoint_v2" else None,
+        )
         expected = {
             "candidate_manifest_hash": self.data.candidate_manifest_hash,
             "partition_hash": self.data.partition_hash,
@@ -782,11 +807,14 @@ class FastFEMNISTMatTrainer:
             "initial_model_hash": self.initial_model_hash,
             "mat_file_hash": self.mat_file_hash,
             "scenario": self.topology.schedule.scenario_name,
+            "local_batch_size": int(self.local_batch_size),
             "amp_enabled": bool(self.amp_enabled),
             "reference_baseline": bool(self.reference_baseline),
         }
+        actual_values = dict(payload)
+        actual_values["local_batch_size"] = checkpoint_batch_size
         for key, expected_value in expected.items():
-            if payload.get(key) != expected_value:
+            if actual_values.get(key) != expected_value:
                 raise ValueError("检查点字段{}与当前实验不一致。".format(key))
         self.cloud_vector.copy_(
             payload["cloud_vector"].to(self.device).float()
@@ -966,6 +994,17 @@ class FastFEMNISTMatTrainer:
             ]
             for group_index, slots in groups.items()
         }
+        active_sample_count = int(np.sum([
+            self.data.candidate_train_sample_counts[int(slot)]
+            for slot in active_slots
+        ]))
+        optimizer_step_count = int(np.sum([
+            int(math.ceil(
+                self.data.candidate_train_sample_counts[int(slot)]
+                / float(self.local_batch_size)
+            ))
+            for slot in active_slots
+        ]))
         # 保留旧版运行日志的全局通信轮次标题，便于直接对照既有实验。
         print(
             "################Global Communication Round : {}".format(
@@ -977,7 +1016,8 @@ class FastFEMNISTMatTrainer:
         print(
             (
                 "epoch={}/{}, scenario={}, mat_cycle={}, mat_round={}, "
-                "k={}, n={}, groups={}"
+                "k={}, n={}, batch_size={}, samples={}, optimizer_steps={}, "
+                "groups={}"
             ).format(
                 int(global_epoch) + 1,
                 self.comm_round,
@@ -986,6 +1026,9 @@ class FastFEMNISTMatTrainer:
                 int(cyclic_round.mat_topology_index),
                 len(groups),
                 len(active_slots),
+                self.local_batch_size,
+                active_sample_count,
+                optimizer_step_count,
                 group_client_ids,
             ),
             flush=True,

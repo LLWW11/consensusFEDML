@@ -1,7 +1,8 @@
 param(
     [string]$CondaExecutable = "D:\Anaconda3\Scripts\conda.exe",
     [string]$CondaEnvironment = "py37",
-    [int]$GpuId = 0
+    [int]$GpuId = 0,
+    [int]$BatchSize = 128
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,9 @@ if (-not (Test-Path -LiteralPath $CondaExecutable -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $matPath -PathType Leaf)) {
     throw "MAT file does not exist: $matPath"
 }
+if ($BatchSize -le 0) {
+    throw "BatchSize must be a positive integer."
+}
 foreach ($configName in $configNames) {
     $configPath = Join-Path $projectRoot "FEMNISTProbe\configs\$configName"
     if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
@@ -37,6 +41,7 @@ Write-Host "FEMNIST four-experiment suite is starting." -ForegroundColor Cyan
 Write-Host "Project root : $projectRoot"
 Write-Host "Conda env    : $CondaEnvironment"
 Write-Host "GPU id       : $GpuId"
+Write-Host "Batch size   : $BatchSize"
 Write-Host "MAT file     : $matPath"
 Write-Host "Run order    : $($configNames -join ', ')"
 Write-Host "Every communication round will be printed and copied to suite job logs."
@@ -49,7 +54,8 @@ try {
         python -m FEMNISTProbe.run_suite `
         --mode formal `
         --gpu_id $GpuId `
-        --parallel 1
+        --parallel 1 `
+        --batch_size $BatchSize
     if ($LASTEXITCODE -ne 0) {
         throw "FEMNIST four-experiment suite failed with exit code $LASTEXITCODE."
     }

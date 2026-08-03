@@ -288,8 +288,10 @@ class AggregationAndMetricTests(unittest.TestCase):
         """每轮进度应沿用旧标题并打印MAT的k/n及逻辑客户端分组。"""
         trainer = object.__new__(FastFEMNISTMatTrainer)
         trainer.comm_round = 5000
+        trainer.local_batch_size = 128
         trainer.data = SimpleNamespace(
-            candidate_client_ids=[123, 124, 41]
+            candidate_client_ids=[123, 124, 41],
+            candidate_train_sample_counts=np.asarray([256, 129, 64]),
         )
         trainer.topology = SimpleNamespace(
             schedule=SimpleNamespace(scenario_name="hfl_snf_fixed")
@@ -314,6 +316,9 @@ class AggregationAndMetricTests(unittest.TestCase):
         self.assertIn("mat_cycle=2", text)
         self.assertIn("mat_round=17", text)
         self.assertIn("k=2, n=3", text)
+        self.assertIn("batch_size=128", text)
+        self.assertIn("samples=449", text)
+        self.assertIn("optimizer_steps=5", text)
         self.assertIn("{0: [123, 124], 1: [41]}", text)
 
     def test_flat_sample_weighted_aggregation(self):
@@ -522,6 +527,8 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("--no-capture-output", text)
         self.assertIn("--mode formal", text)
         self.assertIn("--parallel 1", text)
+        self.assertIn("[int]$BatchSize = 128", text)
+        self.assertIn("--batch_size $BatchSize", text)
 
     def test_all_functions_and_methods_have_docstrings(self):
         """FEMNISTProbe下每个函数及方法都必须具有说明。"""

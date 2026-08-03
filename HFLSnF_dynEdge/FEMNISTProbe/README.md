@@ -12,7 +12,7 @@
 - MAT 文件固定为 `matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat`，固定 `u=0.5`。
 - 第 `global_epoch` 轮使用 MAT 第 `global_epoch % 200` 行，循环编号为 `global_epoch // 200`。
 - MAT 每轮只提供有效组数 `k` 和参与人数 `n`。37 个固定槽位被切成 `k` 个连续候选段，每组先取 `n//k` 人，再把余数依次补给前面的组；不使用 MAT 的具体客户端身份。
-- 聚合权重只使用各逻辑客户端的真实训练样本数。本地批大小固定为 20，尾批不会丢弃。
+- 聚合权重只使用各逻辑客户端的真实训练样本数。四份 YAML 的基线批大小为 20；一键快速脚本默认覆盖为 128。两种模式的尾批都不会丢弃。
 - 本实验只有 seed 0，结果仅用于机制探索，不声明统计显著性。
 
 四个正式配置位于 `configs/`：
@@ -40,14 +40,19 @@ powershell -ExecutionPolicy Bypass -File .\run_femnist_250_four_experiments.ps1
 
 脚本会依次运行 HFL+SnF、HFL-noSnF、FL+SnF 和 FL-noSnF 四组 5000 轮正式实验。四份配置都会在启动前接受检查，并且必须共同指向 `matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat`。脚本固定使用串行模式，避免四组逐轮日志在终端交错；每行输出也会同步保存到正式套件目录的 `logs/job_XX.log`。
 
-默认使用 `D:\Anaconda3\Scripts\conda.exe`、`py37` 环境和 0 号 GPU。路径、环境名或 GPU 编号不同时可显式覆盖：
+默认使用 `D:\Anaconda3\Scripts\conda.exe`、`py37` 环境、0 号 GPU 和批大小 128。路径、环境名、GPU 编号或批大小不同时可显式覆盖：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run_femnist_250_four_experiments.ps1 `
   -CondaExecutable "C:\Miniconda3\Scripts\conda.exe" `
   -CondaEnvironment "femnist-probe-py37-gpu" `
-  -GpuId 1
+  -GpuId 1 `
+  -BatchSize 128
 ```
+
+当前 250 客户端划分下，HFL+SnF 平均每轮约有 97278 张图片。批大小 20 时平均需要约 4882 次优化步骤，批大小 128 时约为 781 次，优化步骤理论减少约 84%。批大小变化会改变本地 SGD 轨迹，因此快速模式四方案之间仍可公平比较，但不能把曲线直接视为旧 batch=20 实验的续跑；应重新开始四方案实验。
+
+若必须延续已经运行的 batch=20 检查点，不要使用一键脚本默认的 128，而应保持原 YAML 的 batch=20，并通过单方案恢复入口继续。训练器兼容新版划分已有的 batch=20 v2 检查点，且会拒绝把该检查点加载到其他批大小。一次性客户端打乱优化仍会生效，因此恢复路径也能减少小索引 CUDA 内核开销。
 
 正式套件仍执行原有 GPU 身份、AMP 门禁和性能门禁校验；首次在新 GPU 环境运行时，应先按下文完成 `calibrate` 与 `benchmark`。
 

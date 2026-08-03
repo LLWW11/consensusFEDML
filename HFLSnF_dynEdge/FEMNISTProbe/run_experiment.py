@@ -31,6 +31,7 @@ def parse_cli_arguments():
     )
     parser.add_argument("--comm_round_override", type=int, default=None)
     parser.add_argument("--eval_interval_override", type=int, default=None)
+    parser.add_argument("--batch_size_override", type=int, default=None)
     parser.add_argument(
         "--amp_override", choices=["true", "false"], default=None
     )
@@ -83,6 +84,8 @@ def apply_cli_overrides(args, cli_args):
     if cli_args.eval_interval_override is not None:
         args.eval_interval = int(cli_args.eval_interval_override)
         args.checkpoint_interval = int(cli_args.eval_interval_override)
+    if cli_args.batch_size_override is not None:
+        args.batch_size = int(cli_args.batch_size_override)
     if cli_args.amp_override is not None:
         args.amp_enabled = cli_args.amp_override == "true"
     if cli_args.resume_checkpoint is not None:

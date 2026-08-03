@@ -37,6 +37,12 @@ def parse_arguments():
     )
     parser.add_argument("--gpu_id", type=int, default=0)
     parser.add_argument("--parallel", type=int, choices=[1, 2], default=None)
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=None,
+        help="覆盖正式四方案的本地批大小；不传时使用YAML配置。",
+    )
     return parser.parse_args()
 
 
@@ -48,6 +54,7 @@ def _build_command(
         experiment_tag,
         gpu_id,
         reference_baseline=False,
+        batch_size=None,
 ):
     """构造单方案子进程命令。"""
     command = [
@@ -71,6 +78,8 @@ def _build_command(
     ]
     if reference_baseline:
         command.append("--reference_baseline")
+    if batch_size is not None:
+        command.extend(["--batch_size_override", str(int(batch_size))])
     return command
 
 
@@ -712,6 +721,7 @@ def main():
                 amp_enabled,
                 "formal5000",
                 args.gpu_id,
+                batch_size=args.batch_size,
             )
             for config in configs
         ]
@@ -721,6 +731,7 @@ def main():
             "elapsed_seconds": elapsed,
             "amp_enabled": amp_enabled,
             "parallelism": parallelism,
+            "batch_size": int(args.batch_size) if args.batch_size else None,
             "passed": True,
         }
         result.update(gpu_identity)
