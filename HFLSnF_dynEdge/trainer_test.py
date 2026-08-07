@@ -32,6 +32,7 @@ class HierarchicalTrainer(FedAvgAPI):
         self.topology_schedule = None
         self.current_round_topology = None
         self.fixed_candidate_client_indexes = None
+        self.candidate_sampling_mode = None
         self.model_distribution_scope = str(
             getattr(args, "model_distribution_scope", "all")
         ).strip().lower()
@@ -57,6 +58,9 @@ class HierarchicalTrainer(FedAvgAPI):
                 util=getattr(args, "topology_util", 0.5),
                 client_num_in_total=args.client_num_in_total,
                 candidate_client_count=args.client_num_per_round,
+                assignment_mode=getattr(
+                    args, "topology_assignment_mode", "mat_mapping"
+                ),
             )
             total_local_epochs = (
                 int(args.comm_round)
@@ -353,10 +357,11 @@ class HierarchicalTrainer(FedAvgAPI):
 
     def _initialize_fixed_candidate_clients(self):
         """
-        按 random_seed 从真实客户端池中无放回抽取一次固定候选客户端。
+        初始化实验全程复用的固定候选客户端清单。
 
-        返回顺序同时作为 MAT 候选槽位 0..N-1 与客户端探针 CSV 的列顺序，
-        整次实验不再随 global_epoch 改变。
+        若 YAML 提供 fixed_candidate_client_ids，则严格使用该显式清单；否则
+        按 random_seed 从真实客户端池中无放回抽取一次，以兼容旧配置。返回
+        顺序同时作为 MAT 候选槽位 0..N-1 与客户端探针列顺序。
         """
         client_num_in_total = int(self.args.client_num_in_total)
         candidate_client_count = int(self.args.client_num_per_round)
@@ -369,8 +374,31 @@ class HierarchicalTrainer(FedAvgAPI):
                 )
             )
 
-        if candidate_client_count == client_num_in_total:
+        configured_client_ids = getattr(
+            self.args, "fixed_candidate_client_ids", None
+        )
+        if configured_client_ids is not None:
+            if isinstance(configured_client_ids, str):
+                try:
+                    configured_client_ids = json.loads(configured_client_ids)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "fixed_candidate_client_ids 必须是 JSON/YAML 整数列表"
+                    ) from exc
+            if not isinstance(configured_client_ids, (list, tuple, np.ndarray)):
+                raise ValueError("fixed_candidate_client_ids 必须是整数列表")
+            try:
+                candidate_indexes = [
+                    int(client_idx) for client_idx in configured_client_ids
+                ]
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "fixed_candidate_client_ids 只能包含整数客户端编号"
+                ) from exc
+            self.candidate_sampling_mode = "fixed_explicit_list"
+        elif candidate_client_count == client_num_in_total:
             candidate_indexes = list(range(client_num_in_total))
+            self.candidate_sampling_mode = "all_clients"
         else:
             rng = np.random.RandomState(int(getattr(self.args, "random_seed", 0)))
             candidate_indexes = rng.choice(
@@ -378,11 +406,31 @@ class HierarchicalTrainer(FedAvgAPI):
                 size=candidate_client_count,
                 replace=False,
             ).astype(int).tolist()
+            self.candidate_sampling_mode = "fixed_once_by_random_seed"
 
+        if len(candidate_indexes) != candidate_client_count:
+            raise ValueError(
+                "固定候选客户端数量 {} 与 client_num_per_round={} 不一致".format(
+                    len(candidate_indexes), candidate_client_count
+                )
+            )
         if len(set(candidate_indexes)) != candidate_client_count:
             raise ValueError("固定候选客户端中存在重复编号")
+        if any(
+                client_idx < 0 or client_idx >= client_num_in_total
+                for client_idx in candidate_indexes
+        ):
+            raise ValueError(
+                "固定候选客户端编号必须位于 0..{} 范围".format(
+                    client_num_in_total - 1
+                )
+            )
         self.fixed_candidate_client_indexes = candidate_indexes
-        logging.info("fixed candidate clients = %s", candidate_indexes)
+        logging.info(
+            "fixed candidate clients mode=%s indexes=%s",
+            self.candidate_sampling_mode,
+            candidate_indexes,
+        )
         return list(candidate_indexes)
 
     def _get_mat_group_client_counts(self, round_topology):
@@ -741,7 +789,9 @@ class HierarchicalTrainer(FedAvgAPI):
             "client_num_in_total": int(self.args.client_num_in_total),
             "client_num_per_round": int(self.args.client_num_per_round),
             "model_distribution_scope": self.model_distribution_scope,
-            "candidate_sampling_mode": "fixed_once_by_random_seed",
+            "candidate_sampling_mode": getattr(
+                self, "candidate_sampling_mode", "fixed_once_by_random_seed"
+            ),
             "fixed_candidate_client_indexes": [
                 int(value) for value in self.fixed_candidate_client_indexes
             ],

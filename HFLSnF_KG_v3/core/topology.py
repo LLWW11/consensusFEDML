@@ -182,7 +182,7 @@ class SequenceTopologyProvider(TopologyProvider):
 
 
 class FixedCountTopologyProvider(TopologyProvider):
-    """按YAML指定人数构造SnF投影或noSnF均匀轮换拓扑。"""
+    """按YAML指定人数构造随机、SnF投影或均匀轮换拓扑。"""
 
     def __init__(
         self,
@@ -217,23 +217,24 @@ class FixedCountTopologyProvider(TopologyProvider):
             raise ValueError("HFL组数必须位于1和固定参与人数之间")
         self._selection_mode = str(selection_mode).strip().lower()
         if self._selection_mode not in {
+            "seeded_random",
             "snf_mat_projected",
             "seeded_round_robin",
         }:
             raise ValueError(
                 "fixed_count_selection_mode必须是"
-                "snf_mat_projected或seeded_round_robin"
+                "seeded_random、snf_mat_projected或seeded_round_robin"
             )
         if (
             self._selection_mode == "snf_mat_projected"
             and source_provider is None
         ):
             raise ValueError("SnF固定人数投影必须提供MAT来源拓扑")
-        if (
-            self._selection_mode == "seeded_round_robin"
-            and source_provider is not None
-        ):
-            raise ValueError("noSnF均匀轮换不能读取MAT选择结果")
+        if self._selection_mode in {
+            "seeded_random",
+            "seeded_round_robin",
+        } and source_provider is not None:
+            raise ValueError("noSnF随机或均匀轮换不能读取MAT选择结果")
         self._source_provider = source_provider
         self._seed = int(seed)
         seeded_order = list(self._client_ids)
@@ -306,6 +307,21 @@ class FixedCountTopologyProvider(TopologyProvider):
         )
         return tuple(sorted(selected))
 
+    def _seeded_random_participants(
+        self,
+        round_index: int,
+    ) -> Tuple[int, ...]:
+        """按轮次独立随机抽取固定人数，并通过种子保证结果可复现。"""
+
+        random_generator = random.Random(
+            self._seed + 1000003 * int(round_index) + 47
+        )
+        selected = random_generator.sample(
+            self._client_ids,
+            self._participant_count,
+        )
+        return tuple(sorted(int(value) for value in selected))
+
     def _groups_for_participants(
         self,
         participants: Sequence[int],
@@ -335,6 +351,8 @@ class FixedCountTopologyProvider(TopologyProvider):
                 round_index,
                 source,
             )
+        elif self._selection_mode == "seeded_random":
+            participants = self._seeded_random_participants(round_index)
         else:
             participants = self._round_robin_participants(round_index)
         groups = self._groups_for_participants(participants)

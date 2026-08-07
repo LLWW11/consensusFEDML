@@ -1,7 +1,10 @@
 import os
 import unittest
 
-from topology_schedule import MatlabTopologySchedule
+from topology_schedule import (
+    MatlabTopologySchedule,
+    build_balanced_candidate_groups,
+)
 
 
 class MatlabTopologyScheduleTest(unittest.TestCase):
@@ -14,6 +17,8 @@ class MatlabTopologyScheduleTest(unittest.TestCase):
         cls.mat_path = os.path.join(
             script_dir, "matlab", "result-U-6fixedge_epoch200.mat"
         )
+        if not os.path.isfile(cls.mat_path):
+            raise unittest.SkipTest("缺少旧版正式 MAT，跳过精确映射兼容测试。")
 
     def _create_schedule(self, architecture, snf_enabled, edge_mode="fixed"):
         """创建 util=0.5、200 个真实客户端和 37 个候选槽位的调度器。"""
@@ -149,6 +154,31 @@ class MatlabTopologyScheduleTest(unittest.TestCase):
                 client_num_in_total=200,
                 candidate_client_count=37,
             )
+
+
+class BalancedCandidateGroupTest(unittest.TestCase):
+    """验证 FEMNIST 式 k/n 连续候选段分组及零参与兼容。"""
+
+    def test_balanced_groups_allocate_quotient_and_remainder(self):
+        """验证参与人数平均分配且余数依次补给前面的组。"""
+        groups = build_balanced_candidate_groups(37, 4, 21)
+        self.assertEqual(
+            {group_idx: len(slots) for group_idx, slots in groups.items()},
+            {0: 6, 1: 5, 2: 5, 3: 5},
+        )
+        self.assertEqual(groups[0], (0, 1, 2, 3, 4, 5))
+        self.assertEqual(groups[1], (9, 10, 11, 12, 13))
+
+    def test_zero_participant_round_returns_no_groups(self):
+        """验证 HFL 和 FL 的零参与轮都返回空分组。"""
+        self.assertEqual(build_balanced_candidate_groups(37, 0, 0), {})
+        self.assertEqual(build_balanced_candidate_groups(37, 6, 0), {})
+        self.assertEqual(build_balanced_candidate_groups(37, 1, 0), {})
+
+    def test_nonzero_participants_require_a_valid_group_count(self):
+        """验证非零参与轮不能使用零个边缘组。"""
+        with self.assertRaises(ValueError):
+            build_balanced_candidate_groups(37, 0, 1)
 
 
 if __name__ == "__main__":

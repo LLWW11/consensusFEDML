@@ -15,8 +15,9 @@ model_args:
 train_args:
   federated_optimizer: "HierarchicalFL"
   client_id_list: "[]"
-  client_num_in_total: 200
+  client_num_in_total: 250
   client_num_per_round: 37
+  fixed_candidate_client_ids: [123, 124, 125, 126, 127, 128, 41, 42, 43, 44, 45, 46, 0, 1, 2, 3, 4, 5, 164, 165, 166, 167, 168, 169, 82, 83, 84, 85, 86, 87, 205, 206, 207, 208, 209, 210, 129]  # Fixed MAT slot order shared by all MNIST scenarios.
   comm_round: 1
   epochs: 1
   batch_size: 20
@@ -30,9 +31,10 @@ train_args:
   topology_snf: false
   topology_edge_mode: "fixed"
   topology_util: 0.5
+  topology_assignment_mode: "balanced_counts"  # Ignore concrete MAT client identities and balance continuous candidate segments.
   experiment_tag: "smoke1"
   group_comm_round: 1
-  model_distribution_scope: "all"  # 每个 epoch 都向全部 200 个客户端下发当前云模型
+  model_distribution_scope: "all"  # Distribute the cloud model to all 250 clients after every epoch.
   lr: 0.001
 
 validation_args:

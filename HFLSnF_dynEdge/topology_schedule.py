@@ -113,11 +113,12 @@ def _parse_bool(value, context):
 
 
 def build_balanced_candidate_groups(candidate_count, group_count, participant_count):
-    """把固定候选槽位按连续候选段均衡选入指定数量的非空组。
+    """把固定候选槽位按连续候选段均衡选入指定数量的组。
 
     先把全部候选槽位切成 ``group_count`` 个连续段，前面的段长度为
     ``candidate_count // group_count``，最后一段接收候选尾数。每段先取
     ``participant_count // group_count`` 个槽位，参与人数余数再依次补给前面的组。
+    ``participant_count`` 为零时返回空分组，供训练器保留上一轮云模型。
     """
     candidate_count = _coerce_integer(candidate_count, "candidate_count")
     group_count = _coerce_integer(group_count, "group_count")
@@ -126,6 +127,14 @@ def build_balanced_candidate_groups(candidate_count, group_count, participant_co
     )
     if candidate_count <= 0:
         raise ValueError("candidate_count 必须大于 0")
+    if participant_count == 0:
+        if group_count < 0 or group_count > candidate_count:
+            raise ValueError(
+                "零参与轮的 group_count={} 必须位于 0..{}。".format(
+                    group_count, candidate_count
+                )
+            )
+        return {}
     if group_count <= 0 or group_count > candidate_count:
         raise ValueError(
             "group_count={} 必须位于 1..{}。".format(
@@ -487,7 +496,7 @@ class MatlabTopologySchedule:
             groups = build_balanced_candidate_groups(
                 self.candidate_client_count, 1, expected_client_count
             )
-            client_indexes = list(groups[0])
+            client_indexes = list(groups.get(0, ()))
             return RoundTopology(
                 round_index=round_index,
                 group_to_client_indexes=groups,

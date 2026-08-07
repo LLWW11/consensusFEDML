@@ -7,10 +7,12 @@
 - `HFLnoSnF`：分层联邦学习，不使用 SnF；
 - `FLnoSnF`：普通联邦学习，不使用 SnF。
 
-当前保留两套互不混用的实验合同：
+当前保留四套互不混用的实验合同：
 
 1. 固定人数对照：每轮人数分别固定为 35、25、15、5；
-2. 动态 MATLAB 回放：每轮参与者和分组直接来自 `.mat`，不再裁剪、补齐或重新分组。
+2. 动态 MATLAB 回放：每轮参与者和分组直接来自 `.mat`，不再裁剪、补齐或重新分组；
+3. `varAlpha=0.5` 动态 MATLAB 回放：独立使用0p5可训练MAT文件，不覆盖0p1基线；
+4. HFLKGE 人数单因素消融：固定 HFL 和全部训练条件，每轮随机选择客户端，比较 36、30、24、18、12、6 六档人数。
 
 不再使用 5 轮 CUDA 门禁。长实验前只运行一个两轮 CPU 烟雾测试，成功后的临时结果会自动删除。
 
@@ -47,15 +49,51 @@ matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat
 
 `MatlabTopologySchedule` 已内置在 `core/matlab_topology_schedule.py`，运行动态实验不依赖旁边的 `HFLSnF_dynEdge` 工程。
 
+## varAlpha=0.5动态MAT回放
+
+这套独立合同读取：
+
+```text
+matlab/result-U-6fixedge_epoch200_varAlpha_0p5_trainable.mat
+```
+
+前150轮没有空参与轮次，四个场景的统计如下：
+
+| 实验臂 | 架构 | SnF | 每轮人数范围 | 每轮组数范围 | 参与集合种类 | 拓扑种类 | 配置 |
+|---|---|---:|---:|---:|---:|---:|---|
+| `hflsnf` | HFL | 是 | 10–37 | 3–6 | 48 | 148 | `formal_dynamic_mat_varalpha0p5_hflsnf_seed42_150round_cuda.yaml` |
+| `flsnf` | FL | 是 | 8–35 | 1 | 134 | 148 | `formal_dynamic_mat_varalpha0p5_flsnf_seed42_150round_cuda.yaml` |
+| `hflnosnf` | HFL | 否 | 6–32 | 1–6 | 145 | 145 | `formal_dynamic_mat_varalpha0p5_hflnosnf_seed42_150round_cuda.yaml` |
+| `flnosnf` | FL | 否 | 2–12 | 1 | 124 | 124 | `formal_dynamic_mat_varalpha0p5_flnosnf_seed42_150round_cuda.yaml` |
+
+专用入口默认只运行 `hflsnf`，显式传入 `--arm all` 才会顺序运行四个场景。每个正式结果完成后都会校验逐轮参与人数、分组、调度哈希和FedAdam步数。
+
+## HFLKGE客户端人数单因素消融
+
+这组实验专门回答“平台期差距是否主要由每轮客户端数量造成”。六组都使用 HFL、六个边缘组、相同种子、相同本地训练和相同 FedAdam；行为配置中只有 `client_num_per_round` 分别为 36、30、24、18、12、6。
+
+每一轮都从 37 个客户端中无放回随机抽取指定人数，然后平均分入六个组。随机数由实验种子和轮次共同决定，因此参与客户端会逐轮改变，同时相同配置可以完全复现。该实验不读取 SnF 或 MATLAB 的客户端选择结果。
+
+| 实验臂 | 每轮人数 | 每轮组数 | 配置 |
+|---|---:|---:|---|
+| `hflkge_k36` | 36 | 6 | `formal_hflkge_client_count_k36_seed42_150round_cuda.yaml` |
+| `hflkge_k30` | 30 | 6 | `formal_hflkge_client_count_k30_seed42_150round_cuda.yaml` |
+| `hflkge_k24` | 24 | 6 | `formal_hflkge_client_count_k24_seed42_150round_cuda.yaml` |
+| `hflkge_k18` | 18 | 6 | `formal_hflkge_client_count_k18_seed42_150round_cuda.yaml` |
+| `hflkge_k12` | 12 | 6 | `formal_hflkge_client_count_k12_seed42_150round_cuda.yaml` |
+| `hflkge_k6` | 6 | 6 | `formal_hflkge_client_count_k6_seed42_150round_cuda.yaml` |
+
+六档人数都能被六整除，因此每组分别有 6、5、4、3、2、1 个客户端，不会出现组大小不均衡。`ablation_arm`、运行名和调度哈希会随人数派生变化，但不属于训练行为变量。
+
 ## 公共训练条件
 
-两套实验共享以下设置：
+四套实验共享以下核心设置：
 
 - 数据集：FB15k-237；
 - 客户端池：37 个客户端，按头实体均衡划分；
 - 模型：256 维 TransE，L1 距离；
 - 负采样：双向自对抗负采样，每个正样本 256 个负样本；
-- 本地训练：每轮 2 个 epoch，客户端 Adam 每轮重置；
+- 本地训练：原固定四组每轮 2 个 epoch；动态实验和 HFLKGE 人数消融每轮 3 个 epoch；客户端 Adam 每轮重置；
 - 聚合：逐行出现次数加权；
 - 服务器优化器：FedAdam；
 - 通信轮数：150；
@@ -71,7 +109,9 @@ HFLSnF_KG_v3/
 ├─ configs/
 │  ├─ smoke_four_scenario_pipeline_cpu.yaml
 │  ├─ formal_fixed_count_*.yaml
-│  └─ formal_dynamic_mat_*.yaml
+│  ├─ formal_dynamic_mat_*.yaml
+│  ├─ formal_dynamic_mat_varalpha0p5_*.yaml
+│  └─ formal_hflkge_client_count_*.yaml
 ├─ core/
 │  ├─ matlab_topology_schedule.py
 │  ├─ topology.py
@@ -84,6 +124,9 @@ HFLSnF_KG_v3/
 ├─ run_federated_transe.py
 ├─ run_fixed_count_four_scenarios.py
 ├─ run_fixed_count_four_scenarios_from_ide.py
+├─ run_dynamic_mat_varalpha0p5.py
+├─ run_hflkge_client_count_ablation.py
+├─ run_fedadam_stage1.py
 └─ run_best_checkpoint_official_evaluation.py
 ```
 
@@ -129,7 +172,35 @@ python -m HFLSnF_KG_v3.run_fixed_count_four_scenarios dynamic150 `
 - `hflnosnf`
 - `flnosnf`
 
-### 4. 需要复现时再运行固定人数对照
+### 4. 运行varAlpha=0.5动态MAT实验
+
+同步到服务器后先做只读校验：
+
+```powershell
+python -m HFLSnF_KG_v3.run_dynamic_mat_varalpha0p5 validate
+```
+
+默认只运行一次HFLSnF正式实验：
+
+```powershell
+python -m HFLSnF_KG_v3.run_dynamic_mat_varalpha0p5 dynamic150
+```
+
+指定其他单个实验臂：
+
+```powershell
+python -m HFLSnF_KG_v3.run_dynamic_mat_varalpha0p5 dynamic150 `
+  --arm hflnosnf
+```
+
+顺序运行四个实验臂：
+
+```powershell
+python -m HFLSnF_KG_v3.run_dynamic_mat_varalpha0p5 dynamic150 `
+  --arm all
+```
+
+### 5. 需要复现时再运行固定人数对照
 
 ```powershell
 python -m HFLSnF_KG_v3.run_fixed_count_four_scenarios formal150
@@ -148,6 +219,68 @@ python -m HFLSnF_KG_v3.run_fixed_count_four_scenarios formal150 `
 - `flsnf_k25`
 - `hflnosnf_k15`
 - `flnosnf_k5`
+
+### 6. 运行HFLKGE客户端人数单因素消融
+
+先校验六份配置、150 轮随机调度哈希以及“除人数和派生身份字段外完全一致”的合同：
+
+```powershell
+python -m HFLSnF_KG_v3.run_hflkge_client_count_ablation validate
+```
+
+顺序运行 K=36、30、24、18、12、6 六组正式实验：
+
+```powershell
+python -m HFLSnF_KG_v3.run_hflkge_client_count_ablation formal150
+```
+
+只运行其中一组：
+
+```powershell
+python -m HFLSnF_KG_v3.run_hflkge_client_count_ablation formal150 `
+  --arm hflkge_k24
+```
+
+已有五组结果时，只补跑新增的 K=6：
+
+```powershell
+python -m HFLSnF_KG_v3.run_hflkge_client_count_ablation formal150 `
+  --arm hflkge_k6
+```
+
+### 7. 一次性运行FedAdam阶段一八组实验
+
+阶段一固定使用 `varAlpha=0.1` 的MAT调度、`topology_util=0.5`、本地3周期、每轮评估、40轮通信、随机种子42和开启偏差修正。四套服务器参数分别为：
+
+| 参数组 | 服务器学习率 | tau |
+| --- | ---: | ---: |
+| 1 | 0.1 | 0.001 |
+| 2 | 0.05 | 0.001 |
+| 3 | 0.03 | 0.001 |
+| 4 | 0.05 | 0.01 |
+
+每套参数都按HFLSnF、HFLnoSnF的顺序运行，因此完整批次共8组。正式运行前先执行只读校验：
+
+```powershell
+python -m HFLSnF_KG_v3.run_fedadam_stage1 validate
+```
+
+校验通过后，一条命令顺序运行全部8组：
+
+```powershell
+python -m HFLSnF_KG_v3.run_fedadam_stage1 formal40
+```
+
+启动后会在 `results/fedadam_stage1_batch_<时间戳>/batch_summary.json` 写入批次清单。每组完成后，程序会核验40行逐轮指标、FedAdam步数、配置快照、MAT调度哈希和拓扑统计，并在该组结果目录写入 `fedadam_stage1_formal40_contract.json`。任一训练或结果合同失败时，后续实验不会启动。
+
+修复故障后，从原批次失败位置继续：
+
+```powershell
+python -m HFLSnF_KG_v3.run_fedadam_stage1 formal40 `
+  --resume "HFLSnF_KG_v3/results/fedadam_stage1_batch_<时间戳>/batch_summary.json"
+```
+
+恢复模式严格沿用原批次的8份配置与固定顺序，已通过项目会被跳过，失败项目会追加一次新的尝试记录，不覆盖此前结果。
 
 ## 完整官方测试
 
