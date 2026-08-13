@@ -49,6 +49,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k36",
         participant_count=36,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k36_seed42_150round_cuda.yaml"
         ),
         formal_hash=(
@@ -60,6 +61,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k30",
         participant_count=30,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k30_seed42_150round_cuda.yaml"
         ),
         formal_hash=(
@@ -71,6 +73,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k24",
         participant_count=24,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k24_seed42_150round_cuda.yaml"
         ),
         formal_hash=(
@@ -82,6 +85,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k18",
         participant_count=18,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k18_seed42_150round_cuda.yaml"
         ),
         formal_hash=(
@@ -93,6 +97,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k12",
         participant_count=12,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k12_seed42_150round_cuda.yaml"
         ),
         formal_hash=(
@@ -104,6 +109,7 @@ SCENARIOS: Tuple[HFLKGECountScenario, ...] = (
         arm="hflkge_k6",
         participant_count=6,
         formal_config=(
+            "zOld/client_count_ablation/"
             "formal_hflkge_client_count_k6_seed42_150round_cuda.yaml"
         ),
         formal_hash=(

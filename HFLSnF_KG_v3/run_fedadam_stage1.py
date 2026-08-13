@@ -233,6 +233,14 @@ def _load_batch_manifest(
     actual_ids = [str(item.get("scenario_id")) for item in entries]
     if actual_ids != expected_ids:
         raise ValueError("恢复清单的八组场景集合或顺序已改变")
+    expected_configs = [item.formal_config for item in SCENARIOS]
+    actual_configs = [str(item.get("config")) for item in entries]
+    # 配置归档会改变路径绑定；拒绝静默地用新路径恢复旧批次。
+    if actual_configs != expected_configs:
+        raise ValueError(
+            "恢复清单的配置路径与当前阶段一归档入口不一致；"
+            "归档前批次仅支持只读审计"
+        )
     return payload
 
 

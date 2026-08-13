@@ -108,6 +108,9 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
         self.local_objective = str(
             getattr(args, "local_objective", "margin_ranking")
         ).strip().lower()
+        self.evaluate_test_after_training = as_bool(
+            getattr(args, "evaluate_test_after_training", True)
+        )
         if self.aggregation_mode not in {
             "dense_triple_weighted",
             "row_mask_presence",
@@ -1216,21 +1219,25 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
             final_validation = self._evaluate_validation(
                 self.final_validation_max_triples
             )
-            final_test = self.evaluator.evaluate(
-                self.model_trainer.model,
-                self.dataset.test_triples,
-                self.device,
-                max_triples=self.test_max_triples,
-                seed=self.seed + 29,
-                candidate_batch_size=self.candidate_batch_size,
-                query_batch_size=self.query_batch_size,
-            )
-            final_test_mrr = float(final_test["mrr"])
-            mrr_delta = (
-                final_test_mrr - self.centralized_reference_mrr
-                if math.isfinite(self.centralized_reference_mrr)
-                else float("nan")
-            )
+            final_test = None
+            mrr_delta = None
+            if self.evaluate_test_after_training:
+                # 筛选实验可关闭测试集，避免在验证选型前产生测试泄漏。
+                final_test = self.evaluator.evaluate(
+                    self.model_trainer.model,
+                    self.dataset.test_triples,
+                    self.device,
+                    max_triples=self.test_max_triples,
+                    seed=self.seed + 29,
+                    candidate_batch_size=self.candidate_batch_size,
+                    query_batch_size=self.query_batch_size,
+                )
+                final_test_mrr = float(final_test["mrr"])
+                mrr_delta = (
+                    final_test_mrr - self.centralized_reference_mrr
+                    if math.isfinite(self.centralized_reference_mrr)
+                    else float("nan")
+                )
             is_matlab_direct = (
                 self.topology_metadata.get("provider_type")
                 == "matlab_adapter"
@@ -1487,6 +1494,9 @@ class FedMLDynamicTopologyTransETrainer(FedMLFederatedTransETrainer):
                 ),
                 "final_validation_metrics": final_validation,
                 "final_test_metrics": final_test,
+                "test_evaluation_performed": (
+                    self.evaluate_test_after_training
+                ),
                 "centralized_reference_test_mrr": (
                     self.centralized_reference_mrr
                 ),

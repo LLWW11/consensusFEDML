@@ -53,6 +53,7 @@ SCENARIOS: Tuple[VarAlpha05Scenario, ...] = (
         snf_enabled=True,
         edge_mode="fixed",
         formal_config=(
+            "zOld/dynamic_alpha0p5_legacy/"
             "formal_dynamic_mat_varalpha0p5_hflsnf_"
             "seed42_150round_cuda.yaml"
         ),
@@ -73,6 +74,7 @@ SCENARIOS: Tuple[VarAlpha05Scenario, ...] = (
         snf_enabled=True,
         edge_mode="none",
         formal_config=(
+            "zOld/dynamic_alpha0p5_legacy/"
             "formal_dynamic_mat_varalpha0p5_flsnf_"
             "seed42_150round_cuda.yaml"
         ),
@@ -93,6 +95,7 @@ SCENARIOS: Tuple[VarAlpha05Scenario, ...] = (
         snf_enabled=False,
         edge_mode="fixed",
         formal_config=(
+            "zOld/dynamic_alpha0p5_legacy/"
             "formal_dynamic_mat_varalpha0p5_hflnosnf_"
             "seed42_150round_cuda.yaml"
         ),
@@ -113,6 +116,7 @@ SCENARIOS: Tuple[VarAlpha05Scenario, ...] = (
         snf_enabled=False,
         edge_mode="none",
         formal_config=(
+            "zOld/dynamic_alpha0p5_legacy/"
             "formal_dynamic_mat_varalpha0p5_flnosnf_"
             "seed42_150round_cuda.yaml"
         ),

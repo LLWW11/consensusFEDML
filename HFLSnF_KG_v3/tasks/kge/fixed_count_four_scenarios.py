@@ -23,7 +23,7 @@ SUITE_NAME = "v3_fixed_count_four_scenario_seed42"
 DYNAMIC_SUITE_NAME = (
     "v3_dynamic_mat_four_scenario_e3_eval1_seed42"
 )
-SMOKE_CONFIG = "smoke_four_scenario_pipeline_cpu.yaml"
+SMOKE_CONFIG = "zOld/smoke/smoke_four_scenario_pipeline_cpu.yaml"
 MAT_FILE = (
     PACKAGE_DIR
     / "matlab"
@@ -79,7 +79,10 @@ SCENARIOS: Tuple[FixedCountScenario, ...] = (
         True,
         6,
         "snf_mat_projected",
-        "formal_fixed_count_hflsnf_k35_seed42_150round_cuda.yaml",
+        (
+            "zOld/fixed_count_four_scenarios/"
+            "formal_fixed_count_hflsnf_k35_seed42_150round_cuda.yaml"
+        ),
         "c06abaa1b9f31ea79a64e6e171951e62331ec67df05f1ab0ce2f7af12f518553",
     ),
     FixedCountScenario(
@@ -89,7 +92,10 @@ SCENARIOS: Tuple[FixedCountScenario, ...] = (
         True,
         1,
         "snf_mat_projected",
-        "formal_fixed_count_flsnf_k25_seed42_150round_cuda.yaml",
+        (
+            "zOld/fixed_count_four_scenarios/"
+            "formal_fixed_count_flsnf_k25_seed42_150round_cuda.yaml"
+        ),
         "4d7e193b45bec2493061dd1181e0704f3fbc31d185f1f4d7dae4e89c1bd99540",
     ),
     FixedCountScenario(
@@ -99,7 +105,10 @@ SCENARIOS: Tuple[FixedCountScenario, ...] = (
         False,
         6,
         "seeded_round_robin",
-        "formal_fixed_count_hflnosnf_k15_seed42_150round_cuda.yaml",
+        (
+            "zOld/fixed_count_four_scenarios/"
+            "formal_fixed_count_hflnosnf_k15_seed42_150round_cuda.yaml"
+        ),
         "dc8bada4757da1b5b063b72b4d11c16e6cdbeb119580ff28eb25025eb5dff73e",
     ),
     FixedCountScenario(
@@ -109,7 +118,10 @@ SCENARIOS: Tuple[FixedCountScenario, ...] = (
         False,
         1,
         "seeded_round_robin",
-        "formal_fixed_count_flnosnf_k5_seed42_150round_cuda.yaml",
+        (
+            "zOld/fixed_count_four_scenarios/"
+            "formal_fixed_count_flnosnf_k5_seed42_150round_cuda.yaml"
+        ),
         "afca046001e45cef49af90bf22757962dae9c31ffed6f724c6dbd2d8db198329",
     ),
 )
@@ -121,7 +133,10 @@ DYNAMIC_SCENARIOS: Tuple[DynamicMatScenario, ...] = (
         "hfl",
         True,
         "fixed",
-        "formal_dynamic_mat_hflsnf_seed42_150round_cuda.yaml",
+        (
+            "zOld/dynamic_alpha0p1_legacy/"
+            "formal_dynamic_mat_hflsnf_seed42_150round_cuda.yaml"
+        ),
         "6b116d00ec61065f6719e221d98d6a10a14aecbd1ce077bf92a437b284053ebb",
         30,
         36,
@@ -135,7 +150,10 @@ DYNAMIC_SCENARIOS: Tuple[DynamicMatScenario, ...] = (
         "fl",
         True,
         "none",
-        "formal_dynamic_mat_flsnf_seed42_150round_cuda.yaml",
+        (
+            "zOld/dynamic_alpha0p1_legacy/"
+            "formal_dynamic_mat_flsnf_seed42_150round_cuda.yaml"
+        ),
         "acca8632ba2eb67559acf53e8fae1ef97083ff6b9e57cb5c7d56f5d304b281cf",
         21,
         31,
@@ -149,7 +167,10 @@ DYNAMIC_SCENARIOS: Tuple[DynamicMatScenario, ...] = (
         "hfl",
         False,
         "fixed",
-        "formal_dynamic_mat_hflnosnf_seed42_150round_cuda.yaml",
+        (
+            "zOld/dynamic_alpha0p1_legacy/"
+            "formal_dynamic_mat_hflnosnf_seed42_150round_cuda.yaml"
+        ),
         "c174e003d197eb0b1d4265f675835642341ab667d3e0ec5f470cd2cd7c2c0b9b",
         14,
         25,
@@ -163,7 +184,10 @@ DYNAMIC_SCENARIOS: Tuple[DynamicMatScenario, ...] = (
         "fl",
         False,
         "none",
-        "formal_dynamic_mat_flnosnf_seed42_150round_cuda.yaml",
+        (
+            "zOld/dynamic_alpha0p1_legacy/"
+            "formal_dynamic_mat_flnosnf_seed42_150round_cuda.yaml"
+        ),
         "ddd0012804ba13f1b79adf4b549f6181fb9e384a5a4cecc98727d1ea93db6c34",
         5,
         9,

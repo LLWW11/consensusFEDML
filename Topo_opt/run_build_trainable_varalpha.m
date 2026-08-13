@@ -20,6 +20,12 @@ input_file = fullfile(script_directory, ...
 % 例如 0.5 表示目标方差为零值修复后原方差的 50%。
 varAlpha = 0.1;
 
+% 客户端覆盖模式：'preserve' 保留旧行为，'hard' 保证前若干轮尽量全覆盖。
+coverage_mode = 'preserve';
+
+% 覆盖窗口轮数；当前联邦训练使用前 150 轮。
+coverage_horizon = 150;
+
 % 根据 varAlpha 自动生成清晰的最终训练文件名。
 alpha_token = sprintf('%.6g', varAlpha);
 alpha_token = strrep(alpha_token, '.', 'p');
@@ -33,10 +39,14 @@ fprintf('输入文件：%s\n', input_file);
 fprintf('varAlpha：%.6g\n', varAlpha);
 fprintf('输出文件：%s\n\n', output_file);
 
-audit = build_trainable_varalpha_mat(input_file, output_file, varAlpha);
+audit = build_trainable_varalpha_mat(input_file, output_file, varAlpha, ...
+    coverage_mode, coverage_horizon);
 
 %% 显示最终结果
 fprintf('\n全部处理完成。\n');
 fprintf('零客户端替换数量：%d\n', audit.zero_fill.total_replacements);
 fprintf('映射验证快照数量：%d\n', audit.validation.snapshot_count);
+fprintf('覆盖模式：%s\n', audit.coverage.mode);
+fprintf('覆盖窗口：%d\n', audit.coverage.effective_horizon);
+fprintf('覆盖交换次数：%d\n', audit.coverage.total_swaps);
 fprintf('最终文件可直接用于 HFLSnF_dynEdge 训练：\n%s\n', output_file);

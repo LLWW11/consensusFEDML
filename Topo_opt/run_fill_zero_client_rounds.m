@@ -25,17 +25,27 @@ input_file = fullfile(script_directory, ...
 output_file = fullfile(script_directory, ...
     'result-U-6fixedge_epoch200_zeroFilled.mat');
 
+% 客户端覆盖模式：'preserve' 保留旧行为，'hard' 修复永久缺席客户端。
+coverage_mode = 'preserve';
+
+% 覆盖窗口轮数；超过 MAT 实际轮数时会自动截断。
+coverage_horizon = 150;
+
 %% 执行零客户端轮次修复
 fprintf('开始检查零客户端轮次……\n');
 fprintf('输入文件：%s\n', input_file);
 fprintf('输出文件：%s\n', output_file);
 
-audit = fill_zero_client_rounds(input_file, output_file);
+audit = fill_zero_client_rounds( ...
+    input_file, output_file, coverage_mode, coverage_horizon);
 
 %% 显示处理结果
 fprintf('\n处理完成。\n');
 fprintf('替换单元总数：%d\n', audit.total_replacements);
 fprintf('修复后零客户端单元数：%d\n', audit.remaining_zero_count);
+fprintf('覆盖模式：%s\n', audit.coverage.mode);
+fprintf('覆盖窗口：%d\n', audit.coverage.effective_horizon);
+fprintf('覆盖交换次数：%d\n', audit.coverage.total_swaps);
 fprintf('输出文件：%s\n', output_file);
 
 if audit.all_zero_removed

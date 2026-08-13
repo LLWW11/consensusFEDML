@@ -230,6 +230,22 @@ class FedAdamStage1Test(unittest.TestCase):
                 )
             )
 
+    def test_resume_rejects_manifest_bound_to_pre_archive_path(self) -> None:
+        """确认归档前旧配置路径不会被静默替换后继续恢复。"""
+
+        with tempfile.TemporaryDirectory() as temporary:
+            result_root = Path(temporary).resolve()
+            manifest_path = create_batch_manifest(result_root)
+            payload = self._read_manifest(manifest_path)
+            payload["entries"][0]["config"] = Path(
+                str(payload["entries"][0]["config"])
+            ).name
+            with manifest_path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+            with self.assertRaisesRegex(ValueError, "归档前批次"):
+                run_batch(manifest_path, result_root=result_root)
+
     @staticmethod
     def _read_manifest(path: Path) -> Dict[str, object]:
         """从磁盘读取测试批次清单，避免断言依赖内存对象。"""

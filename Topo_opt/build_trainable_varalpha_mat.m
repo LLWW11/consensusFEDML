@@ -1,12 +1,15 @@
-function audit = build_trainable_varalpha_mat(input_file, output_file, varAlpha)
+function audit = build_trainable_varalpha_mat(input_file, output_file, ...
+        varAlpha, coverage_mode, coverage_horizon)
 %BUILD_TRAINABLE_VARALPHA_MAT 生成方差受控且可直接训练的 MAT 文件。
-%   audit = BUILD_TRAINABLE_VARALPHA_MAT(input_file, output_file, varAlpha)
+%   audit = BUILD_TRAINABLE_VARALPHA_MAT(input_file, output_file, varAlpha,
+%   coverage_mode, coverage_horizon)
 %   依次执行以下处理：
 %   1. 修复六种方法中客户端数量为零的轮次；
 %   2. 使用 varAlpha 控制六种客户端数量矩阵的方差；
 %   3. 将 *_varctrl 人数写回训练读取的标准字段；
 %   4. 同步重建 HFL 分组映射和 FL 客户端映射；
-%   5. 检查人数、分组、映射、范围和整数性是否一致。
+%   5. 可选地修复指定轮次窗口内的客户端永久缺席；
+%   6. 检查人数、分组、映射、范围和整数性是否一致。
 %
 %   输入文件不会被覆盖。varAlpha 必须位于 [0,1]；其含义是目标方差相对
 %   于零值修复后数据原方差的比例。
@@ -24,6 +27,12 @@ if nargin < 2 || isempty(output_file)
     output_file = fullfile(input_directory, ...
         [input_name, '_varAlpha_', alpha_token, '_trainable', input_extension]);
 end
+if nargin < 4 || isempty(coverage_mode)
+    coverage_mode = 'preserve';
+end
+if nargin < 5 || isempty(coverage_horizon)
+    coverage_horizon = 150;
+end
 
 input_file = char(input_file);
 output_file = char(output_file);
@@ -35,14 +44,16 @@ controlled_temp = [tempname(script_directory), '_varControlled.mat'];
 cleanup_guard = onCleanup(@() cleanup_temp_files( ...
     zero_filled_temp, controlled_temp)); %#ok<NASGU>
 
-fprintf('步骤 1/4：修复零客户端轮次。\n');
-zero_fill_audit = fill_zero_client_rounds(input_file, zero_filled_temp);
+fprintf('步骤 1/5：修复零客户端轮次。\n');
+% 中间步骤保持旧映射，避免在最终映射重建前执行无效覆盖交换。
+zero_fill_audit = fill_zero_client_rounds( ...
+    input_file, zero_filled_temp, 'preserve', coverage_horizon);
 
-fprintf('步骤 2/4：按 varAlpha=%.6g 控制客户端数量方差。\n', varAlpha);
+fprintf('步骤 2/5：按 varAlpha=%.6g 控制客户端数量方差。\n', varAlpha);
 variance_audit = control_client_variance( ...
     zero_filled_temp, controlled_temp, varAlpha);
 
-fprintf('步骤 3/4：重建训练人数、分组和客户端映射。\n');
+fprintf('步骤 3/5：重建训练人数、分组和客户端映射。\n');
 data = load(controlled_temp);
 valid_client_ids = infer_valid_client_ids(data);
 data = promote_hfl_method(data, 'HFLSnF', valid_client_ids);
@@ -51,27 +62,40 @@ data = promote_fl_method(data, 'FLSnF', valid_client_ids);
 data = promote_fl_method(data, 'FLnoSnF', valid_client_ids);
 data = rebuild_training_summaries(data);
 
-fprintf('步骤 4/4：检查训练字段与映射一致性。\n');
+fprintf('步骤 4/5：执行客户端覆盖后处理。\n');
+[data, coverage_audit] = enforce_client_coverage( ...
+    data, coverage_mode, coverage_horizon);
+
+fprintf('步骤 5/5：检查训练字段与映射一致性。\n');
 validation = validate_trainable_data(data, valid_client_ids);
 
 audit = struct();
-audit.schema_version = '1.0';
+audit.schema_version = '1.1';
 audit.source_file = input_file;
 audit.output_file = output_file;
 audit.varAlpha = varAlpha;
 audit.zero_fill = zero_fill_audit;
 audit.variance_control = variance_audit;
+audit.coverage = coverage_audit;
 audit.validation = validation;
 audit.created_at = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 
 % 用最终输入输出语义覆盖中间临时文件留下的路径元数据。
-data.training_schema_version = 'varalpha-trainable-1.0';
+data.training_schema_version = 'varalpha-trainable-1.1';
 data.training_source_file = input_file;
 data.training_varAlpha = varAlpha;
+data.training_coverage_mode = coverage_audit.mode;
+data.training_coverage_horizon = coverage_audit.effective_horizon;
 data.training_created_at = audit.created_at;
 data.training_note = [ ...
     '先修复零客户端轮次，再控制客户端数量方差；六组标准 client_num_* 字段', ...
-    '已等于对应 *_varctrl 字段，HFL/FL 映射已同步重建，可供训练加载器直接读取。'];
+    '已等于对应 *_varctrl 字段，HFL/FL 映射已同步重建。客户端覆盖模式为 ', ...
+    coverage_audit.mode, '，覆盖窗口为前 ', ...
+    num2str(coverage_audit.effective_horizon), ' 轮，可供训练加载器直接读取。'];
+data.client_coverage_schema_version = coverage_audit.schema_version;
+data.client_coverage_mode = coverage_audit.mode;
+data.client_coverage_horizon = coverage_audit.effective_horizon;
+data.client_coverage_audit = coverage_audit;
 data.trainable_varalpha_audit = audit;
 data.variance_control_source_file = input_file;
 
@@ -85,6 +109,9 @@ fprintf('可训练方差控制 MAT 已生成：%s\n', output_file);
 fprintf('varAlpha=%.6g，修复零值 %d 个，映射检查 %d 个快照，剩余零值 0。\n', ...
     varAlpha, zero_fill_audit.total_replacements, ...
     validation.snapshot_count);
+fprintf('客户端覆盖模式=%s，窗口=%d，映射交换=%d 次。\n', ...
+    coverage_audit.mode, coverage_audit.effective_horizon, ...
+    coverage_audit.total_swaps);
 end
 
 

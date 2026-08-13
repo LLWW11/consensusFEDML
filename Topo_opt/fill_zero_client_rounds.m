@@ -1,6 +1,8 @@
-function audit = fill_zero_client_rounds(input_file, output_file)
+function audit = fill_zero_client_rounds( ...
+        input_file, output_file, coverage_mode, coverage_horizon)
 %FILL_ZERO_CLIENT_ROUNDS 用相邻有效轮次替换客户端数量为零的方法快照。
-%   audit = FILL_ZERO_CLIENT_ROUNDS(input_file, output_file) 读取指定 MAT
+%   audit = FILL_ZERO_CLIENT_ROUNDS(input_file, output_file,
+%   coverage_mode, coverage_horizon) 读取指定 MAT
 %   文件，分别检查六种方法在每个利用率下的客户端数量。如果某轮人数为 0，
 %   则用该方法、同一利用率下已经修复的上一轮整套数据覆盖当前轮。
 %
@@ -9,7 +11,8 @@ function audit = fill_zero_client_rounds(input_file, output_file)
 %   都为 0，则停止并报错，避免伪造无法恢复的数据。
 %
 %   本函数不会覆盖输入文件。省略 output_file 时，输出文件名自动增加
-%   “_zeroFilled”后缀。
+%   “_zeroFilled”后缀。coverage_mode 默认为 'preserve'；设为 'hard' 时，
+%   还会在 coverage_horizon 指定的前若干轮内尽量覆盖全部合法客户端。
 
 script_directory = fileparts(mfilename('fullpath'));
 if nargin < 1 || isempty(input_file)
@@ -19,6 +22,12 @@ if nargin < 2 || isempty(output_file)
     [input_directory, input_name, input_extension] = fileparts(char(input_file));
     output_file = fullfile(input_directory, ...
         [input_name, '_zeroFilled', input_extension]);
+end
+if nargin < 3 || isempty(coverage_mode)
+    coverage_mode = 'preserve';
+end
+if nargin < 4 || isempty(coverage_horizon)
+    coverage_horizon = 150;
 end
 
 input_file = char(input_file);
@@ -38,6 +47,11 @@ for method_index = 1:numel(methods)
         method_audit.replacement_count;
 end
 
+% 零轮次修复完成后执行可选的跨轮覆盖修复，且不改变任何人数矩阵。
+[data, coverage_audit] = enforce_client_coverage( ...
+    data, coverage_mode, coverage_horizon);
+audit.coverage = coverage_audit;
+
 % 方法级底层数据替换完成后，重新计算所有依赖 epoch 数据的汇总字段。
 data = rebuild_summary_fields(data);
 audit.remaining_zero_count = count_all_zero_clients(data, methods);
@@ -54,7 +68,13 @@ data.zero_client_fill_source_file = input_file;
 data.zero_client_fill_created_at = audit.created_at;
 data.zero_client_fill_note = [ ...
     '六种方法分别按利用率检查；零客户端轮次由同方法同利用率的上一有效轮次', ...
-    '整套覆盖。第一轮为零时使用该列首个非零轮次回填。源 MAT 未被修改。'];
+    '整套覆盖。第一轮为零时使用该列首个非零轮次回填。客户端覆盖模式为 ', ...
+    coverage_audit.mode, '，覆盖窗口为前 ', ...
+    num2str(coverage_audit.effective_horizon), ' 轮。源 MAT 未被修改。'];
+data.client_coverage_schema_version = coverage_audit.schema_version;
+data.client_coverage_mode = coverage_audit.mode;
+data.client_coverage_horizon = coverage_audit.effective_horizon;
+data.client_coverage_audit = coverage_audit;
 data.zero_client_fill_audit = audit;
 
 output_directory = fileparts(output_file);
@@ -66,6 +86,9 @@ save(output_file, '-struct', 'data');
 fprintf('零客户端轮次修复文件已生成：%s\n', output_file);
 fprintf('共替换 %d 个方法-轮次-利用率单元，修复后零值数量为 %d。\n', ...
     audit.total_replacements, audit.remaining_zero_count);
+fprintf('客户端覆盖模式=%s，窗口=%d，映射交换=%d 次。\n', ...
+    coverage_audit.mode, coverage_audit.effective_horizon, ...
+    coverage_audit.total_swaps);
 end
 
 

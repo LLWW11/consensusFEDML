@@ -115,6 +115,7 @@ def _build_scenarios() -> Tuple[Stage1Scenario, ...]:
                     snf_enabled=bool(contract["snf_enabled"]),
                     edge_mode="fixed",
                     formal_config=(
+                        "zOld/fedadam_stage1/"
                         "fedadam_stage1_{}_{}_seed42_"
                         "40round_cuda.yaml".format(arm, profile.key)
                     ),
