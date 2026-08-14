@@ -9,7 +9,6 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 
 from ...core.topology import MatlabTopologyProvider
 from .fixed_count_four_scenarios import (
-    MAT_FILE,
     PACKAGE_DIR,
     _append_check,
     _finite_number,
@@ -24,7 +23,11 @@ SUITE_NAME = "v3_final_dynamic_fedadam_u0p6_bcfalse_e3_eval1_formal150"
 ROUND_COUNT = 150
 SEEDS: Tuple[int, ...] = (42, 2024, 2025)
 ARMS: Tuple[str, ...] = ("hflsnf", "hflnosnf", "flnosnf")
-MAT_RELATIVE_PATH = "matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat"
+MAT_RELATIVE_PATH = (
+    "../Topo_opt/postprocess/"
+    "result-U-6fixedge_epoch200_hard_varAlpha_0p1_trainable.mat"
+)
+MAT_FILE = (PACKAGE_DIR / MAT_RELATIVE_PATH).resolve()
 PARTITION_HASHES = {
     42: "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19",
     2024: "4653f60364e43ad9991ee3393f1a222d665774489b88f0d242ce322107d1b430",
@@ -70,8 +73,8 @@ ARM_CONTRACTS = {
     ),
     "flnosnf": ArmContract(
         "fl", False, "none", 1,
-        "8a7994412b6baec721b29aed00252c342d91bfe74aa329b1db796d9eb26a4de6",
-        18, 4, 8, 4.74, 1, 1, 1.0, 95, 95, 0, 2, 109,
+        "def543cd55e67e72f9016ae8e81493730a663d3da7a1a9af27c014e7ce2a0151",
+        0, 4, 8, 4.74, 1, 1, 1.0, 105, 105, 1, 2, 97,
     ),
 }
 

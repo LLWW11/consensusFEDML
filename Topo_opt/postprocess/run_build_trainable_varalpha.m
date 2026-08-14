@@ -9,11 +9,15 @@ clear;
 clc;
 
 %% 参数设置
-% 脚本目录用于保证从任意 MATLAB 工作目录运行都能找到输入文件和函数。
+% 先加入当前脚本目录，确保从任意 MATLAB 工作目录运行时都能找到辅助函数。
 script_directory = fileparts(mfilename('fullpath'));
+addpath(script_directory);
+
+% 自动定位 Topo_opt 原始输入目录和 postprocess 输出目录。
+paths = postprocess_paths();
 
 % 指定原始实验结果 MAT 文件。
-input_file = fullfile(script_directory, ...
+input_file = fullfile(paths.topology_directory, ...
     'result-U-6fixedge_epoch200.mat');
 
 % 设置目标方差比例，取值范围为 [0,1]。
@@ -21,7 +25,7 @@ input_file = fullfile(script_directory, ...
 varAlpha = 0.1;
 
 % 客户端覆盖模式：'preserve' 保留旧行为，'hard' 保证前若干轮尽量全覆盖。
-coverage_mode = 'preserve';
+coverage_mode = 'hard';
 
 % 覆盖窗口轮数；当前联邦训练使用前 150 轮。
 coverage_horizon = 150;
@@ -30,8 +34,8 @@ coverage_horizon = 150;
 alpha_token = sprintf('%.6g', varAlpha);
 alpha_token = strrep(alpha_token, '.', 'p');
 alpha_token = strrep(alpha_token, '-', 'm');
-output_file = fullfile(script_directory, ...
-    ['result-U-6fixedge_epoch200_varAlpha_', alpha_token, '_trainable.mat']);
+output_file = fullfile(paths.output_directory, ...
+    ['result-U-6fixedge_epoch200_',coverage_mode,'_varAlpha_', alpha_token, '_trainable.mat']);
 
 %% 执行完整处理流程
 fprintf('开始生成方差受控训练数据。\n');

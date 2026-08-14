@@ -4,12 +4,14 @@ function audit = repair_result_U_6fixedge_epoch200(input_file, output_file)
 %   原始 MAT，保留原文件不变，并生成 result-U-6fixedge_epoch200_corrected.mat。
 %   也可以通过两个输入参数指定原始文件和修正文件。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
 if nargin < 1 || isempty(input_file)
-    input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200 .mat');
+    input_file = fullfile(paths.topology_directory, ...
+        'result-U-6fixedge_epoch200 .mat');
 end
 if nargin < 2 || isempty(output_file)
-    output_file = fullfile(script_directory, 'result-U-6fixedge_epoch200_corrected.mat');
+    output_file = fullfile(paths.output_directory, ...
+        'result-U-6fixedge_epoch200_corrected.mat');
 end
 
 input_file = char(input_file);

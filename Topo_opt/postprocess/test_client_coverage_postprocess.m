@@ -3,6 +3,7 @@ function summary = test_client_coverage_postprocess()
 %   使用合成六方法数据检查默认保留模式、硬覆盖、HFL 组规模不变、后续轮次
 %   不变、结果可复现，以及总参与名额不足时达到理论最大覆盖数。
 
+postprocess_paths();
 base_data = build_synthetic_data(8, 6, 2);
 
 % 默认保留模式只审计，不应修改任何映射。

@@ -14,17 +14,19 @@ function audit = build_trainable_varalpha_mat(input_file, output_file, ...
 %   输入文件不会被覆盖。varAlpha 必须位于 [0,1]；其含义是目标方差相对
 %   于零值修复后数据原方差的比例。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
+script_directory = paths.postprocess_directory;
 if nargin < 1 || isempty(input_file)
-    input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200.mat');
+    input_file = fullfile(paths.topology_directory, ...
+        'result-U-6fixedge_epoch200.mat');
 end
 if nargin < 3 || isempty(varAlpha)
     varAlpha = 0.5;
 end
 if nargin < 2 || isempty(output_file)
-    [input_directory, input_name, input_extension] = fileparts(char(input_file));
+    [~, input_name, input_extension] = fileparts(char(input_file));
     alpha_token = format_alpha_token(varAlpha);
-    output_file = fullfile(input_directory, ...
+    output_file = fullfile(paths.output_directory, ...
         [input_name, '_varAlpha_', alpha_token, '_trainable', input_extension]);
 end
 if nargin < 4 || isempty(coverage_mode)

@@ -3,8 +3,9 @@ function summary = test_control_client_variance()
 %   测试原字段不变、列总和不变、整数范围合法、varAlpha=1 恒等，以及
 %   varAlpha 下降时各列实际方差不增加。
 
-script_directory = fileparts(mfilename('fullpath'));
-input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200.mat');
+paths = postprocess_paths();
+input_file = fullfile(paths.topology_directory, ...
+    'result-U-6fixedge_epoch200.mat');
 if ~isfile(input_file)
     error('test_control_client_variance:SourceNotFound', ...
         '测试所需原始结果不存在：%s', input_file);

@@ -6,7 +6,7 @@
 
 正式配置采用以下统一参数：
 
-- 动态拓扑：MATLAB原始调度，`topology_util=0.6`；
+- 动态拓扑：读取`Topo_opt/postprocess`中的alpha=0.1硬覆盖后处理MAT，`topology_util=0.6`；
 - 服务器优化器：FedAdam，学习率为`0.05`，`tau=0.001`；
 - 偏差修正：关闭；
 - 本地训练：每轮3个epoch；
@@ -58,7 +58,7 @@ python -m HFLSnF_KG_v3.run_final_dynamic_fedadam formal150 --resume "HFLSnF_KG_v
 
 这些配置复现的是MAT动态参与者组成、覆盖、分组和参与预算共同形成的系统级结果。HFLSnF、HFLnoSnF与FLnoSnF之间的差异不能在缺少严格配对拓扑控制时单独归因于SnF或分层机制。
 
-尤其需要注意：`topology_util=0.6`下，FLnoSnF前150轮每轮实际参与4至8个客户端，累计只覆盖19/37个客户端，有18个客户端始终未参与。批量合同会固定检查这一事实；FLnoSnF可以作为当前MAT动态编排的系统级结果，但不是与两个HFL实验臂等覆盖的严格单因素对照。
+硬覆盖后处理保持三组实验臂原有的逐轮参与人数不变，并确保前150轮覆盖全部37个客户端。`topology_util=0.6`下，FLnoSnF每轮仍只实际参与4至8个客户端，因此三组实验臂的参与预算和分组机制仍不相同，不能解释为严格单因素对照。
 
 ## 维护原则
 

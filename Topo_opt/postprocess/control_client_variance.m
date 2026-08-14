@@ -5,16 +5,17 @@ function audit = control_client_variance(input_file, output_file, varAlpha)
 %   “目标方差/原方差”，取值范围为 [0,1]。原始字段保持不变，处理后的
 %   字段使用 _varctrl 后缀保存，并同时写入完整审计信息。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
 if nargin < 1 || isempty(input_file)
-    input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200.mat');
+    input_file = fullfile(paths.topology_directory, ...
+        'result-U-6fixedge_epoch200.mat');
 end
 if nargin < 3 || isempty(varAlpha)
     varAlpha = 0.5;
 end
 if nargin < 2 || isempty(output_file)
     alpha_token = format_alpha_token(varAlpha);
-    output_file = fullfile(script_directory, ...
+    output_file = fullfile(paths.output_directory, ...
         ['result-U-6fixedge_epoch200_varAlpha_', alpha_token, '.mat']);
 end
 

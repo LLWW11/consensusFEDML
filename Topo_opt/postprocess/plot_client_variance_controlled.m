@@ -4,9 +4,9 @@ function figure_handle = plot_client_variance_controlled(result_file, data_mode)
 %   data_mode 可取 'original' 或 'varctrl'。'varctrl' 使用明确标记的
 %   方差控制字段，'original' 使用原始客户端数量字段。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
 if nargin < 1 || isempty(result_file)
-    result_file = fullfile(script_directory, ...
+    result_file = fullfile(paths.output_directory, ...
         'result-U-6fixedge_epoch200_varAlpha_0p5.mat');
 end
 if nargin < 2 || isempty(data_mode)

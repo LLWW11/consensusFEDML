@@ -27,7 +27,7 @@ train_args:
   topology_snf: true
   topology_edge_mode: "fixed"
   edge_num: 6
-  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat"
+  dynamic_group_mat_file: "../Topo_opt/postprocess/result-U-6fixedge_epoch200_hard_varAlpha_0p1_trainable.mat"
   topology_util: 0.6
   topology_schedule_policy: "strict"
   aggregation_mode: "row_count_weighted"

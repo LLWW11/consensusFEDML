@@ -145,7 +145,7 @@ matlab_direct
 
 Python 运行时通过 [`MatlabTopologySchedule`](core/matlab_topology_schedule.py) 回放 MAT 中的活跃身份与互斥分组；每个活跃客户端从同一个轮初全局状态训练，见 [`dynamic_trainer.py`](fedml_kge/dynamic_trainer.py)。当前运行时没有重新执行最大流，也没有 HGNN。
 
-正式配置使用的 `result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat` 还不是未经修改的原始最大流结果。[`build_trainable_varalpha_mat.m`](../Topo_opt/build_trainable_varalpha_mat.m) 先填补零客户端轮次，再控制人数方差，并按目标人数裁剪或从合法客户端池补入身份后重建映射。当前文件元数据记录了 627 个零值替换。补入身份时没有重新求解最大流，也没有重新验证路径容量，因此：
+正式配置使用的 `result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat` 还不是未经修改的原始最大流结果。[`build_trainable_varalpha_mat.m`](../../Topo_opt/postprocess/build_trainable_varalpha_mat.m) 先填补零客户端轮次，再控制人数方差，并按目标人数裁剪或从合法客户端池补入身份后重建映射。当前文件元数据记录了 627 个零值替换。补入身份时没有重新求解最大流，也没有重新验证路径容量，因此：
 
 - 当前“更多客户端参与”是 MAT 已编码并经后处理的调度结果；
 - 当前运行时不能被描述为 HGNN 或在线最大流产生了这些客户端；

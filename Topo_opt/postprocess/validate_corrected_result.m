@@ -3,9 +3,10 @@ function summary = validate_corrected_result(result_file)
 %   summary = VALIDATE_CORRECTED_RESULT() 校验默认 corrected MAT 的策略位置、
 %   客户端人数、映射、聚合时间、汇总值以及历史映射缺失标记。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
 if nargin < 1 || isempty(result_file)
-    result_file = fullfile(script_directory, 'result-U-6fixedge_epoch200_corrected.mat');
+    result_file = fullfile(paths.output_directory, ...
+        'result-U-6fixedge_epoch200_corrected.mat');
 end
 result_file = char(result_file);
 if ~isfile(result_file)

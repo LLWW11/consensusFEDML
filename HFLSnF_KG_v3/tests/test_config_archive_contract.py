@@ -68,7 +68,7 @@ ARM_CONTRACTS = {
     ),
     "flnosnf": (
         "fl", False, "none", 1,
-        "8a7994412b6baec721b29aed00252c342d91bfe74aa329b1db796d9eb26a4de6",
+        "def543cd55e67e72f9016ae8e81493730a663d3da7a1a9af27c014e7ce2a0151",
     ),
 }
 
@@ -170,7 +170,8 @@ class ConfigArchiveContractTest(unittest.TestCase):
             "client_num_per_round": 37,
             "topology_type": "matlab_direct",
             "dynamic_group_mat_file": (
-                "matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat"
+                "../Topo_opt/postprocess/"
+                "result-U-6fixedge_epoch200_hard_varAlpha_0p1_trainable.mat"
             ),
             "topology_util": 0.6,
             "topology_schedule_policy": "strict",

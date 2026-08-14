@@ -20,7 +20,7 @@
 
 ## 当前最终动态拓扑配置
 
-最终配置统一使用MATLAB alpha=0.1调度、`topology_util=0.6`、FedAdam学习率0.05、`tau=0.001`、`betas=(0.9, 0.99)`、`server_bias_correction=false`、每轮3个本地epoch、150轮通信和逐轮验证。训练阶段不自动执行测试集评估。
+最终配置统一使用MATLAB alpha=0.1硬覆盖后处理调度、`topology_util=0.6`、FedAdam学习率0.05、`tau=0.001`、`betas=(0.9, 0.99)`、`server_bias_correction=false`、每轮3个本地epoch、150轮通信和逐轮验证。训练阶段不自动执行测试集评估。
 
 九份配置按HFLSnF/HFLnoSnF/FLnoSnF和随机种子42、2024、2025组织，完整文件表与哈希合同见 [`configs/README.md`](configs/README.md)。运行单份配置示例：
 
@@ -28,7 +28,7 @@
 python -m HFLSnF_KG_v3.run_federated_transe --cf HFLSnF_KG_v3/configs/final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda.yaml
 ```
 
-HFLSnF、HFLnoSnF与FLnoSnF使用不同的MAT动态参与、覆盖和分组过程，因此当前结果应表述为动态编排造成的系统级差异，不能单独归因于SnF或分层机制。FLnoSnF在`util=0.6`的前150轮只覆盖19/37个客户端，其中18个客户端永久缺席；这一限制会由最终批量合同显式校验。
+HFLSnF、HFLnoSnF与FLnoSnF使用不同的MAT动态参与和分组过程，因此当前结果应表述为动态编排造成的系统级差异，不能单独归因于SnF或分层机制。硬覆盖后处理保证三个实验臂在`util=0.6`的前150轮都覆盖全部37个客户端，但各实验臂的逐轮参与预算仍然不同；这一事实会由最终批量合同显式校验。
 
 ## 历史固定人数对照
 

@@ -40,8 +40,8 @@ class FinalDynamicFedAdamTest(unittest.TestCase):
             [(seed, arm) for seed in SEEDS for arm in ARMS],
         )
 
-    def test_schedules_are_nonempty_and_flnosnf_coverage_is_explicit(self) -> None:
-        """确认三臂无空轮并锁定FLnoSnF的18个永久缺席客户端。"""
+    def test_schedules_are_nonempty_and_cover_all_clients(self) -> None:
+        """确认三臂无空轮并锁定硬覆盖后的全客户端覆盖。"""
 
         for scenario in SCENARIOS[:3]:
             provider = build_provider(scenario)
@@ -55,11 +55,8 @@ class FinalDynamicFedAdamTest(unittest.TestCase):
                 scenario.contract.zero_participation_clients,
             )
         fl_stats = schedule_statistics(SCENARIOS[2])
-        self.assertEqual(fl_stats["zero_participation_clients"], 18)
-        self.assertEqual(
-            fl_stats["zero_participation_client_ids"],
-            [3, 12, 13, 14, 19, 20, 21, 22, 26, 28, 29, 30, 31, 32, 33, 34, 35, 36],
-        )
+        self.assertEqual(fl_stats["zero_participation_clients"], 0)
+        self.assertEqual(fl_stats["zero_participation_client_ids"], [])
 
     def test_batch_all_success_preserves_order_and_contracts(self) -> None:
         """模拟九组全成功并确认seed优先顺序和合同文件。"""

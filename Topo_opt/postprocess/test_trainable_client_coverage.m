@@ -3,8 +3,9 @@ function summary = test_trainable_client_coverage()
 %   分别生成 preserve 和 hard 临时训练文件，检查六种方法全部利用率的覆盖、
 %   人数和方差不变、HFL 组规模不变、聚合时间不变以及后 50 轮映射不变。
 
-script_directory = fileparts(mfilename('fullpath'));
-input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200.mat');
+paths = postprocess_paths();
+input_file = fullfile(paths.topology_directory, ...
+    'result-U-6fixedge_epoch200.mat');
 if ~isfile(input_file)
     error('test_trainable_client_coverage:SourceNotFound', ...
         '测试所需原始结果不存在：%s', input_file);

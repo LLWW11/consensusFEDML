@@ -14,15 +14,19 @@ clear;
 clc;
 
 %% 参数设置
-% 当前脚本所在目录，用于保证从任意 MATLAB 工作目录运行都能找到文件。
+% 先加入当前脚本目录，确保从任意 MATLAB 工作目录运行时都能找到辅助函数。
 script_directory = fileparts(mfilename('fullpath'));
+addpath(script_directory);
+
+% 自动定位 Topo_opt 原始输入目录和 postprocess 输出目录。
+paths = postprocess_paths();
 
 % 指定需要处理的原始 MAT 文件。
-input_file = fullfile(script_directory, ...
+input_file = fullfile(paths.topology_directory, ...
     'result-U-6fixedge_epoch200.mat');
 
 % 指定修复后 MAT 文件的保存位置和文件名。
-output_file = fullfile(script_directory, ...
+output_file = fullfile(paths.output_directory, ...
     'result-U-6fixedge_epoch200_zeroFilled.mat');
 
 % 客户端覆盖模式：'preserve' 保留旧行为，'hard' 修复永久缺席客户端。

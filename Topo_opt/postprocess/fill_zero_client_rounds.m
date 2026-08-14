@@ -14,13 +14,14 @@ function audit = fill_zero_client_rounds( ...
 %   “_zeroFilled”后缀。coverage_mode 默认为 'preserve'；设为 'hard' 时，
 %   还会在 coverage_horizon 指定的前若干轮内尽量覆盖全部合法客户端。
 
-script_directory = fileparts(mfilename('fullpath'));
+paths = postprocess_paths();
 if nargin < 1 || isempty(input_file)
-    input_file = fullfile(script_directory, 'result-U-6fixedge_epoch200.mat');
+    input_file = fullfile(paths.topology_directory, ...
+        'result-U-6fixedge_epoch200.mat');
 end
 if nargin < 2 || isempty(output_file)
-    [input_directory, input_name, input_extension] = fileparts(char(input_file));
-    output_file = fullfile(input_directory, ...
+    [~, input_name, input_extension] = fileparts(char(input_file));
+    output_file = fullfile(paths.output_directory, ...
         [input_name, '_zeroFilled', input_extension]);
 end
 if nargin < 3 || isempty(coverage_mode)
