@@ -193,8 +193,9 @@ class FixedCountTopologyProvider(TopologyProvider):
         selection_mode: str,
         seed: int,
         source_provider: Optional[TopologyProvider] = None,
+        grouping_mode: str = "stable_round_robin",
     ):
-        """校验固定人数合同并保存可选MAT来源拓扑。"""
+        """校验固定人数与分组合同，并保存可选MAT来源拓扑。"""
 
         normalized_clients = tuple(int(value) for value in client_ids)
         if not normalized_clients or len(set(normalized_clients)) != len(
@@ -237,6 +238,15 @@ class FixedCountTopologyProvider(TopologyProvider):
             raise ValueError("noSnF随机或均匀轮换不能读取MAT选择结果")
         self._source_provider = source_provider
         self._seed = int(seed)
+        self._grouping_mode = str(grouping_mode).strip().lower()
+        if self._grouping_mode not in {
+            "stable_round_robin",
+            "seeded_random_balanced",
+        }:
+            raise ValueError(
+                "fixed_count_grouping_mode必须是stable_round_robin或"
+                "seeded_random_balanced"
+            )
         seeded_order = list(self._client_ids)
         random.Random(self._seed).shuffle(seeded_order)
         self._round_robin_order = tuple(seeded_order)
@@ -324,16 +334,23 @@ class FixedCountTopologyProvider(TopologyProvider):
 
     def _groups_for_participants(
         self,
+        round_index: int,
         participants: Sequence[int],
     ) -> Dict[int, List[int]]:
-        """把选中客户端稳定轮转分入HFL六组或FL单组。"""
+        """按配置将选中客户端稳定或随机均衡地分入边缘组。"""
 
         if self._architecture == "fl":
             return {0: [int(value) for value in participants]}
+        ordered_participants = [int(value) for value in participants]
+        if self._grouping_mode == "seeded_random_balanced":
+            # 分组随机流使用独立盐值，避免改变同轮参与者抽样结果。
+            random.Random(
+                self._seed + 1000003 * int(round_index) + 83
+            ).shuffle(ordered_participants)
         groups: Dict[int, List[int]] = {
             group_id: [] for group_id in range(self._group_count)
         }
-        for offset, client_id in enumerate(participants):
+        for offset, client_id in enumerate(ordered_participants):
             groups[offset % self._group_count].append(int(client_id))
         return groups
 
@@ -355,7 +372,7 @@ class FixedCountTopologyProvider(TopologyProvider):
             participants = self._seeded_random_participants(round_index)
         else:
             participants = self._round_robin_participants(round_index)
-        groups = self._groups_for_participants(participants)
+        groups = self._groups_for_participants(round_index, participants)
         topology = RoundTopology.from_groups(
             groups,
             source_round_index,
@@ -384,6 +401,7 @@ class FixedCountTopologyProvider(TopologyProvider):
             "fixed_participant_count": self._participant_count,
             "fixed_group_count": self._group_count,
             "fixed_count_selection_mode": self._selection_mode,
+            "fixed_count_grouping_mode": self._grouping_mode,
             "fixed_count_seed": self._seed,
             "source_topology": source_metadata,
             "mat_file": (

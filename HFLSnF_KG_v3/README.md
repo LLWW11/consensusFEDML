@@ -1,4 +1,4 @@
-# HFLSnF KGE V3：最终动态拓扑配置与历史实验归档
+# HFLSnF KGE V3：动态与随机拓扑正式实验
 
 本工程用于在 FB15k-237 上训练四种联邦 TransE 场景：
 
@@ -7,7 +7,7 @@
 - `HFLnoSnF`：分层联邦学习，不使用 SnF；
 - `FLnoSnF`：普通联邦学习，不使用 SnF。
 
-当前主结果采用 `topology_util=0.6`、关闭服务器偏差修正的动态MATLAB拓扑，覆盖HFLSnF/HFLnoSnF/FLnoSnF与随机种子42、2024、2025。九份正式YAML位于 `configs/` 根目录；此前四场景、参数筛选和人数消融配置均已归档到 `configs/zOld/`，只用于审计或复现。
+当前正式实验包括动态MATLAB拓扑和MAT平均预算随机拓扑两套九组配置，均覆盖三个参考臂与随机种子42、2024、2025。配置分别位于 `configs/dynamic/` 和 `configs/stochastic/`；此前四场景、参数筛选和人数消融配置均已归档到 `configs/zOld/`，只用于审计或复现。
 
 历史实验仍保留四套互不混用的合同：
 
@@ -25,10 +25,21 @@
 九份配置按HFLSnF/HFLnoSnF/FLnoSnF和随机种子42、2024、2025组织，完整文件表与哈希合同见 [`configs/README.md`](configs/README.md)。运行单份配置示例：
 
 ```powershell
-python -m HFLSnF_KG_v3.run_federated_transe --cf HFLSnF_KG_v3/configs/final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda.yaml
+python -m HFLSnF_KG_v3.run_federated_transe --cf HFLSnF_KG_v3/configs/dynamic/final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda.yaml
 ```
 
 HFLSnF、HFLnoSnF与FLnoSnF使用不同的MAT动态参与和分组过程，因此当前结果应表述为动态编排造成的系统级差异，不能单独归因于SnF或分层机制。硬覆盖后处理保证三个实验臂在`util=0.6`的前150轮都覆盖全部37个客户端，但各实验臂的逐轮参与预算仍然不同；这一事实会由最终批量合同显式校验。
+
+## 当前最终随机拓扑配置
+
+随机拓扑配置沿用动态正式实验的训练、FedAdam和评估参数，但不读取MAT逐轮参与者或分组。三个参考档位按MAT前150轮均值四舍五入，分别固定为34人6组、12人3组和5人1组；每轮随机抽取客户端并使用独立随机流均衡分组。
+
+这些档位命名为HFLSnF-profile、HFLnoSnF-profile和FLnoSnF-profile，只表示继承对应动态方法的平均资源预算。随机实验不执行SnF，因此配置和结果中的SnF标识均为关闭。配置、运行命令和恢复方式见 [`configs/README.md`](configs/README.md)。
+
+```powershell
+python -m HFLSnF_KG_v3.run_final_stochastic_fedadam validate
+python -m HFLSnF_KG_v3.run_final_stochastic_fedadam formal150
+```
 
 ## 历史固定人数对照
 

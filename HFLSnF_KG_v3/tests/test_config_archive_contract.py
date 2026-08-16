@@ -28,16 +28,30 @@ from HFLSnF_KG_v3.tasks.kge.hflkge_client_count_ablation import (
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = PACKAGE_DIR / "configs"
-FINAL_PATTERN = re.compile(
+FINAL_DYNAMIC_PATTERN = re.compile(
     r"final_dynamic_fedadam_(hflsnf|hflnosnf|flnosnf)_u0p6_bcfalse_"
     r"seed(42|2024|2025)_150round_cuda\.yaml"
 )
 
-EXPECTED_FINAL_FILES = {
+EXPECTED_DYNAMIC_FILES = {
     "final_dynamic_fedadam_{}_u0p6_bcfalse_seed{}_150round_cuda.yaml".format(
         arm, seed
     )
     for arm in ("hflsnf", "hflnosnf", "flnosnf")
+    for seed in (42, 2024, 2025)
+}
+
+FINAL_STOCHASTIC_PATTERN = re.compile(
+    r"final_stochastic_fedadam_"
+    r"(hflsnf_profile|hflnosnf_profile|flnosnf_profile)_"
+    r"seed(42|2024|2025)_150round_cuda\.yaml"
+)
+
+EXPECTED_STOCHASTIC_FILES = {
+    "final_stochastic_fedadam_{}_seed{}_150round_cuda.yaml".format(
+        arm, seed
+    )
+    for arm in ("hflsnf_profile", "hflnosnf_profile", "flnosnf_profile")
     for seed in (42, 2024, 2025)
 }
 
@@ -123,10 +137,18 @@ class ConfigArchiveContractTest(unittest.TestCase):
     """检查最终配置合同、归档计数以及历史入口兼容性。"""
 
     def test_file_layout_and_all_yaml_are_readable(self) -> None:
-        """确认根目录只有九份主配置且归档中恰好有35份历史配置。"""
+        """确认动态和随机配置分目录保存且历史归档计数不变。"""
 
         root_yaml = {path.name for path in CONFIG_DIR.glob("*.yaml")}
-        self.assertEqual(root_yaml, EXPECTED_FINAL_FILES)
+        self.assertEqual(root_yaml, set())
+        dynamic_yaml = {
+            path.name for path in (CONFIG_DIR / "dynamic").glob("*.yaml")
+        }
+        stochastic_yaml = {
+            path.name for path in (CONFIG_DIR / "stochastic").glob("*.yaml")
+        }
+        self.assertEqual(dynamic_yaml, EXPECTED_DYNAMIC_FILES)
+        self.assertEqual(stochastic_yaml, EXPECTED_STOCHASTIC_FILES)
 
         archive_root = CONFIG_DIR / "zOld"
         archive_yaml = tuple(sorted(archive_root.rglob("*.yaml")))
@@ -137,8 +159,8 @@ class ConfigArchiveContractTest(unittest.TestCase):
 
         # 文件名在整个配置树中保持唯一，避免按名称查找时出现歧义。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
-        self.assertEqual(len(all_yaml), 44)
-        self.assertEqual(len({path.name for path in all_yaml}), 44)
+        self.assertEqual(len(all_yaml), 53)
+        self.assertEqual(len({path.name for path in all_yaml}), 53)
         self.assertTrue((CONFIG_DIR / "README.md").is_file())
         self.assertTrue((archive_root / "README.md").is_file())
         for path in all_yaml:
@@ -151,13 +173,15 @@ class ConfigArchiveContractTest(unittest.TestCase):
         """确认九份主配置仅按实验臂、种子及其派生身份发生变化。"""
 
         parsed: Dict[Tuple[str, int], Dict[str, object]] = {}
-        for file_name in sorted(EXPECTED_FINAL_FILES):
-            match = FINAL_PATTERN.fullmatch(file_name)
+        for file_name in sorted(EXPECTED_DYNAMIC_FILES):
+            match = FINAL_DYNAMIC_PATTERN.fullmatch(file_name)
             self.assertIsNotNone(match, file_name)
             assert match is not None
             arm = match.group(1)
             seed = int(match.group(2))
-            parsed[(arm, seed)] = _load_flat_yaml(CONFIG_DIR / file_name)
+            parsed[(arm, seed)] = _load_flat_yaml(
+                CONFIG_DIR / "dynamic" / file_name
+            )
 
         key_sets = {frozenset(config) for config in parsed.values()}
         self.assertEqual(len(key_sets), 1)

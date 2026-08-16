@@ -166,5 +166,12 @@ def build_topology_provider(
         group_count=int(getattr(args, "edge_num", 1)),
         selection_mode=selection_mode,
         seed=int(getattr(args, "fixed_count_seed", args.random_seed)),
+        grouping_mode=str(
+            getattr(
+                args,
+                "fixed_count_grouping_mode",
+                "stable_round_robin",
+            )
+        ),
         source_provider=source_provider,
     )
