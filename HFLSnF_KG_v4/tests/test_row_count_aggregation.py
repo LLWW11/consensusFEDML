@@ -6,10 +6,10 @@ import unittest
 
 import torch
 
-from HFLSnF_KG_v3.core.aggregation import (
+from HFLSnF_KG_v4.core.aggregation import (
     RowCountWeightedFedAvgAggregator,
 )
-from HFLSnF_KG_v3.core.types import ClientUpdate
+from HFLSnF_KG_v4.core.types import ClientUpdate
 
 
 def _state(entity_rows, relation_rows):

@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Dict, List
 from unittest.mock import patch
 
-from HFLSnF_KG_v3.run_fedadam_stage1 import (
+from HFLSnF_KG_v4.run_fedadam_stage1 import (
     CONTRACT_FILE_NAME,
     Stage1RunError,
     create_batch_manifest,
     run_batch,
 )
-from HFLSnF_KG_v3.tasks.kge.fedadam_stage1 import (
+from HFLSnF_KG_v4.tasks.kge.fedadam_stage1 import (
     SCENARIOS,
     build_provider,
     schedule_statistics,
@@ -112,10 +112,10 @@ class FedAdamStage1Test(unittest.TestCase):
                 }
 
             with patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1._run_config",
+                "HFLSnF_KG_v4.run_fedadam_stage1._run_config",
                 side_effect=fake_run,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1.validate_result",
+                "HFLSnF_KG_v4.run_fedadam_stage1.validate_result",
                 side_effect=fake_validate,
             ):
                 exit_code = run_batch(
@@ -162,10 +162,10 @@ class FedAdamStage1Test(unittest.TestCase):
                 return result_dir
 
             with patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1._run_config",
+                "HFLSnF_KG_v4.run_fedadam_stage1._run_config",
                 side_effect=fail_second,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1.validate_result",
+                "HFLSnF_KG_v4.run_fedadam_stage1.validate_result",
                 return_value={"status": "passed"},
             ):
                 first_exit = run_batch(
@@ -197,10 +197,10 @@ class FedAdamStage1Test(unittest.TestCase):
                 return result_dir
 
             with patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1._run_config",
+                "HFLSnF_KG_v4.run_fedadam_stage1._run_config",
                 side_effect=resume_run,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage1.validate_result",
+                "HFLSnF_KG_v4.run_fedadam_stage1.validate_result",
                 return_value={"status": "passed"},
             ):
                 resume_exit = run_batch(

@@ -9,20 +9,20 @@ from pathlib import Path
 from typing import Dict, List, Mapping
 from unittest.mock import patch
 
-from HFLSnF_KG_v3.run_fedadam_stage2 import (
+from HFLSnF_KG_v4.run_fedadam_stage2 import (
     PLANNED_RUN_COUNT,
     Stage2RunError,
     create_batch_manifest,
     run_phase,
 )
-from HFLSnF_KG_v3.tasks.kge.fedadam_stage2 import (
+from HFLSnF_KG_v4.tasks.kge.fedadam_stage2 import (
     BASELINE_SETTING_KEY,
     ROUND_COUNT,
     SCREEN_SCENARIOS,
     select_screen_candidate,
     validate_screen_configs,
 )
-from HFLSnF_KG_v3.tasks.kge.fixed_count_four_scenarios import (
+from HFLSnF_KG_v4.tasks.kge.fixed_count_four_scenarios import (
     INITIAL_MODEL_HASH,
     PARTITION_HASH,
 )
@@ -189,16 +189,16 @@ class FedAdamStage2Test(unittest.TestCase):
                 return result_dir
 
             with patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2._run_config",
+                "HFLSnF_KG_v4.run_fedadam_stage2._run_config",
                 side_effect=fail_second,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.validate_result",
+                "HFLSnF_KG_v4.run_fedadam_stage2.validate_result",
                 side_effect=self._fake_contract,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.summarize_result",
+                "HFLSnF_KG_v4.run_fedadam_stage2.summarize_result",
                 side_effect=self._fake_summary,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.write_phase_artifacts",
+                "HFLSnF_KG_v4.run_fedadam_stage2.write_phase_artifacts",
                 return_value={},
             ):
                 first_exit = run_phase(
@@ -226,16 +226,16 @@ class FedAdamStage2Test(unittest.TestCase):
                 return result_dir
 
             with patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2._run_config",
+                "HFLSnF_KG_v4.run_fedadam_stage2._run_config",
                 side_effect=resume_run,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.validate_result",
+                "HFLSnF_KG_v4.run_fedadam_stage2.validate_result",
                 side_effect=self._fake_contract,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.summarize_result",
+                "HFLSnF_KG_v4.run_fedadam_stage2.summarize_result",
                 side_effect=self._fake_summary,
             ), patch(
-                "HFLSnF_KG_v3.run_fedadam_stage2.write_phase_artifacts",
+                "HFLSnF_KG_v4.run_fedadam_stage2.write_phase_artifacts",
                 return_value={},
             ):
                 resume_exit = run_phase(
@@ -262,7 +262,7 @@ class FedAdamStage2Test(unittest.TestCase):
     def test_report_writer_creates_all_required_plots(self) -> None:
         """模拟完整结果并确认全程、复验和参与预算图均可生成。"""
 
-        from HFLSnF_KG_v3.reports.gen_fedadam_stage2_report import (
+        from HFLSnF_KG_v4.reports.gen_fedadam_stage2_report import (
             write_phase_artifacts,
         )
 
@@ -307,7 +307,7 @@ class FedAdamStage2Test(unittest.TestCase):
                 }
 
             with patch(
-                "HFLSnF_KG_v3.reports.gen_fedadam_stage2_report._full_summary",
+                "HFLSnF_KG_v4.reports.gen_fedadam_stage2_report._full_summary",
                 side_effect=fake_full_summary,
             ):
                 for phase_name in ("screen", "confirm", "controls"):
@@ -350,19 +350,19 @@ class FedAdamStage2Test(unittest.TestCase):
 
                 self.patchers = [
                     patch(
-                        "HFLSnF_KG_v3.run_fedadam_stage2._run_config",
+                        "HFLSnF_KG_v4.run_fedadam_stage2._run_config",
                         side_effect=fake_run,
                     ),
                     patch(
-                        "HFLSnF_KG_v3.run_fedadam_stage2.validate_result",
+                        "HFLSnF_KG_v4.run_fedadam_stage2.validate_result",
                         side_effect=test_case._fake_contract,
                     ),
                     patch(
-                        "HFLSnF_KG_v3.run_fedadam_stage2.summarize_result",
+                        "HFLSnF_KG_v4.run_fedadam_stage2.summarize_result",
                         side_effect=test_case._fake_summary,
                     ),
                     patch(
-                        "HFLSnF_KG_v3.run_fedadam_stage2.write_phase_artifacts",
+                        "HFLSnF_KG_v4.run_fedadam_stage2.write_phase_artifacts",
                         return_value={},
                     ),
                 ]

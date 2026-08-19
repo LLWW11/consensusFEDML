@@ -6,7 +6,7 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-from HFLSnF_KG_v3.tasks.kge.fixed_count_four_scenarios import (
+from HFLSnF_KG_v4.tasks.kge.fixed_count_four_scenarios import (
     DYNAMIC_SCENARIOS,
     SCENARIOS,
     _dynamic_schedule_statistics,

@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Dict, List
 from unittest.mock import patch
 
-from HFLSnF_KG_v3.run_final_dynamic_fedadam import (
+from HFLSnF_KG_v4.run_final_dynamic_fedadam import (
     CONTRACT_FILE_NAME,
     FinalDynamicRunError,
     create_batch_manifest,
     run_batch,
 )
-from HFLSnF_KG_v3.tasks.kge.final_dynamic_fedadam import (
+from HFLSnF_KG_v4.tasks.kge.final_dynamic_fedadam import (
     ARMS,
     SCENARIOS,
     SEEDS,
@@ -91,10 +91,10 @@ class FinalDynamicFedAdamTest(unittest.TestCase):
                 }
 
             with patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam._run_config",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam._run_config",
                 side_effect=fake_run,
             ), patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam.validate_result",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam.validate_result",
                 side_effect=fake_validate,
             ):
                 exit_code = run_batch(manifest, result_root=root)
@@ -129,10 +129,10 @@ class FinalDynamicFedAdamTest(unittest.TestCase):
                 return result
 
             with patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam._run_config",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam._run_config",
                 side_effect=fail_second,
             ), patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam.validate_result",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam.validate_result",
                 return_value={
                     "status": "passed", "partition_hash": "p42",
                     "initial_model_hash": "i42",
@@ -174,10 +174,10 @@ class FinalDynamicFedAdamTest(unittest.TestCase):
                 }
 
             with patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam._run_config",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam._run_config",
                 side_effect=resume_run,
             ), patch(
-                "HFLSnF_KG_v3.run_final_dynamic_fedadam.validate_result",
+                "HFLSnF_KG_v4.run_final_dynamic_fedadam.validate_result",
                 side_effect=resume_validate,
             ):
                 resume_exit = run_batch(manifest, result_root=root)

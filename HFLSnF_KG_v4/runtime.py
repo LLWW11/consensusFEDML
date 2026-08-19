@@ -40,7 +40,7 @@ def initialize_fedml_runtime():
 
 
 def resolve_package_path(path_value: str) -> Path:
-    """把相对路径解析为相对于HFLSnF_KG_v3目录的绝对路径。"""
+    """把相对路径解析为相对于HFLSnF_KG_v4目录的绝对路径。"""
 
     path = Path(str(path_value)).expanduser()
     if path.is_absolute():

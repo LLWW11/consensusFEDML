@@ -5,10 +5,10 @@ from __future__ import annotations
 import unittest
 from collections import Counter
 
-from HFLSnF_KG_v3.tasks.kge.fixed_count_four_scenarios import (
+from HFLSnF_KG_v4.tasks.kge.fixed_count_four_scenarios import (
     _schedule_hash,
 )
-from HFLSnF_KG_v3.tasks.kge.hflkge_client_count_ablation import (
+from HFLSnF_KG_v4.tasks.kge.hflkge_client_count_ablation import (
     SCENARIOS,
     build_provider,
     validate_configs,

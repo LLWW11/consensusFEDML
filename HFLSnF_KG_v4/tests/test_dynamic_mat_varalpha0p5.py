@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from HFLSnF_KG_v3.tasks.kge.dynamic_mat_varalpha0p5 import (
+from HFLSnF_KG_v4.tasks.kge.dynamic_mat_varalpha0p5 import (
     MAT_FILE,
     MAT_RELATIVE_PATH,
     SCENARIOS,
@@ -12,7 +12,7 @@ from HFLSnF_KG_v3.tasks.kge.dynamic_mat_varalpha0p5 import (
     schedule_statistics,
     validate_configs,
 )
-from HFLSnF_KG_v3.tasks.kge.fixed_count_four_scenarios import (
+from HFLSnF_KG_v4.tasks.kge.fixed_count_four_scenarios import (
     PACKAGE_DIR,
     load_flat_config,
 )

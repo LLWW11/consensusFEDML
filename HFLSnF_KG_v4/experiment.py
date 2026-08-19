@@ -42,7 +42,7 @@ def build_transe(
     num_entities: int,
     num_relations: int,
 ) -> TransE:
-    """根据配置创建V3唯一支持的TransE骨干模型。"""
+    """根据配置创建V4正式实验唯一支持的TransE骨干模型。"""
 
     model_name = str(
         getattr(args, "model", "transe")

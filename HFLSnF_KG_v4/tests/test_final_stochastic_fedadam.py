@@ -8,12 +8,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from HFLSnF_KG_v3.run_final_stochastic_fedadam import (
+from HFLSnF_KG_v4.run_final_stochastic_fedadam import (
     _load_manifest,
     create_batch_manifest,
     run_batch,
 )
-from HFLSnF_KG_v3.tasks.kge.final_stochastic_fedadam import (
+from HFLSnF_KG_v4.tasks.kge.final_stochastic_fedadam import (
     ARM_CONTRACTS,
     ROUND_COUNT,
     SCENARIOS,
@@ -81,7 +81,7 @@ class FinalStochasticTopologyTest(unittest.TestCase):
         """确认配置合同不需要构造MAT拓扑提供器。"""
 
         with mock.patch(
-            "HFLSnF_KG_v3.core.topology.MatlabTopologyProvider.__init__",
+            "HFLSnF_KG_v4.core.topology.MatlabTopologyProvider.__init__",
             side_effect=AssertionError("随机实验禁止读取MAT"),
         ):
             report = validate_configs()
@@ -116,10 +116,10 @@ class FinalStochasticBatchTest(unittest.TestCase):
                 return {"status": "passed", "initial_model_hash": "a" * 64}
 
             with mock.patch(
-                "HFLSnF_KG_v3.run_final_stochastic_fedadam._run_config",
+                "HFLSnF_KG_v4.run_final_stochastic_fedadam._run_config",
                 return_value=fake_result,
             ) as run_mock, mock.patch(
-                "HFLSnF_KG_v3.run_final_stochastic_fedadam.validate_result",
+                "HFLSnF_KG_v4.run_final_stochastic_fedadam.validate_result",
                 side_effect=fake_validate_result,
             ):
                 exit_code = run_batch(manifest_path, result_root=result_root)

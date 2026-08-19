@@ -1,4 +1,4 @@
-"""运行四组正式结果最佳检查点的完整FB15k-237官方测试。"""
+"""运行V4正式结果最佳检查点的完整FB15k-237官方测试。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 
 
 def resolve_package_path(path_value: str) -> Path:
-    """把相对路径解析为相对于V3包目录的绝对路径。"""
+    """把相对路径解析为相对于V4包目录的绝对路径。"""
 
     path = Path(str(path_value)).expanduser()
     if path.is_absolute():
@@ -46,14 +46,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
     """创建最佳检查点完整官方测试参数解析器。"""
 
     parser = argparse.ArgumentParser(
-        description="对V3最佳检查点执行全部FB15k-237官方测试"
+        description="对V4最佳检查点执行全部FB15k-237官方测试"
     )
     parser.add_argument("--data-dir", type=Path, default=Path("data/FB15k-237"))
     parser.add_argument(
         "--result-dir",
         type=Path,
         required=True,
-        help="四组正式实验之一的结果目录",
+        help="一个已通过训练合同的正式实验结果目录",
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--using-gpu", action="store_true")

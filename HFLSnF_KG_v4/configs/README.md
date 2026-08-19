@@ -33,7 +33,7 @@ python -m HFLSnF_KG_v4.run_final_dynamic_fedadam formal150 --resume "HFLSnF_KG_v
 python -m HFLSnF_KG_v4.run_federated_transe --cf HFLSnF_KG_v4/configs/dynamic/final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda.yaml
 ```
 
-V4重叠率消融固定使用HFLSnF动态正式配置。原始划分对照可复用现有三个HFLSnF结果；低、中、高重叠配置尚未创建。
+V4重叠率消融固定使用HFLSnF动态正式配置。原始划分对照复用现有三个HFLSnF结果；`overlap/` 已保存8重启正式校准合同和低、中、高乘三个种子的9份配置。
 
 ## 随机拓扑配置
 
@@ -64,9 +64,9 @@ python -m HFLSnF_KG_v4.run_final_stochastic_fedadam formal150 --resume "HFLSnF_K
 
 ## 重叠率配置准备状态
 
-完整设计见[重叠率消融实验计划](../重叠率消融实验计划.md)。头实体互斥目标重叠划分策略及目标重叠率、重叠容差、负载容差、搜索种子和搜索重启次数字段已经在代码中实现，并可通过根目录的无训练校准命令验证。
+完整设计见[重叠率消融实验计划](../重叠率消融实验计划.md)。头实体互斥目标重叠划分策略及目标重叠率、重叠容差、负载容差、搜索种子和搜索重启次数字段已经实现，正式配置见[overlap说明](overlap/README.md)。
 
-`configs/overlap/` 目录仍不存在，也没有可直接训练的重叠率 YAML。完成默认8次重启的正式校准并冻结低、中、高三个目标值和九个分区哈希之前，不创建正式训练YAML，现有配置不得被改写成重叠率实验。
+正式低、中、高目标分别为0.172249、0.228804和0.285359，九个分区哈希已经第二次独立复算确认。现有 `dynamic/` 原始配置不作修改；训练必须通过 `run_overlap_ablation` 的配置、分区、基线和拓扑合同后启动。
 
 ## 历史配置
 

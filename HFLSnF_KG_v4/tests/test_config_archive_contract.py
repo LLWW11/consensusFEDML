@@ -9,19 +9,19 @@ from typing import Dict, Mapping, Tuple
 
 import yaml
 
-from HFLSnF_KG_v3.tasks.kge.dynamic_mat_varalpha0p5 import (
+from HFLSnF_KG_v4.tasks.kge.dynamic_mat_varalpha0p5 import (
     SCENARIOS as VARALPHA_SCENARIOS,
 )
-from HFLSnF_KG_v3.tasks.kge.fedadam_stage1 import (
+from HFLSnF_KG_v4.tasks.kge.fedadam_stage1 import (
     SCENARIOS as STAGE1_SCENARIOS,
 )
-from HFLSnF_KG_v3.tasks.kge.fedadam_stage2 import SCREEN_SCENARIOS
-from HFLSnF_KG_v3.tasks.kge.fixed_count_four_scenarios import (
+from HFLSnF_KG_v4.tasks.kge.fedadam_stage2 import SCREEN_SCENARIOS
+from HFLSnF_KG_v4.tasks.kge.fixed_count_four_scenarios import (
     DYNAMIC_SCENARIOS,
     SCENARIOS as FIXED_COUNT_SCENARIOS,
     SMOKE_CONFIG,
 )
-from HFLSnF_KG_v3.tasks.kge.hflkge_client_count_ablation import (
+from HFLSnF_KG_v4.tasks.kge.hflkge_client_count_ablation import (
     SCENARIOS as CLIENT_COUNT_SCENARIOS,
 )
 
@@ -147,8 +147,12 @@ class ConfigArchiveContractTest(unittest.TestCase):
         stochastic_yaml = {
             path.name for path in (CONFIG_DIR / "stochastic").glob("*.yaml")
         }
+        overlap_yaml = {
+            path.name for path in (CONFIG_DIR / "overlap").glob("*.yaml")
+        }
         self.assertEqual(dynamic_yaml, EXPECTED_DYNAMIC_FILES)
         self.assertEqual(stochastic_yaml, EXPECTED_STOCHASTIC_FILES)
+        self.assertEqual(len(overlap_yaml), 9)
 
         archive_root = CONFIG_DIR / "zOld"
         archive_yaml = tuple(sorted(archive_root.rglob("*.yaml")))
@@ -159,8 +163,8 @@ class ConfigArchiveContractTest(unittest.TestCase):
 
         # 文件名在整个配置树中保持唯一，避免按名称查找时出现歧义。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
-        self.assertEqual(len(all_yaml), 53)
-        self.assertEqual(len({path.name for path in all_yaml}), 53)
+        self.assertEqual(len(all_yaml), 62)
+        self.assertEqual(len({path.name for path in all_yaml}), 62)
         self.assertTrue((CONFIG_DIR / "README.md").is_file())
         self.assertTrue((archive_root / "README.md").is_file())
         for path in all_yaml:

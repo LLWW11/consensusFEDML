@@ -1,4 +1,4 @@
-"""运行固定人数四组对照共享的联邦TransE训练链路。"""
+"""运行V4动态拓扑与重叠率实验共享的联邦TransE训练链路。"""
 
 from __future__ import annotations
 

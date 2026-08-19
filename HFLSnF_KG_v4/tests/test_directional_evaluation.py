@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from HFLSnF_KG_v3.tasks.kge import (
+from HFLSnF_KG_v4.tasks.kge import (
     TransE,
     build_synthetic_knowledge_graph,
     run_directional_diagnostic,
