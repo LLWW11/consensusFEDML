@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Dict, Mapping
+from typing import Dict, Mapping, Optional
 
 import torch
 
@@ -36,9 +37,112 @@ def _finite_optional_number(
     if value is None:
         return float("nan")
     numeric = float(value)
+    if math.isnan(numeric):
+        return float("nan")
     if not math.isfinite(numeric):
         raise ValueError("字段{}不是有限数".format(field_name))
     return numeric
+
+
+def _file_sha256(path: Path) -> str:
+    """流式计算文件SHA-256，用于确认缓存属于当前检查点。"""
+
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_metric_block(
+    payload: Mapping[str, object],
+    block_name: str,
+    expected_query_count: int,
+) -> None:
+    """校验一个方向评估指标块的有限性、范围和查询数量。"""
+
+    block = payload.get(block_name)
+    if not isinstance(block, dict):
+        raise ValueError("方向评估缓存缺少{}指标块".format(block_name))
+    for field_name in ("mrr", "hits_at_1", "hits_at_3", "hits_at_10"):
+        value = float(block[field_name])
+        if not math.isfinite(value) or value < 0.0 or value > 1.0:
+            raise ValueError(
+                "方向评估缓存{}.{}不是有效比例".format(
+                    block_name,
+                    field_name,
+                )
+            )
+    mean_rank = float(block["mean_rank"])
+    if not math.isfinite(mean_rank) or mean_rank < 1.0:
+        raise ValueError(
+            "方向评估缓存{}.mean_rank不是有效排名".format(block_name)
+        )
+    if int(block["evaluated_query_count"]) != int(expected_query_count):
+        raise ValueError(
+            "方向评估缓存{}查询数不一致".format(block_name)
+        )
+
+
+def _load_reusable_directional_summary(
+    dataset: KnowledgeGraphDataset,
+    checkpoint_path: Path,
+    output_dir: Path,
+    device: torch.device,
+) -> Optional[Dict[str, object]]:
+    """读取并严格校验可安全复用的完整方向评估摘要。"""
+
+    summary_path = output_dir / "directional_summary.json"
+    if not summary_path.is_file():
+        return None
+    required_artifacts = (
+        summary_path,
+        output_dir / "query_ranks.csv",
+        output_dir / "relation_metrics.csv",
+        output_dir / "方向诊断报告.md",
+    )
+    missing = [str(path) for path in required_artifacts if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "方向评估缓存不完整，缺少：{}".format(missing)
+        )
+
+    summary = _load_json_object(summary_path)
+    if summary.get("status") != "completed":
+        raise ValueError("方向评估缓存状态不是completed")
+    if bool(summary.get("training_performed", True)):
+        raise ValueError("方向评估缓存错误地记录了训练行为")
+    if str(summary.get("device", "")) != str(torch.device(device)):
+        raise ValueError("方向评估缓存设备与当前正式评估设备不一致")
+
+    expected_triple_count = int(dataset.test_triples.shape[0])
+    if not bool(summary.get("full_official_test", False)):
+        raise ValueError("方向评估缓存不是完整官方测试")
+    if int(summary.get("selected_triple_count", -1)) != expected_triple_count:
+        raise ValueError("方向评估缓存的实际三元组数不一致")
+    if int(summary.get(
+        "official_test_triple_count", -1
+    )) != expected_triple_count:
+        raise ValueError("方向评估缓存的官方三元组数不一致")
+
+    cached_checkpoint = Path(
+        str(summary.get("checkpoint_path", ""))
+    ).expanduser().resolve()
+    if cached_checkpoint != checkpoint_path:
+        raise ValueError("方向评估缓存对应的检查点路径不一致")
+    if str(summary.get("checkpoint_sha256", "")) != _file_sha256(
+        checkpoint_path
+    ):
+        raise ValueError("方向评估缓存对应的检查点哈希不一致")
+
+    _validate_metric_block(summary, "head_metrics", expected_triple_count)
+    _validate_metric_block(summary, "tail_metrics", expected_triple_count)
+    _validate_metric_block(
+        summary,
+        "combined_metrics",
+        expected_triple_count * 2,
+    )
+    return summary
 
 
 def build_official_evaluation_contract(
@@ -195,18 +299,31 @@ def run_best_checkpoint_official_evaluation(
         raise FileNotFoundError(
             "找不到最佳模型检查点：{}".format(checkpoint_path)
         )
-    directional_summary = run_directional_diagnostic(
-        dataset=dataset,
-        checkpoint=checkpoint_path,
-        output_dir=output_dir,
-        device=device,
-        max_triples=0,
-        selection_seed=42,
-        query_batch_size=int(query_batch_size),
-        candidate_batch_size=int(candidate_batch_size),
-        progress_every=int(progress_every),
-        distance_norm_override=0,
+    directional_summary = _load_reusable_directional_summary(
+        dataset,
+        checkpoint_path,
+        output_dir,
+        device,
     )
+    if directional_summary is None:
+        directional_summary = run_directional_diagnostic(
+            dataset=dataset,
+            checkpoint=checkpoint_path,
+            output_dir=output_dir,
+            device=device,
+            max_triples=0,
+            selection_seed=42,
+            query_batch_size=int(query_batch_size),
+            candidate_batch_size=int(candidate_batch_size),
+            progress_every=int(progress_every),
+            distance_norm_override=0,
+        )
+    else:
+        print(
+            "复用已完成的方向评估摘要：{}".format(
+                output_dir / "directional_summary.json"
+            )
+        )
     contract = build_official_evaluation_contract(
         training_summary,
         directional_summary,
