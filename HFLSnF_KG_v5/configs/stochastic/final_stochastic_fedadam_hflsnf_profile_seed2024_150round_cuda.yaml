@@ -1,0 +1,78 @@
+# Final stochastic-topology FedAdam configuration using a MATLAB-mean budget profile.
+common_args:
+  training_type: "simulation"
+  random_seed: 2024
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  # Keep all training settings aligned with the final dynamic-topology runs.
+  federated_optimizer: "DynamicTopologyTransE"
+  ablation_suite: "v3_final_stochastic_fedadam_matmean_profiles_e3_eval1_formal150"
+  ablation_arm: "final_stochastic_hflsnf_profile_seed2024"
+  comparison_scenario: "V3-FinalStochasticFedAdam-HFLSnF-profile-Seed2024-Formal150"
+  client_num_in_total: 37
+  # The fixed count is the rounded util=0.6 MATLAB mean for this profile.
+  client_num_per_round: 34
+  topology_type: "fixed_count"
+  fixed_count_selection_mode: "seeded_random"
+  fixed_count_grouping_mode: "seeded_random_balanced"
+  fixed_count_seed: 2024
+  topology_architecture: "hfl"
+  topology_snf: false
+  topology_edge_mode: "fixed"
+  # The fixed group count is the rounded util=0.6 MATLAB mean for this profile.
+  edge_num: 6
+  aggregation_mode: "row_count_weighted"
+  server_optimizer: "fedadam"
+  server_learning_rate: 0.05
+  server_beta1: 0.9
+  server_beta2: 0.99
+  server_tau: 0.001
+  server_bias_correction: false
+  local_objective: "bidirectional_self_adversarial"
+  fede_gamma: 9.0
+  adversarial_temperature: 1.0
+  expected_partition_hash: "4653f60364e43ad9991ee3393f1a222d665774489b88f0d242ce322107d1b430"
+  expected_topology_schedule_hash: "fb586895895269f4affd23c334c57f1da07f98a9d0c7b823662505257627e45f"
+  comm_round: 150
+  epochs: 3
+  batch_size: 1024
+  client_optimizer: "adam"
+  client_optimizer_state_mode: "reset"
+  learning_rate: 0.00005
+  lr: 0.00005
+  margin: 1.0
+  negative_sample_count: 256
+  eval_every: 1
+  validation_max_triples: 4096
+  validation_selection: "relation_stratified"
+  final_validation_max_triples: 4096
+  test_max_triples: 0
+  # Defer test evaluation until validation-only selection is complete.
+  evaluate_test_after_training: false
+  evaluation_query_batch_size: 64
+  evaluation_candidate_batch_size: 8192
+  profile_training_timing: false
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_v3_final_stochastic_fedadam_hflsnf_profile_seed2024_150round_cuda"
+  result_root: "results"

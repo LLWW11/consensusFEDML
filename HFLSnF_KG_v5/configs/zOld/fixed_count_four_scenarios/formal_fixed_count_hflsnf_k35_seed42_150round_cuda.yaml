@@ -1,0 +1,76 @@
+common_args:
+  training_type: "simulation"
+  random_seed: 42
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "balanced_head_entity"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  # Formal 150-round fixed-count HFLSnF experiment.
+  federated_optimizer: "DynamicTopologyTransE"
+  ablation_suite: "v3_fixed_count_four_scenario_seed42"
+  ablation_arm: "hflsnf_k35"
+  comparison_scenario: "V3-FixedCount-HFLSnF-K35-Seed42-Formal150"
+  client_num_in_total: 37
+  client_num_per_round: 35
+  topology_type: "fixed_count"
+  fixed_count_selection_mode: "snf_mat_projected"
+  fixed_count_seed: 42
+  topology_architecture: "hfl"
+  topology_snf: true
+  topology_edge_mode: "fixed"
+  edge_num: 6
+  dynamic_group_mat_file: "matlab/result-U-6fixedge_epoch200_varAlpha_0p1_trainable.mat"
+  topology_util: 0.5
+  topology_schedule_policy: "strict"
+  aggregation_mode: "row_count_weighted"
+  server_optimizer: "fedadam"
+  server_learning_rate: 0.1
+  server_beta1: 0.9
+  server_beta2: 0.99
+  server_tau: 0.001
+  server_bias_correction: true
+  local_objective: "bidirectional_self_adversarial"
+  fede_gamma: 9.0
+  adversarial_temperature: 1.0
+  expected_partition_hash: "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19"
+  expected_topology_schedule_hash: "c06abaa1b9f31ea79a64e6e171951e62331ec67df05f1ab0ce2f7af12f518553"
+  comm_round: 150
+  epochs: 2
+  batch_size: 1024
+  client_optimizer: "adam"
+  client_optimizer_state_mode: "reset"
+  learning_rate: 0.00005
+  lr: 0.00005
+  margin: 1.0
+  negative_sample_count: 256
+  eval_every: 10
+  validation_max_triples: 4096
+  validation_selection: "relation_stratified"
+  final_validation_max_triples: 4096
+  test_max_triples: 0
+  evaluation_query_batch_size: 64
+  evaluation_candidate_batch_size: 8192
+  profile_training_timing: false
+  centralized_reference_mrr: 0.3869668845438231
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_v3_formal_fixed_count_hflsnf_k35_seed42_150round_cuda"
+  result_root: "results"

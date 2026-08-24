@@ -26,3 +26,6 @@ codex_worklog.md
 /计划
 /FB15k-237
 newIdea/
+# Track V5 graph-semantic contracts and frozen reference manifests.
+!/HFLSnF_KG_v5/configs/graph_semantic/partition_calibration_contract.json
+!/HFLSnF_KG_v5/configs/graph_semantic/frozen_v4_reference/*.json

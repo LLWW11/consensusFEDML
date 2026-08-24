@@ -1,0 +1,316 @@
+{
+  "suite": "v4_hflsnf_entity_overlap_fedadam_u0p6_e3_eval1_formal150",
+  "round_count": 150,
+  "planned_new_run_count": 9,
+  "total_experiment_unit_count": 12,
+  "status": "passed",
+  "pilot_seed42_gate": "passed",
+  "started_at": "2026-08-17T20:30:16+08:00",
+  "updated_at": "2026-08-19T11:28:07+08:00",
+  "completed_at": "2026-08-18T13:13:57+08:00",
+  "calibration_contract": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\partition_calibration_contract.json",
+  "calibration_contract_sha256": "894a57567524961e945afe387d70bf3a2fa4aa7979bc57c82197f68dbcc75763",
+  "baseline_units": {
+    "42": {
+      "scenario_id": "original_seed42",
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda_20260814_103232_392496",
+      "initial_model_hash": "37e5e4ee9af5e7a774027486be6b571f7ec9e18d18ec908e354379c8a761789e"
+    },
+    "2024": {
+      "scenario_id": "original_seed2024",
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed2024_150round_cuda_20260814_135116_313847",
+      "initial_model_hash": "6ceff922d3d8ca72b3132ba2d25ea6e47de48724d38a4bdb459b0eb4a7db90dd"
+    },
+    "2025": {
+      "scenario_id": "original_seed2025",
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed2025_150round_cuda_20260814_170841_038096",
+      "initial_model_hash": "d47cc3d7634f6fd031461ac8e4991d770e4d71f001da0930cf2a26e302eeb78a"
+    }
+  },
+  "run_order": [
+    "overlap_low_seed42",
+    "overlap_medium_seed42",
+    "overlap_high_seed42",
+    "overlap_low_seed2024",
+    "overlap_medium_seed2024",
+    "overlap_high_seed2024",
+    "overlap_low_seed2025",
+    "overlap_medium_seed2025",
+    "overlap_high_seed2025"
+  ],
+  "entries": [
+    {
+      "scenario_id": "overlap_low_seed42",
+      "level": "low",
+      "seed": 42,
+      "target_entity_overlap": 0.1722490329005324,
+      "partition_hash": "9938b8eb7424e8de4275db0b27af974f719ec896bd9bb4e97928743858b47aac",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_low_seed42_150round_cuda.yaml",
+      "config_sha256": "c5b1b68772639fc4a95dbed3a9c473c510ccd2e5f8a8d843ed966cab645d6fdb",
+      "order_index": 1,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-17T20:30:16+08:00",
+          "completed_at": "2026-08-17T22:20:20+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "db1a074942b2484b13f0e886dc998cd7373a7aeb85a0252b5deaded61409ec9f"
+    },
+    {
+      "scenario_id": "overlap_medium_seed42",
+      "level": "medium",
+      "seed": 42,
+      "target_entity_overlap": 0.22880424374736683,
+      "partition_hash": "666a6f14648d05d6aeb465619fd7aa789f520b061a866959609e03a261e590ef",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_medium_seed42_150round_cuda.yaml",
+      "config_sha256": "dd2b0ccbbed90bef8e7a1eb0b509cddeab5896582bd553a3fb3f23dfd0f98754",
+      "order_index": 2,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-17T22:20:20+08:00",
+          "completed_at": "2026-08-18T00:15:01+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "322cc96f90a9235adb53fddc081d3e05cbc39e3403e24e499cb2e5f277ea1621"
+    },
+    {
+      "scenario_id": "overlap_high_seed42",
+      "level": "high",
+      "seed": 42,
+      "target_entity_overlap": 0.28535945459420126,
+      "partition_hash": "120539709b0679f969fbd3e680753a250de4d30ab04d9ca8df4d171231046226",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_high_seed42_150round_cuda.yaml",
+      "config_sha256": "36f12812759e2cf23779a81412224fe8b525502b92beee1eff33d0c5da4d28b9",
+      "order_index": 3,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T00:15:01+08:00",
+          "completed_at": "2026-08-18T02:06:57+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "4bc11ba6329b0c078f8f525488a76b29695dbb563cdcebc72200e0ae87d0d687"
+    },
+    {
+      "scenario_id": "overlap_low_seed2024",
+      "level": "low",
+      "seed": 2024,
+      "target_entity_overlap": 0.1722490329005324,
+      "partition_hash": "f30fbc1689ccb9446f68bc76e7f84f23372e54c18eea8017174f11034e483333",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_low_seed2024_150round_cuda.yaml",
+      "config_sha256": "a871aee0e67c3f9f65c140c1582ac852feb44a7c3fe813e36b095475794ee8b4",
+      "order_index": 4,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T02:06:57+08:00",
+          "completed_at": "2026-08-18T03:57:08+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "1bbf6d515e603013122d82e9be0e00a5925154452726147df631fcaaf0525039"
+    },
+    {
+      "scenario_id": "overlap_medium_seed2024",
+      "level": "medium",
+      "seed": 2024,
+      "target_entity_overlap": 0.22880424374736683,
+      "partition_hash": "ce30eab3506c31de0eb40a5c70b75267d0cb227d12f7546416a884e02de3fe13",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_medium_seed2024_150round_cuda.yaml",
+      "config_sha256": "a76fc4f75deac665da4dd50b477e4d2474f9950b0317106a3d6ae1e9f9fd27cf",
+      "order_index": 5,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T03:57:08+08:00",
+          "completed_at": "2026-08-18T05:51:20+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "dd7da5a0a68bde5512e097e9494143b636590b3adf8001c3d53ab7b68bfb753e"
+    },
+    {
+      "scenario_id": "overlap_high_seed2024",
+      "level": "high",
+      "seed": 2024,
+      "target_entity_overlap": 0.28535945459420126,
+      "partition_hash": "7995c494945793505e34bba4478b1c2e9ecd65b3fe6b689c5aa6a0cd0d12b642",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_high_seed2024_150round_cuda.yaml",
+      "config_sha256": "5881b65d2bd027a4f95340c932b03cd408687d4026d929de1ff46f905dd69bae",
+      "order_index": 6,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T05:51:20+08:00",
+          "completed_at": "2026-08-18T07:41:14+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "ca8ea5e637924bf6bb329d8c0a7a1494bf6178314461c6d6af168285fbfacff8"
+    },
+    {
+      "scenario_id": "overlap_low_seed2025",
+      "level": "low",
+      "seed": 2025,
+      "target_entity_overlap": 0.1722490329005324,
+      "partition_hash": "13a037951960864afa663ce4e82a32749c1ac67fa64a8ef7296f39d29a60d0eb",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_low_seed2025_150round_cuda.yaml",
+      "config_sha256": "a2af241a8c9c3c0a9bffdb7aa92e0b4f05c3a613850e7871e7793e79c0f810c4",
+      "order_index": 7,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T07:41:14+08:00",
+          "completed_at": "2026-08-18T09:31:04+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "ba3c706b0dfb011145aa61d8118fd28a35a81800fb278764e288efa1089f90f5"
+    },
+    {
+      "scenario_id": "overlap_medium_seed2025",
+      "level": "medium",
+      "seed": 2025,
+      "target_entity_overlap": 0.22880424374736683,
+      "partition_hash": "61f7ee4a4f264cd1af8f6a127933ff3eb3f59e973cc04a866d4933674bdd8b91",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_medium_seed2025_150round_cuda.yaml",
+      "config_sha256": "eb4bb9bd4fc2c5e868194efb276d92a57e9a0cc5bee2717cc749f8ef589d5f47",
+      "order_index": 8,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T09:31:04+08:00",
+          "completed_at": "2026-08-18T11:24:44+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "8edb84c6373d8420068ee4ece584af28e5737af31a304934f42ab8198d6c1f8d"
+    },
+    {
+      "scenario_id": "overlap_high_seed2025",
+      "level": "high",
+      "seed": 2025,
+      "target_entity_overlap": 0.28535945459420126,
+      "partition_hash": "9a30d5f94e55d10c60c25f83dcd6069ce7a8039538543db6357eeed9fc29f256",
+      "config": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\configs\\overlap\\overlap_high_seed2025_150round_cuda.yaml",
+      "config_sha256": "9177e3735a8033eb9d24edc76415290bdf762c08eb82838285c3fa35935177ac",
+      "order_index": 9,
+      "status": "passed",
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "started_at": "2026-08-18T11:24:44+08:00",
+          "completed_at": "2026-08-18T13:13:57+08:00",
+          "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398",
+          "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398\\overlap_ablation_formal150_contract.json",
+          "created_results": [
+            "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398"
+          ],
+          "error": null
+        }
+      ],
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398",
+      "contract_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398\\overlap_ablation_formal150_contract.json",
+      "error": null,
+      "binding_hash": "b0b1f79b99daea20cc1d2ea5c248ab7f11aba48dda6a481e3fd11e5d8afeab37"
+    }
+  ],
+  "official_evaluation_manifest": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\official12_summary.json",
+  "report_json": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\analysis\\overlap_ablation_summary.json",
+  "report_markdown": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\analysis\\重叠率消融实验报告.md"
+}

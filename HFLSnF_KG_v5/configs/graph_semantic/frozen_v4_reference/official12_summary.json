@@ -1,0 +1,129 @@
+{
+  "suite": "v4_hflsnf_entity_overlap_fedadam_u0p6_e3_eval1_formal150",
+  "status": "passed",
+  "started_at": "2026-08-19T10:35:04+08:00",
+  "updated_at": "2026-08-19T11:07:50+08:00",
+  "completed_at": "2026-08-19T11:07:50+08:00",
+  "units": [
+    {
+      "scenario_id": "original_seed42",
+      "condition": "original",
+      "seed": 42,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed42_150round_cuda_20260814_103232_392496",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed42",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed42\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "original_seed2024",
+      "condition": "original",
+      "seed": 2024,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed2024_150round_cuda_20260814_135116_313847",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed2024",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed2024\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "original_seed2025",
+      "condition": "original",
+      "seed": 2025,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\三个随机数种子\\hflsnf_kg_v3_final_dynamic_fedadam_hflsnf_u0p6_bcfalse_seed2025_150round_cuda_20260814_170841_038096",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed2025",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\original_seed2025\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_low_seed42",
+      "condition": "low",
+      "seed": 42,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed42_150round_cuda_20260817_203215_643222",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed42",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed42\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_medium_seed42",
+      "condition": "medium",
+      "seed": 42,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed42_150round_cuda_20260817_222656_723308",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed42",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed42\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_high_seed42",
+      "condition": "high",
+      "seed": 42,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed42_150round_cuda_20260818_001846_251740",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed42",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed42\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_low_seed2024",
+      "condition": "low",
+      "seed": 2024,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2024_150round_cuda_20260818_020929_377716",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed2024",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed2024\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_medium_seed2024",
+      "condition": "medium",
+      "seed": 2024,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2024_150round_cuda_20260818_040346_279052",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed2024",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed2024\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_high_seed2024",
+      "condition": "high",
+      "seed": 2024,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2024_150round_cuda_20260818_055354_485065",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed2024",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed2024\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_low_seed2025",
+      "condition": "low",
+      "seed": 2025,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_low_seed2025_150round_cuda_20260818_074346_492658",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed2025",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_low_seed2025\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_medium_seed2025",
+      "condition": "medium",
+      "seed": 2025,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_medium_seed2025_150round_cuda_20260818_093738_631498",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed2025",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_medium_seed2025\\official_evaluation_summary.json",
+      "error": null
+    },
+    {
+      "scenario_id": "overlap_high_seed2025",
+      "condition": "high",
+      "seed": 2025,
+      "result_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\hflsnf_kg_v4_entity_overlap_high_seed2025_150round_cuda_20260818_112643_929398",
+      "status": "passed",
+      "output_dir": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed2025",
+      "summary_file": "D:\\1\\1myworkcode\\HFLSnF_KG_v4\\results\\overlap_ablation_batch_20260817_203016_503845\\official12\\overlap_high_seed2025\\official_evaluation_summary.json",
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,4786 @@
+{
+  "contract_schema_version": 1,
+  "suite": "v5_hflsnf_graph_semantic_fedadam_formal150",
+  "status": "passed",
+  "dataset": "fb15k-237",
+  "dataset_summary": {
+    "dataset": "fb15k-237",
+    "entity_count": 14541,
+    "relation_count": 237,
+    "train_triple_count": 272115,
+    "valid_triple_count": 17535,
+    "test_triple_count": 20466,
+    "all_true_triple_count": 310116
+  },
+  "data_files": {
+    "train.txt": {
+      "relative_path": "data/FB15k-237/train.txt",
+      "sha256": "61099230e4439f90885ca9767739e31e8e32f54736fa1c35952b27997bc7c08a"
+    },
+    "valid.txt": {
+      "relative_path": "data/FB15k-237/valid.txt",
+      "sha256": "749cbe9d923bac7b9354da5614ecfed2e0220256d442c3e04a6b303db1f273d9"
+    },
+    "test.txt": {
+      "relative_path": "data/FB15k-237/test.txt",
+      "sha256": "e2e35e8e6113de220140b6f44dc71a5207b0fc6872d575e874aefe13259b655b"
+    }
+  },
+  "partition_strategy": "semantic_domain_graph_local_balanced",
+  "domain_extractor": "freebase_top_level",
+  "client_count": 37,
+  "seeds": [
+    42,
+    2024,
+    2025
+  ],
+  "constraints": {
+    "load_tolerance": 0.05,
+    "purity_improvement": 0.2,
+    "search_restarts": 8
+  },
+  "baselines": {
+    "42": {
+      "dataset": "fb15k-237",
+      "partition_strategy": "balanced_head_entity",
+      "partition_seed": 42,
+      "partition_hash": "8bcac64b705ec2db8721de6a36130625a460c11e0da46e2c22bd852ff015fb19",
+      "client_count": 37,
+      "total_train_triple_count": 272115,
+      "min_client_triple_count": 7354,
+      "max_client_triple_count": 7355,
+      "mean_client_triple_count": 7354.459459459459,
+      "std_client_triple_count": 0.49835375444826413,
+      "client_triple_count_cv": 6.776211864316842e-05,
+      "max_relative_load_deviation": 7.349833710016657e-05,
+      "entity_jaccard_mean": 0.26782702641311185,
+      "entity_jaccard_min": 0.20832086201736008,
+      "entity_jaccard_max": 0.3217377102727421,
+      "head_entity_unique_count": 13781,
+      "head_entity_client_count_min": 1,
+      "head_entity_client_count_mean": 1.0,
+      "head_entity_client_count_max": 1,
+      "head_entity_multi_client_fraction": 0.0,
+      "entity_unique_count": 14505,
+      "entity_client_count_min": 1,
+      "entity_client_count_mean": 9.751533953809032,
+      "entity_client_count_max": 37,
+      "entity_client_count_median": 8.0,
+      "entity_client_count_p90": 20.0,
+      "entity_replication_factor": 9.751533953809032,
+      "entity_normalized_overlap": 0.24309816538358422,
+      "entity_multi_client_fraction": 0.9094794898310927,
+      "relation_unique_count": 237,
+      "relation_client_count_min": 3,
+      "relation_client_count_mean": 32.04641350210971,
+      "relation_client_count_max": 37,
+      "relation_client_count_median": 37.0,
+      "relation_client_count_p90": 37.0,
+      "relation_replication_factor": 32.04641350210971,
+      "relation_normalized_overlap": 0.862400375058603,
+      "shared_entity_count": 13192,
+      "shared_entity_fraction": 0.9094794898310927,
+      "shared_entity_triple_fraction": 0.9997942046561197,
+      "frequency_weighted_entity_normalized_overlap": 0.5117096121533584,
+      "relation_triple_count_imbalance_mean": 66.56118143459915,
+      "relation_triple_count_imbalance_max": 892.0,
+      "clients": [
+        {
+          "client_id": 0,
+          "triple_count": 7355,
+          "head_entity_count": 364,
+          "entity_count": 4043,
+          "relation_count": 201
+        },
+        {
+          "client_id": 1,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3755,
+          "relation_count": 203
+        },
+        {
+          "client_id": 2,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 4063,
+          "relation_count": 197
+        },
+        {
+          "client_id": 3,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3835,
+          "relation_count": 202
+        },
+        {
+          "client_id": 4,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 4031,
+          "relation_count": 193
+        },
+        {
+          "client_id": 5,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 4030,
+          "relation_count": 212
+        },
+        {
+          "client_id": 6,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3821,
+          "relation_count": 208
+        },
+        {
+          "client_id": 7,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 4122,
+          "relation_count": 215
+        },
+        {
+          "client_id": 8,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3934,
+          "relation_count": 213
+        },
+        {
+          "client_id": 9,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3541,
+          "relation_count": 197
+        },
+        {
+          "client_id": 10,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3779,
+          "relation_count": 211
+        },
+        {
+          "client_id": 11,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3753,
+          "relation_count": 209
+        },
+        {
+          "client_id": 12,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 4031,
+          "relation_count": 206
+        },
+        {
+          "client_id": 13,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 3696,
+          "relation_count": 201
+        },
+        {
+          "client_id": 14,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3874,
+          "relation_count": 205
+        },
+        {
+          "client_id": 15,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3747,
+          "relation_count": 212
+        },
+        {
+          "client_id": 16,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3729,
+          "relation_count": 205
+        },
+        {
+          "client_id": 17,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3809,
+          "relation_count": 207
+        },
+        {
+          "client_id": 18,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3984,
+          "relation_count": 207
+        },
+        {
+          "client_id": 19,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3838,
+          "relation_count": 201
+        },
+        {
+          "client_id": 20,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3705,
+          "relation_count": 205
+        },
+        {
+          "client_id": 21,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3770,
+          "relation_count": 204
+        },
+        {
+          "client_id": 22,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3920,
+          "relation_count": 212
+        },
+        {
+          "client_id": 23,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3839,
+          "relation_count": 211
+        },
+        {
+          "client_id": 24,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3777,
+          "relation_count": 203
+        },
+        {
+          "client_id": 25,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3669,
+          "relation_count": 202
+        },
+        {
+          "client_id": 26,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3615,
+          "relation_count": 205
+        },
+        {
+          "client_id": 27,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3887,
+          "relation_count": 208
+        },
+        {
+          "client_id": 28,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3781,
+          "relation_count": 202
+        },
+        {
+          "client_id": 29,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3701,
+          "relation_count": 203
+        },
+        {
+          "client_id": 30,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3768,
+          "relation_count": 211
+        },
+        {
+          "client_id": 31,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3574,
+          "relation_count": 203
+        },
+        {
+          "client_id": 32,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3892,
+          "relation_count": 204
+        },
+        {
+          "client_id": 33,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3644,
+          "relation_count": 201
+        },
+        {
+          "client_id": 34,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3841,
+          "relation_count": 208
+        },
+        {
+          "client_id": 35,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3893,
+          "relation_count": 203
+        },
+        {
+          "client_id": 36,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3755,
+          "relation_count": 205
+        }
+      ],
+      "semantic_domain_count": 30,
+      "triple_weighted_dominant_domain_purity": 0.2689010161145104,
+      "triple_weighted_primary_domain_fraction": 0.2689010161145104,
+      "mean_normalized_domain_entropy": 0.6915171574354944,
+      "mean_relation_js_divergence": 0.04712614185558115,
+      "local_entity_reuse_ratio": 3.847616758338871,
+      "mean_largest_component_entity_fraction": 0.9823938504352919,
+      "semantic_clients": [
+        {
+          "client_id": 0,
+          "primary_domain": "film",
+          "dominant_domain": "film",
+          "dominant_domain_purity": 0.233718558803535,
+          "primary_domain_fraction": 0.233718558803535,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6970978030454724,
+          "relation_js_divergence": 0.08865599915922934,
+          "local_entity_reuse_ratio": 3.638387336136532,
+          "largest_component_entity_fraction": 0.9814494187484541
+        },
+        {
+          "client_id": 1,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27409925220938136,
+          "primary_domain_fraction": 0.27409925220938136,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.656615063986743,
+          "relation_js_divergence": 0.049491926139663356,
+          "local_entity_reuse_ratio": 3.9174434087882823,
+          "largest_component_entity_fraction": 0.9896138482023968
+        },
+        {
+          "client_id": 2,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25207341944255607,
+          "primary_domain_fraction": 0.25207341944255607,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7172728271796295,
+          "relation_js_divergence": 0.06396008089309634,
+          "local_entity_reuse_ratio": 3.6204774796948067,
+          "largest_component_entity_fraction": 0.9923701698252523
+        },
+        {
+          "client_id": 3,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2541128484024473,
+          "primary_domain_fraction": 0.2541128484024473,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.703644084500047,
+          "relation_js_divergence": 0.06693708948384622,
+          "local_entity_reuse_ratio": 3.8357235984354627,
+          "largest_component_entity_fraction": 0.9775749674054759
+        },
+        {
+          "client_id": 4,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.31733514615907543,
+          "primary_domain_fraction": 0.31733514615907543,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6518520306773694,
+          "relation_js_divergence": 0.05969665396243619,
+          "local_entity_reuse_ratio": 3.649218556189531,
+          "largest_component_entity_fraction": 0.9910692135946415
+        },
+        {
+          "client_id": 5,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27029231815091775,
+          "primary_domain_fraction": 0.27029231815091775,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6950210137116496,
+          "relation_js_divergence": 0.05207987086254155,
+          "local_entity_reuse_ratio": 3.6501240694789083,
+          "largest_component_entity_fraction": 0.9781637717121588
+        },
+        {
+          "client_id": 6,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23929299796057105,
+          "primary_domain_fraction": 0.23929299796057105,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7345936936167923,
+          "relation_js_divergence": 0.049724165225899786,
+          "local_entity_reuse_ratio": 3.84977754514525,
+          "largest_component_entity_fraction": 0.9903166710285266
+        },
+        {
+          "client_id": 7,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2524813052345343,
+          "primary_domain_fraction": 0.2524813052345343,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6972353387642949,
+          "relation_js_divergence": 0.04533491723209455,
+          "local_entity_reuse_ratio": 3.568655992236778,
+          "largest_component_entity_fraction": 0.987627365356623
+        },
+        {
+          "client_id": 8,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23670972127804216,
+          "primary_domain_fraction": 0.23670972127804216,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7254265567342013,
+          "relation_js_divergence": 0.04888609630916284,
+          "local_entity_reuse_ratio": 3.739196746314184,
+          "largest_component_entity_fraction": 0.961870869344179
+        },
+        {
+          "client_id": 9,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2576478585995921,
+          "primary_domain_fraction": 0.2576478585995921,
+          "domain_count": 25,
+          "normalized_domain_entropy": 0.6874221671415186,
+          "relation_js_divergence": 0.0565547319275231,
+          "local_entity_reuse_ratio": 4.154193730584581,
+          "largest_component_entity_fraction": 0.9935046597006495
+        },
+        {
+          "client_id": 10,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2528891910265126,
+          "primary_domain_fraction": 0.2528891910265126,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6830809162531921,
+          "relation_js_divergence": 0.053434347589999584,
+          "local_entity_reuse_ratio": 3.892564170415454,
+          "largest_component_entity_fraction": 0.9740672135485579
+        },
+        {
+          "client_id": 11,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.263494221617947,
+          "primary_domain_fraction": 0.263494221617947,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7032174720110187,
+          "relation_js_divergence": 0.03224434392307421,
+          "local_entity_reuse_ratio": 3.9195310418332,
+          "largest_component_entity_fraction": 0.9853450572875033
+        },
+        {
+          "client_id": 12,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.30740992522093813,
+          "primary_domain_fraction": 0.30740992522093813,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6690569784695752,
+          "relation_js_divergence": 0.06146568208244993,
+          "local_entity_reuse_ratio": 3.649218556189531,
+          "largest_component_entity_fraction": 0.9923096005953858
+        },
+        {
+          "client_id": 13,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.24364377974167234,
+          "primary_domain_fraction": 0.24364377974167234,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.718303973786597,
+          "relation_js_divergence": 0.049373037302690236,
+          "local_entity_reuse_ratio": 3.979978354978355,
+          "largest_component_entity_fraction": 0.9686147186147186
+        },
+        {
+          "client_id": 14,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2928619986403807,
+          "primary_domain_fraction": 0.2928619986403807,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.661797989387911,
+          "relation_js_divergence": 0.0542383404511474,
+          "local_entity_reuse_ratio": 3.797108931337119,
+          "largest_component_entity_fraction": 0.9889003613835828
+        },
+        {
+          "client_id": 15,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2399728076138681,
+          "primary_domain_fraction": 0.2399728076138681,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6774879692444498,
+          "relation_js_divergence": 0.03460613035656802,
+          "local_entity_reuse_ratio": 3.92580731251668,
+          "largest_component_entity_fraction": 0.9911929543634908
+        },
+        {
+          "client_id": 16,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2882392929979606,
+          "primary_domain_fraction": 0.2882392929979606,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6957026321281361,
+          "relation_js_divergence": 0.034553766174739806,
+          "local_entity_reuse_ratio": 3.944757307589166,
+          "largest_component_entity_fraction": 0.9814963797264682
+        },
+        {
+          "client_id": 17,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.29738917595866193,
+          "primary_domain_fraction": 0.29738917595866193,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6722325116125485,
+          "relation_js_divergence": 0.03877898618927374,
+          "local_entity_reuse_ratio": 3.8613809398792336,
+          "largest_component_entity_fraction": 0.991336308742452
+        },
+        {
+          "client_id": 18,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27672015229806907,
+          "primary_domain_fraction": 0.27672015229806907,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6705516334841398,
+          "relation_js_divergence": 0.04190513221434747,
+          "local_entity_reuse_ratio": 3.6917670682730925,
+          "largest_component_entity_fraction": 0.9711345381526104
+        },
+        {
+          "client_id": 19,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.24122926298613,
+          "primary_domain_fraction": 0.24122926298613,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7066788296650197,
+          "relation_js_divergence": 0.039917167589276575,
+          "local_entity_reuse_ratio": 3.832204273058885,
+          "largest_component_entity_fraction": 0.9640437727983324
+        },
+        {
+          "client_id": 20,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27141691596410117,
+          "primary_domain_fraction": 0.27141691596410117,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7011490760140623,
+          "relation_js_divergence": 0.03628407165146118,
+          "local_entity_reuse_ratio": 3.969770580296896,
+          "largest_component_entity_fraction": 0.9775978407557355
+        },
+        {
+          "client_id": 21,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.21376121838455261,
+          "primary_domain_fraction": 0.21376121838455261,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7218047769729681,
+          "relation_js_divergence": 0.054755107078851256,
+          "local_entity_reuse_ratio": 3.90132625994695,
+          "largest_component_entity_fraction": 0.9785145888594164
+        },
+        {
+          "client_id": 22,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.301740549360892,
+          "primary_domain_fraction": 0.301740549360892,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6666641129133952,
+          "relation_js_divergence": 0.041838197116773265,
+          "local_entity_reuse_ratio": 3.7520408163265304,
+          "largest_component_entity_fraction": 0.9755102040816327
+        },
+        {
+          "client_id": 23,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25142779439760676,
+          "primary_domain_fraction": 0.25142779439760676,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7127291995358049,
+          "relation_js_divergence": 0.043964998258448004,
+          "local_entity_reuse_ratio": 3.831206043240427,
+          "largest_component_entity_fraction": 0.9700442823651992
+        },
+        {
+          "client_id": 24,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3157465324993201,
+          "primary_domain_fraction": 0.3157465324993201,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6747380820179706,
+          "relation_js_divergence": 0.031061060953253596,
+          "local_entity_reuse_ratio": 3.894095843261848,
+          "largest_component_entity_fraction": 0.9904686258935663
+        },
+        {
+          "client_id": 25,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3262170247484362,
+          "primary_domain_fraction": 0.3262170247484362,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6420536397962653,
+          "relation_js_divergence": 0.04393575092228595,
+          "local_entity_reuse_ratio": 4.008721722540201,
+          "largest_component_entity_fraction": 0.9904606159716544
+        },
+        {
+          "client_id": 26,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.266657601305412,
+          "primary_domain_fraction": 0.266657601305412,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6981485184437118,
+          "relation_js_divergence": 0.04244184377124341,
+          "local_entity_reuse_ratio": 4.0686030428769016,
+          "largest_component_entity_fraction": 0.9775933609958506
+        },
+        {
+          "client_id": 27,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23130269241229262,
+          "primary_domain_fraction": 0.23130269241229262,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7125274798393086,
+          "relation_js_divergence": 0.03830351706649284,
+          "local_entity_reuse_ratio": 3.783895034731155,
+          "largest_component_entity_fraction": 0.9814767172626705
+        },
+        {
+          "client_id": 28,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3011966276856133,
+          "primary_domain_fraction": 0.3011966276856133,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6926580522730867,
+          "relation_js_divergence": 0.041174794445922036,
+          "local_entity_reuse_ratio": 3.88997619677334,
+          "largest_component_entity_fraction": 0.980692938376091
+        },
+        {
+          "client_id": 29,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2911340766929562,
+          "primary_domain_fraction": 0.2911340766929562,
+          "domain_count": 24,
+          "normalized_domain_entropy": 0.6976185539855817,
+          "relation_js_divergence": 0.04459368026811386,
+          "local_entity_reuse_ratio": 3.9740610645771413,
+          "largest_component_entity_fraction": 0.9937854633882734
+        },
+        {
+          "client_id": 30,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26896926842534674,
+          "primary_domain_fraction": 0.26896926842534674,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6880153934771419,
+          "relation_js_divergence": 0.038928671811526074,
+          "local_entity_reuse_ratio": 3.903397027600849,
+          "largest_component_entity_fraction": 0.9785031847133758
+        },
+        {
+          "client_id": 31,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.29711721512102257,
+          "primary_domain_fraction": 0.29711721512102257,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6540663391507372,
+          "relation_js_divergence": 0.03798225424295146,
+          "local_entity_reuse_ratio": 4.115277000559597,
+          "largest_component_entity_fraction": 0.98964745383324
+        },
+        {
+          "client_id": 32,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.256595050312755,
+          "primary_domain_fraction": 0.256595050312755,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7145668033591994,
+          "relation_js_divergence": 0.05970749732278949,
+          "local_entity_reuse_ratio": 3.7790339157245634,
+          "largest_component_entity_fraction": 0.9766187050359713
+        },
+        {
+          "client_id": 33,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2727767201522981,
+          "primary_domain_fraction": 0.2727767201522981,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6865792737939529,
+          "relation_js_divergence": 0.043885118892797566,
+          "local_entity_reuse_ratio": 4.03622392974753,
+          "largest_component_entity_fraction": 0.9884742041712404
+        },
+        {
+          "client_id": 34,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2712809355452815,
+          "primary_domain_fraction": 0.2712809355452815,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6938127251511477,
+          "relation_js_divergence": 0.0284808586393464,
+          "local_entity_reuse_ratio": 3.8292111429315283,
+          "largest_component_entity_fraction": 0.9742254621192398
+        },
+        {
+          "client_id": 35,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.268425346750068,
+          "primary_domain_fraction": 0.268425346750068,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7078625553272482,
+          "relation_js_divergence": 0.051126363512004856,
+          "local_entity_reuse_ratio": 3.778063190341639,
+          "largest_component_entity_fraction": 0.9894682763935269
+        },
+        {
+          "client_id": 36,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2519717160728855,
+          "primary_domain_fraction": 0.2519717160728855,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6968487576614001,
+          "relation_js_divergence": 0.04336499763318098,
+          "local_entity_reuse_ratio": 3.9169107856191743,
+          "largest_component_entity_fraction": 0.9834886817576565
+        }
+      ]
+    },
+    "2024": {
+      "dataset": "fb15k-237",
+      "partition_strategy": "balanced_head_entity",
+      "partition_seed": 2024,
+      "partition_hash": "4653f60364e43ad9991ee3393f1a222d665774489b88f0d242ce322107d1b430",
+      "client_count": 37,
+      "total_train_triple_count": 272115,
+      "min_client_triple_count": 7354,
+      "max_client_triple_count": 7355,
+      "mean_client_triple_count": 7354.459459459459,
+      "std_client_triple_count": 0.49835375444826413,
+      "client_triple_count_cv": 6.776211864316842e-05,
+      "max_relative_load_deviation": 7.349833710016657e-05,
+      "entity_jaccard_mean": 0.2674973732059806,
+      "entity_jaccard_min": 0.21934648980912327,
+      "entity_jaccard_max": 0.321654988321655,
+      "head_entity_unique_count": 13781,
+      "head_entity_client_count_min": 1,
+      "head_entity_client_count_mean": 1.0,
+      "head_entity_client_count_max": 1,
+      "head_entity_multi_client_fraction": 0.0,
+      "entity_unique_count": 14505,
+      "entity_client_count_min": 1,
+      "entity_client_count_mean": 9.744226128921062,
+      "entity_client_count_max": 37,
+      "entity_client_count_median": 8.0,
+      "entity_client_count_p90": 20.0,
+      "entity_replication_factor": 9.744226128921062,
+      "entity_normalized_overlap": 0.24289517024780727,
+      "entity_multi_client_fraction": 0.9098241985522234,
+      "relation_unique_count": 237,
+      "relation_client_count_min": 3,
+      "relation_client_count_mean": 32.029535864978904,
+      "relation_client_count_max": 37,
+      "relation_client_count_median": 37.0,
+      "relation_client_count_p90": 37.0,
+      "relation_replication_factor": 32.029535864978904,
+      "relation_normalized_overlap": 0.8619315518049695,
+      "shared_entity_count": 13197,
+      "shared_entity_fraction": 0.9098241985522234,
+      "shared_entity_triple_fraction": 0.9998089043235396,
+      "frequency_weighted_entity_normalized_overlap": 0.511822513765626,
+      "relation_triple_count_imbalance_mean": 66.23206751054852,
+      "relation_triple_count_imbalance_max": 921.0,
+      "clients": [
+        {
+          "client_id": 0,
+          "triple_count": 7355,
+          "head_entity_count": 364,
+          "entity_count": 4222,
+          "relation_count": 205
+        },
+        {
+          "client_id": 1,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3660,
+          "relation_count": 200
+        },
+        {
+          "client_id": 2,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3936,
+          "relation_count": 205
+        },
+        {
+          "client_id": 3,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3846,
+          "relation_count": 206
+        },
+        {
+          "client_id": 4,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3986,
+          "relation_count": 208
+        },
+        {
+          "client_id": 5,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3890,
+          "relation_count": 205
+        },
+        {
+          "client_id": 6,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3903,
+          "relation_count": 202
+        },
+        {
+          "client_id": 7,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3648,
+          "relation_count": 196
+        },
+        {
+          "client_id": 8,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 4134,
+          "relation_count": 205
+        },
+        {
+          "client_id": 9,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3602,
+          "relation_count": 196
+        },
+        {
+          "client_id": 10,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3907,
+          "relation_count": 210
+        },
+        {
+          "client_id": 11,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3878,
+          "relation_count": 209
+        },
+        {
+          "client_id": 12,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 3759,
+          "relation_count": 198
+        },
+        {
+          "client_id": 13,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 3832,
+          "relation_count": 206
+        },
+        {
+          "client_id": 14,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3792,
+          "relation_count": 208
+        },
+        {
+          "client_id": 15,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3775,
+          "relation_count": 209
+        },
+        {
+          "client_id": 16,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3878,
+          "relation_count": 202
+        },
+        {
+          "client_id": 17,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3822,
+          "relation_count": 207
+        },
+        {
+          "client_id": 18,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3980,
+          "relation_count": 211
+        },
+        {
+          "client_id": 19,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3665,
+          "relation_count": 210
+        },
+        {
+          "client_id": 20,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3745,
+          "relation_count": 200
+        },
+        {
+          "client_id": 21,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3648,
+          "relation_count": 206
+        },
+        {
+          "client_id": 22,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3778,
+          "relation_count": 202
+        },
+        {
+          "client_id": 23,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3805,
+          "relation_count": 205
+        },
+        {
+          "client_id": 24,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3681,
+          "relation_count": 202
+        },
+        {
+          "client_id": 25,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3768,
+          "relation_count": 201
+        },
+        {
+          "client_id": 26,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3697,
+          "relation_count": 208
+        },
+        {
+          "client_id": 27,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3638,
+          "relation_count": 200
+        },
+        {
+          "client_id": 28,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3905,
+          "relation_count": 205
+        },
+        {
+          "client_id": 29,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3794,
+          "relation_count": 202
+        },
+        {
+          "client_id": 30,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3789,
+          "relation_count": 211
+        },
+        {
+          "client_id": 31,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3850,
+          "relation_count": 205
+        },
+        {
+          "client_id": 32,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3900,
+          "relation_count": 210
+        },
+        {
+          "client_id": 33,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3771,
+          "relation_count": 206
+        },
+        {
+          "client_id": 34,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3850,
+          "relation_count": 213
+        },
+        {
+          "client_id": 35,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3833,
+          "relation_count": 208
+        },
+        {
+          "client_id": 36,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3773,
+          "relation_count": 209
+        }
+      ],
+      "semantic_domain_count": 30,
+      "triple_weighted_dominant_domain_purity": 0.26922808371460594,
+      "triple_weighted_primary_domain_fraction": 0.26922808371460594,
+      "mean_normalized_domain_entropy": 0.6922486983783203,
+      "mean_relation_js_divergence": 0.046891933115980174,
+      "local_entity_reuse_ratio": 3.8505023347955287,
+      "mean_largest_component_entity_fraction": 0.9846467591402048,
+      "semantic_clients": [
+        {
+          "client_id": 0,
+          "primary_domain": "location",
+          "dominant_domain": "location",
+          "dominant_domain_purity": 0.21441196464989803,
+          "primary_domain_fraction": 0.21441196464989803,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7117604939499043,
+          "relation_js_divergence": 0.08841072376344179,
+          "local_entity_reuse_ratio": 3.484130743723354,
+          "largest_component_entity_fraction": 0.9905258171482709
+        },
+        {
+          "client_id": 1,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2565601631543168,
+          "primary_domain_fraction": 0.2565601631543168,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6773741999269225,
+          "relation_js_divergence": 0.054164941057797136,
+          "local_entity_reuse_ratio": 4.01912568306011,
+          "largest_component_entity_fraction": 0.9923497267759562
+        },
+        {
+          "client_id": 2,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2711080897348742,
+          "primary_domain_fraction": 0.2711080897348742,
+          "domain_count": 25,
+          "normalized_domain_entropy": 0.716584609289472,
+          "relation_js_divergence": 0.04584613215304935,
+          "local_entity_reuse_ratio": 3.7372967479674797,
+          "largest_component_entity_fraction": 0.9928861788617886
+        },
+        {
+          "client_id": 3,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2240652617267165,
+          "primary_domain_fraction": 0.2240652617267165,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7523084457345632,
+          "relation_js_divergence": 0.06466716270955872,
+          "local_entity_reuse_ratio": 3.8247529901196047,
+          "largest_component_entity_fraction": 0.9797191887675507
+        },
+        {
+          "client_id": 4,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23915703602991162,
+          "primary_domain_fraction": 0.23915703602991162,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.7491605926461117,
+          "relation_js_divergence": 0.06186937974820694,
+          "local_entity_reuse_ratio": 3.6904164576016054,
+          "largest_component_entity_fraction": 0.9869543401906673
+        },
+        {
+          "client_id": 5,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2424201223657376,
+          "primary_domain_fraction": 0.2424201223657376,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7095670186720965,
+          "relation_js_divergence": 0.057154800640579984,
+          "local_entity_reuse_ratio": 3.7814910025706943,
+          "largest_component_entity_fraction": 0.9753213367609255
+        },
+        {
+          "client_id": 6,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27545887151597553,
+          "primary_domain_fraction": 0.27545887151597553,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6939367998489361,
+          "relation_js_divergence": 0.0483777330716135,
+          "local_entity_reuse_ratio": 3.7688957212400718,
+          "largest_component_entity_fraction": 0.9833461439918012
+        },
+        {
+          "client_id": 7,
+          "primary_domain": "film",
+          "dominant_domain": "film",
+          "dominant_domain_purity": 0.2398368456832087,
+          "primary_domain_fraction": 0.2398368456832087,
+          "domain_count": 24,
+          "normalized_domain_entropy": 0.6903610007334557,
+          "relation_js_divergence": 0.054983968855679494,
+          "local_entity_reuse_ratio": 4.03234649122807,
+          "largest_component_entity_fraction": 0.9901315789473685
+        },
+        {
+          "client_id": 8,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2647178789938817,
+          "primary_domain_fraction": 0.2647178789938817,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6947719059663314,
+          "relation_js_divergence": 0.04855400709165769,
+          "local_entity_reuse_ratio": 3.5582970488630865,
+          "largest_component_entity_fraction": 0.9738751814223512
+        },
+        {
+          "client_id": 9,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.24473147518694766,
+          "primary_domain_fraction": 0.24473147518694766,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6834826385743074,
+          "relation_js_divergence": 0.04917337297321726,
+          "local_entity_reuse_ratio": 4.083842309827873,
+          "largest_component_entity_fraction": 0.9911160466407551
+        },
+        {
+          "client_id": 10,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25588035350101973,
+          "primary_domain_fraction": 0.25588035350101973,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.7214870904355118,
+          "relation_js_divergence": 0.04791602985252594,
+          "local_entity_reuse_ratio": 3.765037112874328,
+          "largest_component_entity_fraction": 0.988994113130279
+        },
+        {
+          "client_id": 11,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.28633582596872875,
+          "primary_domain_fraction": 0.28633582596872875,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6653529092263484,
+          "relation_js_divergence": 0.03348560347171406,
+          "local_entity_reuse_ratio": 3.7931923671995875,
+          "largest_component_entity_fraction": 0.9742135121196493
+        },
+        {
+          "client_id": 12,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2547926580557444,
+          "primary_domain_fraction": 0.2547926580557444,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6821247906546671,
+          "relation_js_divergence": 0.06519359118937193,
+          "local_entity_reuse_ratio": 3.9132748071295556,
+          "largest_component_entity_fraction": 0.9712689545091779
+        },
+        {
+          "client_id": 13,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2796736913664174,
+          "primary_domain_fraction": 0.2796736913664174,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7225019675748616,
+          "relation_js_divergence": 0.04744700523801022,
+          "local_entity_reuse_ratio": 3.8387265135699375,
+          "largest_component_entity_fraction": 0.9926931106471816
+        },
+        {
+          "client_id": 14,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23752549286199864,
+          "primary_domain_fraction": 0.23752549286199864,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6841021858779526,
+          "relation_js_divergence": 0.04367302139984143,
+          "local_entity_reuse_ratio": 3.8792194092827006,
+          "largest_component_entity_fraction": 0.9789029535864979
+        },
+        {
+          "client_id": 15,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26961250849762064,
+          "primary_domain_fraction": 0.26961250849762064,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6876385417329377,
+          "relation_js_divergence": 0.03549045645005846,
+          "local_entity_reuse_ratio": 3.8966887417218543,
+          "largest_component_entity_fraction": 0.9872847682119206
+        },
+        {
+          "client_id": 16,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.29245411284840245,
+          "primary_domain_fraction": 0.29245411284840245,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6607316743826943,
+          "relation_js_divergence": 0.050960618310443836,
+          "local_entity_reuse_ratio": 3.7931923671995875,
+          "largest_component_entity_fraction": 0.9726663228468283
+        },
+        {
+          "client_id": 17,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.36279575741093284,
+          "primary_domain_fraction": 0.36279575741093284,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6516269296417619,
+          "relation_js_divergence": 0.05009122668033907,
+          "local_entity_reuse_ratio": 3.848246991104134,
+          "largest_component_entity_fraction": 0.9918890633176347
+        },
+        {
+          "client_id": 18,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26475387544193635,
+          "primary_domain_fraction": 0.26475387544193635,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.698493231274222,
+          "relation_js_divergence": 0.04183625057566414,
+          "local_entity_reuse_ratio": 3.6954773869346735,
+          "largest_component_entity_fraction": 0.9902010050251256
+        },
+        {
+          "client_id": 19,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25958661952678813,
+          "primary_domain_fraction": 0.25958661952678813,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6873152274018568,
+          "relation_js_divergence": 0.051455274862688825,
+          "local_entity_reuse_ratio": 4.013096862210095,
+          "largest_component_entity_fraction": 0.9953615279672579
+        },
+        {
+          "client_id": 20,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25156377481642644,
+          "primary_domain_fraction": 0.25156377481642644,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7003238675263965,
+          "relation_js_divergence": 0.036524789665966145,
+          "local_entity_reuse_ratio": 3.927369826435247,
+          "largest_component_entity_fraction": 0.9740987983978638
+        },
+        {
+          "client_id": 21,
+          "primary_domain": "film",
+          "dominant_domain": "film",
+          "dominant_domain_purity": 0.2058743540930106,
+          "primary_domain_fraction": 0.2058743540930106,
+          "domain_count": 25,
+          "normalized_domain_entropy": 0.7248125400973975,
+          "relation_js_divergence": 0.05126080368163878,
+          "local_entity_reuse_ratio": 4.031798245614035,
+          "largest_component_entity_fraction": 0.9890350877192983
+        },
+        {
+          "client_id": 22,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.29072613543649717,
+          "primary_domain_fraction": 0.29072613543649717,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6605702931570461,
+          "relation_js_divergence": 0.03596496963344458,
+          "local_entity_reuse_ratio": 3.893065113816834,
+          "largest_component_entity_fraction": 0.9775013234515617
+        },
+        {
+          "client_id": 23,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26461789502311667,
+          "primary_domain_fraction": 0.26461789502311667,
+          "domain_count": 25,
+          "normalized_domain_entropy": 0.6987584745997021,
+          "relation_js_divergence": 0.03972874621254288,
+          "local_entity_reuse_ratio": 3.8654402102496714,
+          "largest_component_entity_fraction": 0.9716162943495401
+        },
+        {
+          "client_id": 24,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2948055480010878,
+          "primary_domain_fraction": 0.2948055480010878,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6698497786271357,
+          "relation_js_divergence": 0.0461973115359405,
+          "local_entity_reuse_ratio": 3.995653355066558,
+          "largest_component_entity_fraction": 0.9888617223580549
+        },
+        {
+          "client_id": 25,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.303508294805548,
+          "primary_domain_fraction": 0.303508294805548,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6815220130842298,
+          "relation_js_divergence": 0.0426802945681683,
+          "local_entity_reuse_ratio": 3.903397027600849,
+          "largest_component_entity_fraction": 0.9747876857749469
+        },
+        {
+          "client_id": 26,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2942616263258091,
+          "primary_domain_fraction": 0.2942616263258091,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6720505446266924,
+          "relation_js_divergence": 0.03783219964647817,
+          "local_entity_reuse_ratio": 3.978360833107925,
+          "largest_component_entity_fraction": 0.9910738436570192
+        },
+        {
+          "client_id": 27,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2712809355452815,
+          "primary_domain_fraction": 0.2712809355452815,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6810184161251095,
+          "relation_js_divergence": 0.046750325635280095,
+          "local_entity_reuse_ratio": 4.042880703683342,
+          "largest_component_entity_fraction": 0.9909290819131391
+        },
+        {
+          "client_id": 28,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.30187652977971174,
+          "primary_domain_fraction": 0.30187652977971174,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6779873322347514,
+          "relation_js_divergence": 0.04746636299489684,
+          "local_entity_reuse_ratio": 3.7664532650448144,
+          "largest_component_entity_fraction": 0.9790012804097311
+        },
+        {
+          "client_id": 29,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3154745716616807,
+          "primary_domain_fraction": 0.3154745716616807,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6520030392519103,
+          "relation_js_divergence": 0.04086334331742625,
+          "local_entity_reuse_ratio": 3.8766473379019506,
+          "largest_component_entity_fraction": 0.9799683711122825
+        },
+        {
+          "client_id": 30,
+          "primary_domain": "film",
+          "dominant_domain": "film",
+          "dominant_domain_purity": 0.27998368234974164,
+          "primary_domain_fraction": 0.27998368234974164,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6690188442701988,
+          "relation_js_divergence": 0.039652809586321766,
+          "local_entity_reuse_ratio": 3.881762998152547,
+          "largest_component_entity_fraction": 0.9947215624175244
+        },
+        {
+          "client_id": 31,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27413652434049496,
+          "primary_domain_fraction": 0.27413652434049496,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6932832293830616,
+          "relation_js_divergence": 0.04425358806542477,
+          "local_entity_reuse_ratio": 3.8202597402597402,
+          "largest_component_entity_fraction": 0.9838961038961039
+        },
+        {
+          "client_id": 32,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27685613271688875,
+          "primary_domain_fraction": 0.27685613271688875,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6971952587872383,
+          "relation_js_divergence": 0.039354666148924536,
+          "local_entity_reuse_ratio": 3.7712820512820513,
+          "largest_component_entity_fraction": 0.9835897435897436
+        },
+        {
+          "client_id": 33,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2738645635028556,
+          "primary_domain_fraction": 0.2738645635028556,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.703908710849536,
+          "relation_js_divergence": 0.04279314904997171,
+          "local_entity_reuse_ratio": 3.900291699814373,
+          "largest_component_entity_fraction": 0.9946963670114028
+        },
+        {
+          "client_id": 34,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2503399510470492,
+          "primary_domain_fraction": 0.2503399510470492,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6976407325516639,
+          "relation_js_divergence": 0.03886224932516707,
+          "local_entity_reuse_ratio": 3.8202597402597402,
+          "largest_component_entity_fraction": 0.9831168831168832
+        },
+        {
+          "client_id": 35,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.28147946695675824,
+          "primary_domain_fraction": 0.28147946695675824,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.7111775955433799,
+          "relation_js_divergence": 0.03343733287582802,
+          "local_entity_reuse_ratio": 3.8372032350639187,
+          "largest_component_entity_fraction": 0.9843464649099922
+        },
+        {
+          "client_id": 36,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2949415284199075,
+          "primary_domain_fraction": 0.2949415284199075,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6813989157374851,
+          "relation_js_divergence": 0.030627283252386443,
+          "local_entity_reuse_ratio": 3.898224224754837,
+          "largest_component_entity_fraction": 0.9909886032335012
+        }
+      ]
+    },
+    "2025": {
+      "dataset": "fb15k-237",
+      "partition_strategy": "balanced_head_entity",
+      "partition_seed": 2025,
+      "partition_hash": "8a20d7ddb6556a419fea5a35ff5f8a16eb534704de7d160159b8b3ce95ee2302",
+      "client_count": 37,
+      "total_train_triple_count": 272115,
+      "min_client_triple_count": 7354,
+      "max_client_triple_count": 7355,
+      "mean_client_triple_count": 7354.459459459459,
+      "std_client_triple_count": 0.49835375444826413,
+      "client_triple_count_cv": 6.776211864316842e-05,
+      "max_relative_load_deviation": 7.349833710016657e-05,
+      "entity_jaccard_mean": 0.26952505405168165,
+      "entity_jaccard_min": 0.21297539149888142,
+      "entity_jaccard_max": 0.31732673267326733,
+      "head_entity_unique_count": 13781,
+      "head_entity_client_count_min": 1,
+      "head_entity_client_count_mean": 1.0,
+      "head_entity_client_count_max": 1,
+      "head_entity_multi_client_fraction": 0.0,
+      "entity_unique_count": 14505,
+      "entity_client_count_min": 1,
+      "entity_client_count_mean": 9.773181661496036,
+      "entity_client_count_max": 37,
+      "entity_client_count_median": 7.0,
+      "entity_client_count_p90": 20.0,
+      "entity_replication_factor": 9.773181661496036,
+      "entity_normalized_overlap": 0.2436994905971121,
+      "entity_multi_client_fraction": 0.9099620820406756,
+      "relation_unique_count": 237,
+      "relation_client_count_min": 3,
+      "relation_client_count_mean": 31.9789029535865,
+      "relation_client_count_max": 37,
+      "relation_client_count_median": 37.0,
+      "relation_client_count_p90": 37.0,
+      "relation_replication_factor": 31.9789029535865,
+      "relation_normalized_overlap": 0.8605250820440694,
+      "shared_entity_count": 13199,
+      "shared_entity_fraction": 0.9099620820406756,
+      "shared_entity_triple_fraction": 0.9997942046561197,
+      "frequency_weighted_entity_normalized_overlap": 0.5137189750248567,
+      "relation_triple_count_imbalance_mean": 64.07594936708861,
+      "relation_triple_count_imbalance_max": 962.0,
+      "clients": [
+        {
+          "client_id": 0,
+          "triple_count": 7355,
+          "head_entity_count": 364,
+          "entity_count": 4209,
+          "relation_count": 207
+        },
+        {
+          "client_id": 1,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3765,
+          "relation_count": 203
+        },
+        {
+          "client_id": 2,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 4059,
+          "relation_count": 206
+        },
+        {
+          "client_id": 3,
+          "triple_count": 7355,
+          "head_entity_count": 371,
+          "entity_count": 3805,
+          "relation_count": 197
+        },
+        {
+          "client_id": 4,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3924,
+          "relation_count": 205
+        },
+        {
+          "client_id": 5,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 4009,
+          "relation_count": 207
+        },
+        {
+          "client_id": 6,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3745,
+          "relation_count": 201
+        },
+        {
+          "client_id": 7,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3878,
+          "relation_count": 209
+        },
+        {
+          "client_id": 8,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3922,
+          "relation_count": 202
+        },
+        {
+          "client_id": 9,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3836,
+          "relation_count": 212
+        },
+        {
+          "client_id": 10,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3595,
+          "relation_count": 205
+        },
+        {
+          "client_id": 11,
+          "triple_count": 7355,
+          "head_entity_count": 372,
+          "entity_count": 3849,
+          "relation_count": 212
+        },
+        {
+          "client_id": 12,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 3915,
+          "relation_count": 202
+        },
+        {
+          "client_id": 13,
+          "triple_count": 7355,
+          "head_entity_count": 373,
+          "entity_count": 3793,
+          "relation_count": 205
+        },
+        {
+          "client_id": 14,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3854,
+          "relation_count": 207
+        },
+        {
+          "client_id": 15,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3731,
+          "relation_count": 205
+        },
+        {
+          "client_id": 16,
+          "triple_count": 7355,
+          "head_entity_count": 374,
+          "entity_count": 3726,
+          "relation_count": 209
+        },
+        {
+          "client_id": 17,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3799,
+          "relation_count": 200
+        },
+        {
+          "client_id": 18,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 4006,
+          "relation_count": 211
+        },
+        {
+          "client_id": 19,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3984,
+          "relation_count": 209
+        },
+        {
+          "client_id": 20,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3625,
+          "relation_count": 206
+        },
+        {
+          "client_id": 21,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3966,
+          "relation_count": 202
+        },
+        {
+          "client_id": 22,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3819,
+          "relation_count": 207
+        },
+        {
+          "client_id": 23,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3664,
+          "relation_count": 201
+        },
+        {
+          "client_id": 24,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3779,
+          "relation_count": 211
+        },
+        {
+          "client_id": 25,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3792,
+          "relation_count": 203
+        },
+        {
+          "client_id": 26,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3768,
+          "relation_count": 204
+        },
+        {
+          "client_id": 27,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3715,
+          "relation_count": 204
+        },
+        {
+          "client_id": 28,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3758,
+          "relation_count": 196
+        },
+        {
+          "client_id": 29,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3890,
+          "relation_count": 206
+        },
+        {
+          "client_id": 30,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3690,
+          "relation_count": 202
+        },
+        {
+          "client_id": 31,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3907,
+          "relation_count": 205
+        },
+        {
+          "client_id": 32,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3907,
+          "relation_count": 209
+        },
+        {
+          "client_id": 33,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3835,
+          "relation_count": 202
+        },
+        {
+          "client_id": 34,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3709,
+          "relation_count": 208
+        },
+        {
+          "client_id": 35,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3906,
+          "relation_count": 199
+        },
+        {
+          "client_id": 36,
+          "triple_count": 7354,
+          "head_entity_count": 373,
+          "entity_count": 3626,
+          "relation_count": 200
+        }
+      ],
+      "semantic_domain_count": 30,
+      "triple_weighted_dominant_domain_purity": 0.26803741065358394,
+      "triple_weighted_primary_domain_fraction": 0.26803741065358394,
+      "mean_normalized_domain_entropy": 0.6905516160231063,
+      "mean_relation_js_divergence": 0.046566718615207114,
+      "local_entity_reuse_ratio": 3.8390942437923252,
+      "mean_largest_component_entity_fraction": 0.9836242646768444,
+      "semantic_clients": [
+        {
+          "client_id": 0,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23140720598232495,
+          "primary_domain_fraction": 0.23140720598232495,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6913798424690771,
+          "relation_js_divergence": 0.07416436781430741,
+          "local_entity_reuse_ratio": 3.4948918983131385,
+          "largest_component_entity_fraction": 0.9712520788785934
+        },
+        {
+          "client_id": 1,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.21740312712440515,
+          "primary_domain_fraction": 0.21740312712440515,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7170547811495284,
+          "relation_js_divergence": 0.05219719605961197,
+          "local_entity_reuse_ratio": 3.907038512616202,
+          "largest_component_entity_fraction": 0.9880478087649402
+        },
+        {
+          "client_id": 2,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23956492182188988,
+          "primary_domain_fraction": 0.23956492182188988,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7032841037243134,
+          "relation_js_divergence": 0.05128031073613948,
+          "local_entity_reuse_ratio": 3.6240453313624044,
+          "largest_component_entity_fraction": 0.9931017491993102
+        },
+        {
+          "client_id": 3,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2783140720598232,
+          "primary_domain_fraction": 0.2783140720598232,
+          "domain_count": 25,
+          "normalized_domain_entropy": 0.7224828376392302,
+          "relation_js_divergence": 0.07413797135466084,
+          "local_entity_reuse_ratio": 3.865965834428384,
+          "largest_component_entity_fraction": 0.9915900131406045
+        },
+        {
+          "client_id": 4,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26077498300475865,
+          "primary_domain_fraction": 0.26077498300475865,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6827735339562028,
+          "relation_js_divergence": 0.049463166255577895,
+          "local_entity_reuse_ratio": 3.7487257900101936,
+          "largest_component_entity_fraction": 0.981651376146789
+        },
+        {
+          "client_id": 5,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27138001359619307,
+          "primary_domain_fraction": 0.27138001359619307,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7010657274871755,
+          "relation_js_divergence": 0.0543059486271182,
+          "local_entity_reuse_ratio": 3.669244200548765,
+          "largest_component_entity_fraction": 0.9655774507358443
+        },
+        {
+          "client_id": 6,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2469068660774983,
+          "primary_domain_fraction": 0.2469068660774983,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.7056690668819569,
+          "relation_js_divergence": 0.04094413014485579,
+          "local_entity_reuse_ratio": 3.9279038718291055,
+          "largest_component_entity_fraction": 0.9722296395193591
+        },
+        {
+          "client_id": 7,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2636301835486064,
+          "primary_domain_fraction": 0.2636301835486064,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6726605233558798,
+          "relation_js_divergence": 0.04854092861507006,
+          "local_entity_reuse_ratio": 3.7931923671995875,
+          "largest_component_entity_fraction": 0.9927797833935018
+        },
+        {
+          "client_id": 8,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2512576478585996,
+          "primary_domain_fraction": 0.2512576478585996,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.683398833126423,
+          "relation_js_divergence": 0.04180716749763441,
+          "local_entity_reuse_ratio": 3.7506374298827128,
+          "largest_component_entity_fraction": 0.9905660377358491
+        },
+        {
+          "client_id": 9,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.253025152957172,
+          "primary_domain_fraction": 0.253025152957172,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6930909613075522,
+          "relation_js_divergence": 0.04283486511058142,
+          "local_entity_reuse_ratio": 3.834723670490094,
+          "largest_component_entity_fraction": 0.9898331595411888
+        },
+        {
+          "client_id": 10,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23467029231815092,
+          "primary_domain_fraction": 0.23467029231815092,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.689097353896866,
+          "relation_js_divergence": 0.04566860433720209,
+          "local_entity_reuse_ratio": 4.0917941585535464,
+          "largest_component_entity_fraction": 0.9769123783031989
+        },
+        {
+          "client_id": 11,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23045547246770903,
+          "primary_domain_fraction": 0.23045547246770903,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.7378340301055533,
+          "relation_js_divergence": 0.035129495501013006,
+          "local_entity_reuse_ratio": 3.8217718888022865,
+          "largest_component_entity_fraction": 0.9901273057937127
+        },
+        {
+          "client_id": 12,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.23738953093133922,
+          "primary_domain_fraction": 0.23738953093133922,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7001186178377864,
+          "relation_js_divergence": 0.06283661519869231,
+          "local_entity_reuse_ratio": 3.7573435504469987,
+          "largest_component_entity_fraction": 0.984418901660281
+        },
+        {
+          "client_id": 13,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27042828008157715,
+          "primary_domain_fraction": 0.27042828008157715,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7136528604938336,
+          "relation_js_divergence": 0.04199974635581785,
+          "local_entity_reuse_ratio": 3.8781966780912205,
+          "largest_component_entity_fraction": 0.994990772475613
+        },
+        {
+          "client_id": 14,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.22352141400407885,
+          "primary_domain_fraction": 0.22352141400407885,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.7238269323949792,
+          "relation_js_divergence": 0.03997274851788469,
+          "local_entity_reuse_ratio": 3.816813700051894,
+          "largest_component_entity_fraction": 0.9880643487285937
+        },
+        {
+          "client_id": 15,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2528891910265126,
+          "primary_domain_fraction": 0.2528891910265126,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6871030294459594,
+          "relation_js_divergence": 0.03825612406550899,
+          "local_entity_reuse_ratio": 3.942642723130528,
+          "largest_component_entity_fraction": 0.9887429643527205
+        },
+        {
+          "client_id": 16,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2804894629503739,
+          "primary_domain_fraction": 0.2804894629503739,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6791685474991113,
+          "relation_js_divergence": 0.03878860153802244,
+          "local_entity_reuse_ratio": 3.947933440687064,
+          "largest_component_entity_fraction": 0.991411701556629
+        },
+        {
+          "client_id": 17,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3137068262170247,
+          "primary_domain_fraction": 0.3137068262170247,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6633684887305905,
+          "relation_js_divergence": 0.05274857307984828,
+          "local_entity_reuse_ratio": 3.871545143458805,
+          "largest_component_entity_fraction": 0.986575414582785
+        },
+        {
+          "client_id": 18,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.27168887680174053,
+          "primary_domain_fraction": 0.27168887680174053,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6878968762114342,
+          "relation_js_divergence": 0.044743129084711494,
+          "local_entity_reuse_ratio": 3.671492760858712,
+          "largest_component_entity_fraction": 0.9670494258612082
+        },
+        {
+          "client_id": 19,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2775360348109872,
+          "primary_domain_fraction": 0.2775360348109872,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6911284563081858,
+          "relation_js_divergence": 0.032899416470676617,
+          "local_entity_reuse_ratio": 3.6917670682730925,
+          "largest_component_entity_fraction": 0.9851907630522089
+        },
+        {
+          "client_id": 20,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2884144683165624,
+          "primary_domain_fraction": 0.2884144683165624,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6571552144576648,
+          "relation_js_divergence": 0.04717807154732885,
+          "local_entity_reuse_ratio": 4.057379310344827,
+          "largest_component_entity_fraction": 0.992
+        },
+        {
+          "client_id": 21,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2737285830840359,
+          "primary_domain_fraction": 0.2737285830840359,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7156301632414721,
+          "relation_js_divergence": 0.055044880706883986,
+          "local_entity_reuse_ratio": 3.7085224407463437,
+          "largest_component_entity_fraction": 0.9803328290468987
+        },
+        {
+          "client_id": 22,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2933097633940713,
+          "primary_domain_fraction": 0.2933097633940713,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6978408445495883,
+          "relation_js_divergence": 0.04118942212644394,
+          "local_entity_reuse_ratio": 3.851269965959675,
+          "largest_component_entity_fraction": 0.9814087457449594
+        },
+        {
+          "client_id": 23,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25836279575741095,
+          "primary_domain_fraction": 0.25836279575741095,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.7109946486682259,
+          "relation_js_divergence": 0.04676655219457985,
+          "local_entity_reuse_ratio": 4.014192139737991,
+          "largest_component_entity_fraction": 0.9762554585152838
+        },
+        {
+          "client_id": 24,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2897742725047593,
+          "primary_domain_fraction": 0.2897742725047593,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6843249486169531,
+          "relation_js_divergence": 0.040540781095061026,
+          "local_entity_reuse_ratio": 3.8920349298756283,
+          "largest_component_entity_fraction": 0.970627150039693
+        },
+        {
+          "client_id": 25,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.33274408485178136,
+          "primary_domain_fraction": 0.33274408485178136,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6512230801208537,
+          "relation_js_divergence": 0.04472034853249855,
+          "local_entity_reuse_ratio": 3.878691983122363,
+          "largest_component_entity_fraction": 0.9910337552742616
+        },
+        {
+          "client_id": 26,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2884144683165624,
+          "primary_domain_fraction": 0.2884144683165624,
+          "domain_count": 28,
+          "normalized_domain_entropy": 0.6903799814702526,
+          "relation_js_divergence": 0.04925128376010277,
+          "local_entity_reuse_ratio": 3.903397027600849,
+          "largest_component_entity_fraction": 0.9907112526539278
+        },
+        {
+          "client_id": 27,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2795757410932826,
+          "primary_domain_fraction": 0.2795757410932826,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6765342015143568,
+          "relation_js_divergence": 0.05015499722224548,
+          "local_entity_reuse_ratio": 3.959084791386272,
+          "largest_component_entity_fraction": 0.9800807537012113
+        },
+        {
+          "client_id": 28,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.3078596682077781,
+          "primary_domain_fraction": 0.3078596682077781,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6695164798118091,
+          "relation_js_divergence": 0.04520257627793961,
+          "local_entity_reuse_ratio": 3.913783927621075,
+          "largest_component_entity_fraction": 0.9920170303352848
+        },
+        {
+          "client_id": 29,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.26679358172423173,
+          "primary_domain_fraction": 0.26679358172423173,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6787218933127234,
+          "relation_js_divergence": 0.03921351342743135,
+          "local_entity_reuse_ratio": 3.7809768637532133,
+          "largest_component_entity_fraction": 0.9958868894601542
+        },
+        {
+          "client_id": 30,
+          "primary_domain": "film",
+          "dominant_domain": "film",
+          "dominant_domain_purity": 0.2616263258090835,
+          "primary_domain_fraction": 0.2616263258090835,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6782622099235586,
+          "relation_js_divergence": 0.04812323762510303,
+          "local_entity_reuse_ratio": 3.9859078590785906,
+          "largest_component_entity_fraction": 0.967479674796748
+        },
+        {
+          "client_id": 31,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.25673103073157466,
+          "primary_domain_fraction": 0.25673103073157466,
+          "domain_count": 29,
+          "normalized_domain_entropy": 0.6696937634323609,
+          "relation_js_divergence": 0.03978507030800779,
+          "local_entity_reuse_ratio": 3.7645252111594574,
+          "largest_component_entity_fraction": 0.9790120296902994
+        },
+        {
+          "client_id": 32,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.29616535218928475,
+          "primary_domain_fraction": 0.29616535218928475,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.719331945371091,
+          "relation_js_divergence": 0.04251008057435512,
+          "local_entity_reuse_ratio": 3.7645252111594574,
+          "largest_component_entity_fraction": 0.9767084719733811
+        },
+        {
+          "client_id": 33,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2616263258090835,
+          "primary_domain_fraction": 0.2616263258090835,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6960462644437794,
+          "relation_js_divergence": 0.04543085168994365,
+          "local_entity_reuse_ratio": 3.8352020860495437,
+          "largest_component_entity_fraction": 0.9791395045632334
+        },
+        {
+          "client_id": 34,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2806635844438401,
+          "primary_domain_fraction": 0.2806635844438401,
+          "domain_count": 26,
+          "normalized_domain_entropy": 0.6835235765329893,
+          "relation_js_divergence": 0.03369762739386092,
+          "local_entity_reuse_ratio": 3.965489350229172,
+          "largest_component_entity_fraction": 0.9905634942032893
+        },
+        {
+          "client_id": 35,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.2941256459069894,
+          "primary_domain_fraction": 0.2941256459069894,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.6619644089558006,
+          "relation_js_divergence": 0.05453434616194863,
+          "local_entity_reuse_ratio": 3.765488991295443,
+          "largest_component_entity_fraction": 0.9728622631848438
+        },
+        {
+          "client_id": 36,
+          "primary_domain": "award",
+          "dominant_domain": "award",
+          "dominant_domain_purity": 0.28107152570029914,
+          "primary_domain_fraction": 0.28107152570029914,
+          "domain_count": 27,
+          "normalized_domain_entropy": 0.663210764409816,
+          "relation_js_divergence": 0.036905841753993564,
+          "local_entity_reuse_ratio": 4.056260341974627,
+          "largest_component_entity_fraction": 0.987865416436845
+        }
+      ]
+    }
+  },
+  "candidates": {
+    "42": {
+      "summary": {
+        "dataset": "fb15k-237",
+        "partition_strategy": "semantic_domain_graph_local_balanced",
+        "partition_seed": 42,
+        "partition_hash": "fe461e19b484201766e19cb00b12eae026ac58de09a793f6044b47aa3ac54db2",
+        "client_count": 37,
+        "total_train_triple_count": 272115,
+        "min_client_triple_count": 6987,
+        "max_client_triple_count": 7722,
+        "mean_client_triple_count": 7354.459459459459,
+        "std_client_triple_count": 316.12857413320233,
+        "client_triple_count_cv": 0.042984610340953223,
+        "max_relative_load_deviation": 0.04997519431122875,
+        "entity_jaccard_mean": 0.1082446582362964,
+        "entity_jaccard_min": 0.0,
+        "entity_jaccard_max": 0.778544061302682,
+        "head_entity_unique_count": 13781,
+        "head_entity_client_count_min": 1,
+        "head_entity_client_count_mean": 2.2667440679195994,
+        "head_entity_client_count_max": 9,
+        "head_entity_multi_client_fraction": 0.6792685581597853,
+        "entity_unique_count": 14505,
+        "entity_client_count_min": 1,
+        "entity_client_count_mean": 5.594553602206136,
+        "entity_client_count_max": 25,
+        "entity_client_count_median": 5.0,
+        "entity_client_count_p90": 11.0,
+        "entity_replication_factor": 5.594553602206136,
+        "entity_normalized_overlap": 0.12762648895017045,
+        "entity_multi_client_fraction": 0.9078248879696657,
+        "relation_unique_count": 237,
+        "relation_client_count_min": 1,
+        "relation_client_count_mean": 4.679324894514768,
+        "relation_client_count_max": 15,
+        "relation_client_count_median": 4.0,
+        "relation_client_count_p90": 9.0,
+        "relation_replication_factor": 4.679324894514768,
+        "relation_normalized_overlap": 0.1022034692920769,
+        "shared_entity_count": 13168,
+        "shared_entity_fraction": 0.9078248879696657,
+        "shared_entity_triple_fraction": 0.9951601345019568,
+        "frequency_weighted_entity_normalized_overlap": 0.19723237928408535,
+        "relation_triple_count_imbalance_mean": 564.9282700421941,
+        "relation_triple_count_imbalance_max": 5772.0,
+        "clients": [
+          {
+            "client_id": 0,
+            "triple_count": 6996,
+            "head_entity_count": 463,
+            "entity_count": 2231,
+            "relation_count": 37
+          },
+          {
+            "client_id": 1,
+            "triple_count": 7214,
+            "head_entity_count": 1298,
+            "entity_count": 1894,
+            "relation_count": 14
+          },
+          {
+            "client_id": 2,
+            "triple_count": 7722,
+            "head_entity_count": 140,
+            "entity_count": 1190,
+            "relation_count": 15
+          },
+          {
+            "client_id": 3,
+            "triple_count": 7565,
+            "head_entity_count": 415,
+            "entity_count": 1468,
+            "relation_count": 30
+          },
+          {
+            "client_id": 4,
+            "triple_count": 7667,
+            "head_entity_count": 932,
+            "entity_count": 1805,
+            "relation_count": 18
+          },
+          {
+            "client_id": 5,
+            "triple_count": 6987,
+            "head_entity_count": 1716,
+            "entity_count": 2704,
+            "relation_count": 33
+          },
+          {
+            "client_id": 6,
+            "triple_count": 7595,
+            "head_entity_count": 345,
+            "entity_count": 2131,
+            "relation_count": 16
+          },
+          {
+            "client_id": 7,
+            "triple_count": 6987,
+            "head_entity_count": 2062,
+            "entity_count": 2702,
+            "relation_count": 68
+          },
+          {
+            "client_id": 8,
+            "triple_count": 7722,
+            "head_entity_count": 114,
+            "entity_count": 2768,
+            "relation_count": 12
+          },
+          {
+            "client_id": 9,
+            "triple_count": 7586,
+            "head_entity_count": 561,
+            "entity_count": 1723,
+            "relation_count": 22
+          },
+          {
+            "client_id": 10,
+            "triple_count": 7293,
+            "head_entity_count": 212,
+            "entity_count": 1382,
+            "relation_count": 17
+          },
+          {
+            "client_id": 11,
+            "triple_count": 6987,
+            "head_entity_count": 1935,
+            "entity_count": 3133,
+            "relation_count": 79
+          },
+          {
+            "client_id": 12,
+            "triple_count": 7398,
+            "head_entity_count": 357,
+            "entity_count": 2272,
+            "relation_count": 17
+          },
+          {
+            "client_id": 13,
+            "triple_count": 7632,
+            "head_entity_count": 200,
+            "entity_count": 2404,
+            "relation_count": 15
+          },
+          {
+            "client_id": 14,
+            "triple_count": 6987,
+            "head_entity_count": 1898,
+            "entity_count": 2677,
+            "relation_count": 63
+          },
+          {
+            "client_id": 15,
+            "triple_count": 6997,
+            "head_entity_count": 1441,
+            "entity_count": 3000,
+            "relation_count": 23
+          },
+          {
+            "client_id": 16,
+            "triple_count": 6993,
+            "head_entity_count": 1345,
+            "entity_count": 2268,
+            "relation_count": 33
+          },
+          {
+            "client_id": 17,
+            "triple_count": 7030,
+            "head_entity_count": 552,
+            "entity_count": 2502,
+            "relation_count": 17
+          },
+          {
+            "client_id": 18,
+            "triple_count": 6987,
+            "head_entity_count": 4592,
+            "entity_count": 4914,
+            "relation_count": 74
+          },
+          {
+            "client_id": 19,
+            "triple_count": 6987,
+            "head_entity_count": 1139,
+            "entity_count": 1662,
+            "relation_count": 48
+          },
+          {
+            "client_id": 20,
+            "triple_count": 7675,
+            "head_entity_count": 1188,
+            "entity_count": 2001,
+            "relation_count": 18
+          },
+          {
+            "client_id": 21,
+            "triple_count": 7680,
+            "head_entity_count": 236,
+            "entity_count": 1249,
+            "relation_count": 35
+          },
+          {
+            "client_id": 22,
+            "triple_count": 7722,
+            "head_entity_count": 147,
+            "entity_count": 2812,
+            "relation_count": 28
+          },
+          {
+            "client_id": 23,
+            "triple_count": 7451,
+            "head_entity_count": 524,
+            "entity_count": 2963,
+            "relation_count": 27
+          },
+          {
+            "client_id": 24,
+            "triple_count": 6988,
+            "head_entity_count": 980,
+            "entity_count": 1873,
+            "relation_count": 42
+          },
+          {
+            "client_id": 25,
+            "triple_count": 7722,
+            "head_entity_count": 94,
+            "entity_count": 2031,
+            "relation_count": 31
+          },
+          {
+            "client_id": 26,
+            "triple_count": 6987,
+            "head_entity_count": 1508,
+            "entity_count": 2707,
+            "relation_count": 70
+          },
+          {
+            "client_id": 27,
+            "triple_count": 7121,
+            "head_entity_count": 201,
+            "entity_count": 388,
+            "relation_count": 16
+          },
+          {
+            "client_id": 28,
+            "triple_count": 7700,
+            "head_entity_count": 331,
+            "entity_count": 1387,
+            "relation_count": 32
+          },
+          {
+            "client_id": 29,
+            "triple_count": 7722,
+            "head_entity_count": 37,
+            "entity_count": 1131,
+            "relation_count": 9
+          },
+          {
+            "client_id": 30,
+            "triple_count": 7690,
+            "head_entity_count": 264,
+            "entity_count": 2203,
+            "relation_count": 17
+          },
+          {
+            "client_id": 31,
+            "triple_count": 7712,
+            "head_entity_count": 179,
+            "entity_count": 2596,
+            "relation_count": 17
+          },
+          {
+            "client_id": 32,
+            "triple_count": 6988,
+            "head_entity_count": 693,
+            "entity_count": 2616,
+            "relation_count": 19
+          },
+          {
+            "client_id": 33,
+            "triple_count": 7323,
+            "head_entity_count": 1196,
+            "entity_count": 2339,
+            "relation_count": 23
+          },
+          {
+            "client_id": 34,
+            "triple_count": 7722,
+            "head_entity_count": 160,
+            "entity_count": 990,
+            "relation_count": 30
+          },
+          {
+            "client_id": 35,
+            "triple_count": 6987,
+            "head_entity_count": 1741,
+            "entity_count": 2834,
+            "relation_count": 34
+          },
+          {
+            "client_id": 36,
+            "triple_count": 7593,
+            "head_entity_count": 42,
+            "entity_count": 2199,
+            "relation_count": 10
+          }
+        ],
+        "semantic_domain_count": 30,
+        "triple_weighted_dominant_domain_purity": 0.9197875898057807,
+        "triple_weighted_primary_domain_fraction": 0.9197875898057807,
+        "mean_normalized_domain_entropy": 0.17515255527790063,
+        "mean_relation_js_divergence": 0.4996356587696056,
+        "local_entity_reuse_ratio": 6.706552144820022,
+        "mean_largest_component_entity_fraction": 0.9854088174609622,
+        "semantic_clients": [
+          {
+            "client_id": 0,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9888507718696398,
+            "primary_domain_fraction": 0.9888507718696398,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.08831899941976994,
+            "relation_js_divergence": 0.4328800815698487,
+            "local_entity_reuse_ratio": 6.271627073061407,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 1,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.572877487953406,
+            "local_entity_reuse_ratio": 7.617740232312566,
+            "largest_component_entity_fraction": 0.986272439281943
+          },
+          {
+            "client_id": 2,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 0.9932659932659933,
+            "primary_domain_fraction": 0.9932659932659933,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.058263607152566885,
+            "relation_js_divergence": 0.5601212404561857,
+            "local_entity_reuse_ratio": 12.978151260504202,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 3,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4811378041004666,
+            "local_entity_reuse_ratio": 10.306539509536785,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 4,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5008011484574597,
+            "local_entity_reuse_ratio": 8.495290858725761,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 5,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9720910261914985,
+            "primary_domain_fraction": 0.9720910261914985,
+            "domain_count": 9,
+            "normalized_domain_entropy": 0.07791877966406405,
+            "relation_js_divergence": 0.3902952762172299,
+            "local_entity_reuse_ratio": 5.167899408284024,
+            "largest_component_entity_fraction": 0.9656065088757396
+          },
+          {
+            "client_id": 6,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.38727222435667985,
+            "local_entity_reuse_ratio": 7.128108869075551,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 7,
+            "primary_domain": "organization",
+            "dominant_domain": "organization",
+            "dominant_domain_purity": 0.6182911120652641,
+            "primary_domain_fraction": 0.6182911120652641,
+            "domain_count": 14,
+            "normalized_domain_entropy": 0.5000397307822798,
+            "relation_js_divergence": 0.5662151994185683,
+            "local_entity_reuse_ratio": 5.171724648408587,
+            "largest_component_entity_fraction": 0.9718726868985936
+          },
+          {
+            "client_id": 8,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.40890549351107064,
+            "local_entity_reuse_ratio": 5.579479768786127,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 9,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9160295280780385,
+            "primary_domain_fraction": 0.9160295280780385,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.29467192452069685,
+            "relation_js_divergence": 0.49561409141860857,
+            "local_entity_reuse_ratio": 8.805571677307023,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 10,
+            "primary_domain": "sports",
+            "dominant_domain": "sports",
+            "dominant_domain_purity": 0.9875222816399287,
+            "primary_domain_fraction": 0.9875222816399287,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.09680411845967773,
+            "relation_js_divergence": 0.6210204655042029,
+            "local_entity_reuse_ratio": 10.554269175108539,
+            "largest_component_entity_fraction": 0.9609261939218524
+          },
+          {
+            "client_id": 11,
+            "primary_domain": "tv",
+            "dominant_domain": "tv",
+            "dominant_domain_purity": 0.6404751681694576,
+            "primary_domain_fraction": 0.6404751681694576,
+            "domain_count": 18,
+            "normalized_domain_entropy": 0.5104865470903803,
+            "relation_js_divergence": 0.5476772276689188,
+            "local_entity_reuse_ratio": 4.460261729971274,
+            "largest_component_entity_fraction": 0.921800191509735
+          },
+          {
+            "client_id": 12,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.39262297289938486,
+            "local_entity_reuse_ratio": 6.512323943661972,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 13,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.6011651573794298,
+            "local_entity_reuse_ratio": 6.349417637271214,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 14,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9152712179762416,
+            "primary_domain_fraction": 0.9152712179762416,
+            "domain_count": 16,
+            "normalized_domain_entropy": 0.16635421832641997,
+            "relation_js_divergence": 0.4569943703277216,
+            "local_entity_reuse_ratio": 5.220022413149048,
+            "largest_component_entity_fraction": 0.9663802764288383
+          },
+          {
+            "client_id": 15,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9659854223238531,
+            "primary_domain_fraction": 0.9659854223238531,
+            "domain_count": 9,
+            "normalized_domain_entropy": 0.08658018370767873,
+            "relation_js_divergence": 0.5752305157300908,
+            "local_entity_reuse_ratio": 4.664666666666666,
+            "largest_component_entity_fraction": 0.9986666666666667
+          },
+          {
+            "client_id": 16,
+            "primary_domain": "base",
+            "dominant_domain": "base",
+            "dominant_domain_purity": 0.9719719719719719,
+            "primary_domain_fraction": 0.9719719719719719,
+            "domain_count": 7,
+            "normalized_domain_entropy": 0.084957618420774,
+            "relation_js_divergence": 0.6128054791602251,
+            "local_entity_reuse_ratio": 6.166666666666667,
+            "largest_component_entity_fraction": 0.966931216931217
+          },
+          {
+            "client_id": 17,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9968705547652916,
+            "primary_domain_fraction": 0.9968705547652916,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.030544363818355093,
+            "relation_js_divergence": 0.40016601915414596,
+            "local_entity_reuse_ratio": 5.619504396482814,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 18,
+            "primary_domain": "common",
+            "dominant_domain": "common",
+            "dominant_domain_purity": 0.5169600686990125,
+            "primary_domain_fraction": 0.5169600686990125,
+            "domain_count": 21,
+            "normalized_domain_entropy": 0.5772478801191301,
+            "relation_js_divergence": 0.5549395859679538,
+            "local_entity_reuse_ratio": 2.843711843711844,
+            "largest_component_entity_fraction": 0.9818884818884819
+          },
+          {
+            "client_id": 19,
+            "primary_domain": "soccer",
+            "dominant_domain": "soccer",
+            "dominant_domain_purity": 0.7246314584227852,
+            "primary_domain_fraction": 0.7246314584227852,
+            "domain_count": 19,
+            "normalized_domain_entropy": 0.4186655642344246,
+            "relation_js_divergence": 0.5829423422809727,
+            "local_entity_reuse_ratio": 8.407942238267148,
+            "largest_component_entity_fraction": 0.8219013237063778
+          },
+          {
+            "client_id": 20,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5017395672365804,
+            "local_entity_reuse_ratio": 7.671164417791104,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 21,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9959635416666667,
+            "primary_domain_fraction": 0.9959635416666667,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.037912328782741284,
+            "relation_js_divergence": 0.4488514097617191,
+            "local_entity_reuse_ratio": 12.297838270616493,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 22,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 0.7114737114737115,
+            "primary_domain_fraction": 0.7114737114737115,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.8668099393847039,
+            "relation_js_divergence": 0.5913025992191195,
+            "local_entity_reuse_ratio": 5.492176386913229,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 23,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9056502482888203,
+            "primary_domain_fraction": 0.9056502482888203,
+            "domain_count": 4,
+            "normalized_domain_entropy": 0.2900762324497534,
+            "relation_js_divergence": 0.4968748175547736,
+            "local_entity_reuse_ratio": 5.029362132973338,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 24,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 0.7112192329708071,
+            "primary_domain_fraction": 0.7112192329708071,
+            "domain_count": 12,
+            "normalized_domain_entropy": 0.3918989235558189,
+            "relation_js_divergence": 0.5802016855738008,
+            "local_entity_reuse_ratio": 7.461825947677522,
+            "largest_component_entity_fraction": 0.9855846235985051
+          },
+          {
+            "client_id": 25,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.7865837865837866,
+            "primary_domain_fraction": 0.7865837865837866,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.7479621624206078,
+            "relation_js_divergence": 0.4823824491006584,
+            "local_entity_reuse_ratio": 7.604135893648449,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 26,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9417489623586661,
+            "primary_domain_fraction": 0.9417489623586661,
+            "domain_count": 13,
+            "normalized_domain_entropy": 0.1316096986672182,
+            "relation_js_divergence": 0.42368499599698384,
+            "local_entity_reuse_ratio": 5.162172146287403,
+            "largest_component_entity_fraction": 0.9981529368304396
+          },
+          {
+            "client_id": 27,
+            "primary_domain": "olympics",
+            "dominant_domain": "olympics",
+            "dominant_domain_purity": 0.7939896082010953,
+            "primary_domain_fraction": 0.7939896082010953,
+            "domain_count": 5,
+            "normalized_domain_entropy": 0.47972843148672045,
+            "relation_js_divergence": 0.6207881342342347,
+            "local_entity_reuse_ratio": 36.70618556701031,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 28,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.46203711553507004,
+            "local_entity_reuse_ratio": 11.10310021629416,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 29,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5695461607885224,
+            "local_entity_reuse_ratio": 13.655172413793103,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 30,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9867360208062419,
+            "primary_domain_fraction": 0.9867360208062419,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.10172712091845154,
+            "relation_js_divergence": 0.38208133840895864,
+            "local_entity_reuse_ratio": 6.981389014979573,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 31,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9948132780082988,
+            "primary_domain_fraction": 0.9948132780082988,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.04683562431416878,
+            "relation_js_divergence": 0.39064585948915603,
+            "local_entity_reuse_ratio": 5.941448382126349,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 32,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9937034917000572,
+            "primary_domain_fraction": 0.9937034917000572,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.0387249780539088,
+            "relation_js_divergence": 0.38260153169694905,
+            "local_entity_reuse_ratio": 5.342507645259939,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 33,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 0.9931721971869453,
+            "primary_domain_fraction": 0.9931721971869453,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.058938423221957276,
+            "relation_js_divergence": 0.5916633621936129,
+            "local_entity_reuse_ratio": 6.261650277896537,
+            "largest_component_entity_fraction": 0.9764856776400171
+          },
+          {
+            "client_id": 34,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4771655861201573,
+            "local_entity_reuse_ratio": 15.6,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 35,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9592099613568055,
+            "primary_domain_fraction": 0.9592099613568055,
+            "domain_count": 9,
+            "normalized_domain_entropy": 0.10502136052744317,
+            "relation_js_divergence": 0.3959644742961038,
+            "local_entity_reuse_ratio": 4.9308398023994355,
+            "largest_component_entity_fraction": 0.9576570218772054
+          },
+          {
+            "client_id": 36,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.970367443698143,
+            "primary_domain_fraction": 0.970367443698143,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.19254578578261167,
+            "relation_js_divergence": 0.5473041037364332,
+            "local_entity_reuse_ratio": 6.905866302864939,
+            "largest_component_entity_fraction": 1.0
+          }
+        ],
+        "domain_extractor": "freebase_top_level",
+        "domain_head_packet_count": 33155,
+        "client_primary_domains": [
+          "film",
+          "music",
+          "music",
+          "film",
+          "people",
+          "award",
+          "award",
+          "organization",
+          "award",
+          "people",
+          "sports",
+          "tv",
+          "award",
+          "education",
+          "people",
+          "film",
+          "base",
+          "award",
+          "common",
+          "soccer",
+          "people",
+          "film",
+          "location",
+          "people",
+          "education",
+          "film",
+          "film",
+          "olympics",
+          "film",
+          "music",
+          "award",
+          "award",
+          "award",
+          "location",
+          "film",
+          "award",
+          "award"
+        ],
+        "load_tolerance": 0.05,
+        "search_restarts": 8,
+        "search_seed": 42
+      },
+      "checks": {
+        "triple_completeness": true,
+        "client_count": true,
+        "nonempty_clients": true,
+        "load_tolerance": true,
+        "domain_head_packet_exclusive": true,
+        "semantic_purity_improvement": true,
+        "relation_js_divergence_improvement": true,
+        "local_entity_reuse_improvement": true
+      }
+    },
+    "2024": {
+      "summary": {
+        "dataset": "fb15k-237",
+        "partition_strategy": "semantic_domain_graph_local_balanced",
+        "partition_seed": 2024,
+        "partition_hash": "f1e9e43026b3135018d4ba4ccf1d6eb56803ab9d1d1116af27959085494d7749",
+        "client_count": 37,
+        "total_train_triple_count": 272115,
+        "min_client_triple_count": 6987,
+        "max_client_triple_count": 7722,
+        "mean_client_triple_count": 7354.459459459459,
+        "std_client_triple_count": 299.956356698824,
+        "client_triple_count_cv": 0.040785642826953634,
+        "max_relative_load_deviation": 0.04997519431122875,
+        "entity_jaccard_mean": 0.10820319345986174,
+        "entity_jaccard_min": 0.0,
+        "entity_jaccard_max": 0.7806748466257669,
+        "head_entity_unique_count": 13781,
+        "head_entity_client_count_min": 1,
+        "head_entity_client_count_mean": 2.260648719251143,
+        "head_entity_client_count_max": 9,
+        "head_entity_multi_client_fraction": 0.6781075393657935,
+        "entity_unique_count": 14505,
+        "entity_client_count_min": 1,
+        "entity_client_count_mean": 5.607721475353326,
+        "entity_client_count_max": 23,
+        "entity_client_count_median": 5.0,
+        "entity_client_count_p90": 11.0,
+        "entity_replication_factor": 5.607721475353326,
+        "entity_normalized_overlap": 0.12799226320425905,
+        "entity_multi_client_fraction": 0.9071354705274044,
+        "relation_unique_count": 237,
+        "relation_client_count_min": 1,
+        "relation_client_count_mean": 4.767932489451477,
+        "relation_client_count_max": 13,
+        "relation_client_count_median": 5.0,
+        "relation_client_count_p90": 8.400000000000006,
+        "relation_replication_factor": 4.767932489451477,
+        "relation_normalized_overlap": 0.10466479137365213,
+        "shared_entity_count": 13158,
+        "shared_entity_fraction": 0.9071354705274044,
+        "shared_entity_triple_fraction": 0.9950315124120317,
+        "frequency_weighted_entity_normalized_overlap": 0.19904217375415215,
+        "relation_triple_count_imbalance_mean": 563.3924050632911,
+        "relation_triple_count_imbalance_max": 5126.0,
+        "clients": [
+          {
+            "client_id": 0,
+            "triple_count": 7722,
+            "head_entity_count": 332,
+            "entity_count": 1386,
+            "relation_count": 33
+          },
+          {
+            "client_id": 1,
+            "triple_count": 6987,
+            "head_entity_count": 1966,
+            "entity_count": 2710,
+            "relation_count": 65
+          },
+          {
+            "client_id": 2,
+            "triple_count": 7378,
+            "head_entity_count": 748,
+            "entity_count": 1987,
+            "relation_count": 17
+          },
+          {
+            "client_id": 3,
+            "triple_count": 7241,
+            "head_entity_count": 1181,
+            "entity_count": 2323,
+            "relation_count": 21
+          },
+          {
+            "client_id": 4,
+            "triple_count": 7658,
+            "head_entity_count": 321,
+            "entity_count": 2490,
+            "relation_count": 16
+          },
+          {
+            "client_id": 5,
+            "triple_count": 7670,
+            "head_entity_count": 139,
+            "entity_count": 1191,
+            "relation_count": 14
+          },
+          {
+            "client_id": 6,
+            "triple_count": 6987,
+            "head_entity_count": 1301,
+            "entity_count": 2264,
+            "relation_count": 39
+          },
+          {
+            "client_id": 7,
+            "triple_count": 7722,
+            "head_entity_count": 180,
+            "entity_count": 2613,
+            "relation_count": 17
+          },
+          {
+            "client_id": 8,
+            "triple_count": 7000,
+            "head_entity_count": 964,
+            "entity_count": 1918,
+            "relation_count": 49
+          },
+          {
+            "client_id": 9,
+            "triple_count": 6987,
+            "head_entity_count": 2012,
+            "entity_count": 3705,
+            "relation_count": 66
+          },
+          {
+            "client_id": 10,
+            "triple_count": 7577,
+            "head_entity_count": 143,
+            "entity_count": 2810,
+            "relation_count": 28
+          },
+          {
+            "client_id": 11,
+            "triple_count": 7214,
+            "head_entity_count": 1298,
+            "entity_count": 1896,
+            "relation_count": 14
+          },
+          {
+            "client_id": 12,
+            "triple_count": 7593,
+            "head_entity_count": 42,
+            "entity_count": 2199,
+            "relation_count": 10
+          },
+          {
+            "client_id": 13,
+            "triple_count": 7722,
+            "head_entity_count": 114,
+            "entity_count": 2770,
+            "relation_count": 12
+          },
+          {
+            "client_id": 14,
+            "triple_count": 6987,
+            "head_entity_count": 1592,
+            "entity_count": 2930,
+            "relation_count": 74
+          },
+          {
+            "client_id": 15,
+            "triple_count": 6987,
+            "head_entity_count": 2068,
+            "entity_count": 2685,
+            "relation_count": 56
+          },
+          {
+            "client_id": 16,
+            "triple_count": 7722,
+            "head_entity_count": 259,
+            "entity_count": 2152,
+            "relation_count": 17
+          },
+          {
+            "client_id": 17,
+            "triple_count": 7722,
+            "head_entity_count": 37,
+            "entity_count": 1131,
+            "relation_count": 9
+          },
+          {
+            "client_id": 18,
+            "triple_count": 6987,
+            "head_entity_count": 854,
+            "entity_count": 2666,
+            "relation_count": 40
+          },
+          {
+            "client_id": 19,
+            "triple_count": 6987,
+            "head_entity_count": 2541,
+            "entity_count": 3494,
+            "relation_count": 64
+          },
+          {
+            "client_id": 20,
+            "triple_count": 7657,
+            "head_entity_count": 235,
+            "entity_count": 1257,
+            "relation_count": 34
+          },
+          {
+            "client_id": 21,
+            "triple_count": 7702,
+            "head_entity_count": 1193,
+            "entity_count": 2019,
+            "relation_count": 18
+          },
+          {
+            "client_id": 22,
+            "triple_count": 6987,
+            "head_entity_count": 4594,
+            "entity_count": 4905,
+            "relation_count": 71
+          },
+          {
+            "client_id": 23,
+            "triple_count": 7675,
+            "head_entity_count": 933,
+            "entity_count": 1798,
+            "relation_count": 18
+          },
+          {
+            "client_id": 24,
+            "triple_count": 7666,
+            "head_entity_count": 471,
+            "entity_count": 2318,
+            "relation_count": 17
+          },
+          {
+            "client_id": 25,
+            "triple_count": 7277,
+            "head_entity_count": 178,
+            "entity_count": 2391,
+            "relation_count": 17
+          },
+          {
+            "client_id": 26,
+            "triple_count": 7370,
+            "head_entity_count": 389,
+            "entity_count": 1791,
+            "relation_count": 37
+          },
+          {
+            "client_id": 27,
+            "triple_count": 6988,
+            "head_entity_count": 976,
+            "entity_count": 2449,
+            "relation_count": 20
+          },
+          {
+            "client_id": 28,
+            "triple_count": 7193,
+            "head_entity_count": 211,
+            "entity_count": 1367,
+            "relation_count": 16
+          },
+          {
+            "client_id": 29,
+            "triple_count": 7391,
+            "head_entity_count": 520,
+            "entity_count": 2948,
+            "relation_count": 27
+          },
+          {
+            "client_id": 30,
+            "triple_count": 6987,
+            "head_entity_count": 1079,
+            "entity_count": 1560,
+            "relation_count": 45
+          },
+          {
+            "client_id": 31,
+            "triple_count": 7004,
+            "head_entity_count": 194,
+            "entity_count": 376,
+            "relation_count": 16
+          },
+          {
+            "client_id": 32,
+            "triple_count": 7717,
+            "head_entity_count": 93,
+            "entity_count": 2028,
+            "relation_count": 30
+          },
+          {
+            "client_id": 33,
+            "triple_count": 7278,
+            "head_entity_count": 787,
+            "entity_count": 2304,
+            "relation_count": 15
+          },
+          {
+            "client_id": 34,
+            "triple_count": 7278,
+            "head_entity_count": 506,
+            "entity_count": 1807,
+            "relation_count": 36
+          },
+          {
+            "client_id": 35,
+            "triple_count": 7373,
+            "head_entity_count": 543,
+            "entity_count": 1713,
+            "relation_count": 22
+          },
+          {
+            "client_id": 36,
+            "triple_count": 7722,
+            "head_entity_count": 160,
+            "entity_count": 989,
+            "relation_count": 30
+          }
+        ],
+        "semantic_domain_count": 30,
+        "triple_weighted_dominant_domain_purity": 0.9191371295224445,
+        "triple_weighted_primary_domain_fraction": 0.9191371295224445,
+        "mean_normalized_domain_entropy": 0.17293386378064307,
+        "mean_relation_js_divergence": 0.4985332889016833,
+        "local_entity_reuse_ratio": 6.690804032456356,
+        "mean_largest_component_entity_fraction": 0.9765194638622547,
+        "semantic_clients": [
+          {
+            "client_id": 0,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4604332112453928,
+            "local_entity_reuse_ratio": 11.142857142857142,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 1,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9076857020180334,
+            "primary_domain_fraction": 0.9076857020180334,
+            "domain_count": 16,
+            "normalized_domain_entropy": 0.17656521235272254,
+            "relation_js_divergence": 0.4570056637024674,
+            "local_entity_reuse_ratio": 5.156457564575645,
+            "largest_component_entity_fraction": 0.9822878228782288
+          },
+          {
+            "client_id": 2,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.3976271189074078,
+            "local_entity_reuse_ratio": 7.426270759939608,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 3,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5961561068455192,
+            "local_entity_reuse_ratio": 6.234179939733104,
+            "largest_component_entity_fraction": 0.978906586310805
+          },
+          {
+            "client_id": 4,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.3809321368727909,
+            "local_entity_reuse_ratio": 6.151004016064257,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 5,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5606140516894381,
+            "local_entity_reuse_ratio": 12.879932829554996,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 6,
+            "primary_domain": "base",
+            "dominant_domain": "base",
+            "dominant_domain_purity": 0.9552025189637899,
+            "primary_domain_fraction": 0.9552025189637899,
+            "domain_count": 9,
+            "normalized_domain_entropy": 0.11588549379837895,
+            "relation_js_divergence": 0.6080428611532681,
+            "local_entity_reuse_ratio": 6.17226148409894,
+            "largest_component_entity_fraction": 0.991166077738516
+          },
+          {
+            "client_id": 7,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9948199948199948,
+            "primary_domain_fraction": 0.9948199948199948,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.046784681338758155,
+            "relation_js_divergence": 0.39031729429868633,
+            "local_entity_reuse_ratio": 5.91044776119403,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 8,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 0.7632857142857142,
+            "primary_domain_fraction": 0.7632857142857142,
+            "domain_count": 12,
+            "normalized_domain_entropy": 0.3509430420233261,
+            "relation_js_divergence": 0.5730565914531507,
+            "local_entity_reuse_ratio": 7.299270072992701,
+            "largest_component_entity_fraction": 0.983837330552659
+          },
+          {
+            "client_id": 9,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9261485616144268,
+            "primary_domain_fraction": 0.9261485616144268,
+            "domain_count": 15,
+            "normalized_domain_entropy": 0.14583636421175825,
+            "relation_js_divergence": 0.5314628668149397,
+            "local_entity_reuse_ratio": 3.77165991902834,
+            "largest_component_entity_fraction": 0.9854251012145749
+          },
+          {
+            "client_id": 10,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 0.7250890853899961,
+            "primary_domain_fraction": 0.7250890853899961,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.8484235592625127,
+            "relation_js_divergence": 0.5916633425119232,
+            "local_entity_reuse_ratio": 5.39288256227758,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 11,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5721951427978575,
+            "local_entity_reuse_ratio": 7.609704641350211,
+            "largest_component_entity_fraction": 0.9862869198312236
+          },
+          {
+            "client_id": 12,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.970367443698143,
+            "primary_domain_fraction": 0.970367443698143,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.19254578578261167,
+            "relation_js_divergence": 0.5473041037364332,
+            "local_entity_reuse_ratio": 6.905866302864939,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 13,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.40823665108579565,
+            "local_entity_reuse_ratio": 5.575451263537906,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 14,
+            "primary_domain": "tv",
+            "dominant_domain": "tv",
+            "dominant_domain_purity": 0.6404751681694576,
+            "primary_domain_fraction": 0.6404751681694576,
+            "domain_count": 18,
+            "normalized_domain_entropy": 0.5198584664786091,
+            "relation_js_divergence": 0.555201536871808,
+            "local_entity_reuse_ratio": 4.769283276450512,
+            "largest_component_entity_fraction": 0.9675767918088737
+          },
+          {
+            "client_id": 15,
+            "primary_domain": "organization",
+            "dominant_domain": "organization",
+            "dominant_domain_purity": 0.6184342350078718,
+            "primary_domain_fraction": 0.6184342350078718,
+            "domain_count": 13,
+            "normalized_domain_entropy": 0.48516569305024093,
+            "relation_js_divergence": 0.5719467545562604,
+            "local_entity_reuse_ratio": 5.204469273743017,
+            "largest_component_entity_fraction": 0.9702048417132216
+          },
+          {
+            "client_id": 16,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9891219891219891,
+            "primary_domain_fraction": 0.9891219891219891,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.08655917196177784,
+            "relation_js_divergence": 0.3862391039823796,
+            "local_entity_reuse_ratio": 7.176579925650557,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 17,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5695461607885224,
+            "local_entity_reuse_ratio": 13.655172413793103,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 18,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9673679690854444,
+            "primary_domain_fraction": 0.9673679690854444,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.1466582205073308,
+            "relation_js_divergence": 0.458242619331401,
+            "local_entity_reuse_ratio": 5.241560390097525,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 19,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.8303993130098755,
+            "primary_domain_fraction": 0.8303993130098755,
+            "domain_count": 15,
+            "normalized_domain_entropy": 0.27811960825799575,
+            "relation_js_divergence": 0.3755119000577356,
+            "local_entity_reuse_ratio": 3.999427590154551,
+            "largest_component_entity_fraction": 0.909559244419004
+          },
+          {
+            "client_id": 20,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4517301335827855,
+            "local_entity_reuse_ratio": 12.182975338106603,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 21,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.49974040949414045,
+            "local_entity_reuse_ratio": 7.629519564140664,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 22,
+            "primary_domain": "common",
+            "dominant_domain": "common",
+            "dominant_domain_purity": 0.5169600686990125,
+            "primary_domain_fraction": 0.5169600686990125,
+            "domain_count": 21,
+            "normalized_domain_entropy": 0.5826387256659785,
+            "relation_js_divergence": 0.5471828256887008,
+            "local_entity_reuse_ratio": 2.848929663608563,
+            "largest_component_entity_fraction": 0.9875637104994903
+          },
+          {
+            "client_id": 23,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5004733071913136,
+            "local_entity_reuse_ratio": 8.53726362625139,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 24,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.39850202719867794,
+            "local_entity_reuse_ratio": 6.6143226919758416,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 25,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 0.9975264532087399,
+            "primary_domain_fraction": 0.9975264532087399,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.024983100556488794,
+            "relation_js_divergence": 0.5990459058996003,
+            "local_entity_reuse_ratio": 6.086992890004183,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 26,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9907734056987788,
+            "primary_domain_fraction": 0.9907734056987788,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.07562121264097345,
+            "relation_js_divergence": 0.43784943996403947,
+            "local_entity_reuse_ratio": 8.230039084310441,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 27,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9440469376073268,
+            "primary_domain_fraction": 0.9440469376073268,
+            "domain_count": 4,
+            "normalized_domain_entropy": 0.17815433903506162,
+            "relation_js_divergence": 0.3757389795269146,
+            "local_entity_reuse_ratio": 5.706819109840751,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 28,
+            "primary_domain": "sports",
+            "dominant_domain": "sports",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.6224309865564728,
+            "local_entity_reuse_ratio": 10.52377468910022,
+            "largest_component_entity_fraction": 0.6005852231163131
+          },
+          {
+            "client_id": 29,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9154376944933027,
+            "primary_domain_fraction": 0.9154376944933027,
+            "domain_count": 4,
+            "normalized_domain_entropy": 0.2742210121719423,
+            "relation_js_divergence": 0.49728466340279553,
+            "local_entity_reuse_ratio": 5.014246947082768,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 30,
+            "primary_domain": "soccer",
+            "dominant_domain": "soccer",
+            "dominant_domain_purity": 0.7246314584227852,
+            "primary_domain_fraction": 0.7246314584227852,
+            "domain_count": 20,
+            "normalized_domain_entropy": 0.4164568405308654,
+            "relation_js_divergence": 0.587054525671081,
+            "local_entity_reuse_ratio": 8.957692307692307,
+            "largest_component_entity_fraction": 0.7878205128205128
+          },
+          {
+            "client_id": 31,
+            "primary_domain": "olympics",
+            "dominant_domain": "olympics",
+            "dominant_domain_purity": 0.805254140491148,
+            "primary_domain_fraction": 0.805254140491148,
+            "domain_count": 5,
+            "normalized_domain_entropy": 0.46055915383403845,
+            "relation_js_divergence": 0.6213750862897953,
+            "local_entity_reuse_ratio": 37.255319148936174,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 32,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.7864455099131787,
+            "primary_domain_fraction": 0.7864455099131787,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.7482223073785356,
+            "relation_js_divergence": 0.4841075113986163,
+            "local_entity_reuse_ratio": 7.610453648915187,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 33,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4116290938141127,
+            "local_entity_reuse_ratio": 6.317708333333333,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 34,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.998213794998626,
+            "primary_domain_fraction": 0.998213794998626,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.018880709179793297,
+            "relation_js_divergence": 0.4476954447938801,
+            "local_entity_reuse_ratio": 8.055340343110128,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 35,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9424928794249288,
+            "primary_domain_fraction": 0.9424928794249288,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.2254702598640932,
+            "relation_js_divergence": 0.49492228779693964,
+            "local_entity_reuse_ratio": 8.608289550496206,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 36,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.47723384238924427,
+            "local_entity_reuse_ratio": 15.61577350859454,
+            "largest_component_entity_fraction": 1.0
+          }
+        ],
+        "domain_extractor": "freebase_top_level",
+        "domain_head_packet_count": 33155,
+        "client_primary_domains": [
+          "film",
+          "people",
+          "award",
+          "location",
+          "award",
+          "music",
+          "base",
+          "award",
+          "education",
+          "film",
+          "location",
+          "music",
+          "award",
+          "award",
+          "tv",
+          "organization",
+          "award",
+          "music",
+          "film",
+          "award",
+          "film",
+          "people",
+          "common",
+          "people",
+          "award",
+          "education",
+          "film",
+          "award",
+          "sports",
+          "people",
+          "soccer",
+          "olympics",
+          "film",
+          "award",
+          "film",
+          "people",
+          "film"
+        ],
+        "load_tolerance": 0.05,
+        "search_restarts": 8,
+        "search_seed": 2024
+      },
+      "checks": {
+        "triple_completeness": true,
+        "client_count": true,
+        "nonempty_clients": true,
+        "load_tolerance": true,
+        "domain_head_packet_exclusive": true,
+        "semantic_purity_improvement": true,
+        "relation_js_divergence_improvement": true,
+        "local_entity_reuse_improvement": true
+      }
+    },
+    "2025": {
+      "summary": {
+        "dataset": "fb15k-237",
+        "partition_strategy": "semantic_domain_graph_local_balanced",
+        "partition_seed": 2025,
+        "partition_hash": "30fda49ed4cd3cd8b25db9e0faf59161f96f1e3e95d4a08b345ca091af74ef3f",
+        "client_count": 37,
+        "total_train_triple_count": 272115,
+        "min_client_triple_count": 6987,
+        "max_client_triple_count": 7722,
+        "mean_client_triple_count": 7354.459459459459,
+        "std_client_triple_count": 296.30559413082517,
+        "client_triple_count_cv": 0.04028924161784735,
+        "max_relative_load_deviation": 0.04997519431122875,
+        "entity_jaccard_mean": 0.10655560596405687,
+        "entity_jaccard_min": 0.0,
+        "entity_jaccard_max": 0.7808429118773946,
+        "head_entity_unique_count": 13781,
+        "head_entity_client_count_min": 1,
+        "head_entity_client_count_mean": 2.2426529279442713,
+        "head_entity_client_count_max": 8,
+        "head_entity_multi_client_fraction": 0.6742616646106959,
+        "entity_unique_count": 14505,
+        "entity_client_count_min": 1,
+        "entity_client_count_mean": 5.542985177524991,
+        "entity_client_count_max": 24,
+        "entity_client_count_median": 5.0,
+        "entity_client_count_p90": 10.0,
+        "entity_replication_factor": 5.542985177524991,
+        "entity_normalized_overlap": 0.12619403270902751,
+        "entity_multi_client_fraction": 0.905342985177525,
+        "relation_unique_count": 237,
+        "relation_client_count_min": 1,
+        "relation_client_count_mean": 4.649789029535865,
+        "relation_client_count_max": 17,
+        "relation_client_count_median": 5.0,
+        "relation_client_count_p90": 8.0,
+        "relation_replication_factor": 4.649789029535865,
+        "relation_normalized_overlap": 0.10138302859821846,
+        "shared_entity_count": 13132,
+        "shared_entity_fraction": 0.905342985177525,
+        "shared_entity_triple_fraction": 0.995266707090752,
+        "frequency_weighted_entity_normalized_overlap": 0.19391566474141855,
+        "relation_triple_count_imbalance_mean": 561.7130801687764,
+        "relation_triple_count_imbalance_max": 6286.0,
+        "clients": [
+          {
+            "client_id": 0,
+            "triple_count": 6987,
+            "head_entity_count": 1380,
+            "entity_count": 2286,
+            "relation_count": 26
+          },
+          {
+            "client_id": 1,
+            "triple_count": 7277,
+            "head_entity_count": 1189,
+            "entity_count": 2329,
+            "relation_count": 23
+          },
+          {
+            "client_id": 2,
+            "triple_count": 7211,
+            "head_entity_count": 1260,
+            "entity_count": 1880,
+            "relation_count": 15
+          },
+          {
+            "client_id": 3,
+            "triple_count": 7722,
+            "head_entity_count": 147,
+            "entity_count": 2822,
+            "relation_count": 28
+          },
+          {
+            "client_id": 4,
+            "triple_count": 7351,
+            "head_entity_count": 1670,
+            "entity_count": 3308,
+            "relation_count": 10
+          },
+          {
+            "client_id": 5,
+            "triple_count": 7722,
+            "head_entity_count": 106,
+            "entity_count": 2707,
+            "relation_count": 13
+          },
+          {
+            "client_id": 6,
+            "triple_count": 6987,
+            "head_entity_count": 486,
+            "entity_count": 2306,
+            "relation_count": 39
+          },
+          {
+            "client_id": 7,
+            "triple_count": 7722,
+            "head_entity_count": 109,
+            "entity_count": 1837,
+            "relation_count": 30
+          },
+          {
+            "client_id": 8,
+            "triple_count": 7249,
+            "head_entity_count": 202,
+            "entity_count": 387,
+            "relation_count": 16
+          },
+          {
+            "client_id": 9,
+            "triple_count": 7531,
+            "head_entity_count": 335,
+            "entity_count": 1475,
+            "relation_count": 35
+          },
+          {
+            "client_id": 10,
+            "triple_count": 7660,
+            "head_entity_count": 918,
+            "entity_count": 1805,
+            "relation_count": 23
+          },
+          {
+            "client_id": 11,
+            "triple_count": 7722,
+            "head_entity_count": 37,
+            "entity_count": 1131,
+            "relation_count": 9
+          },
+          {
+            "client_id": 12,
+            "triple_count": 6987,
+            "head_entity_count": 2280,
+            "entity_count": 3459,
+            "relation_count": 38
+          },
+          {
+            "client_id": 13,
+            "triple_count": 7722,
+            "head_entity_count": 188,
+            "entity_count": 2154,
+            "relation_count": 15
+          },
+          {
+            "client_id": 14,
+            "triple_count": 7164,
+            "head_entity_count": 208,
+            "entity_count": 1366,
+            "relation_count": 15
+          },
+          {
+            "client_id": 15,
+            "triple_count": 7556,
+            "head_entity_count": 329,
+            "entity_count": 2493,
+            "relation_count": 17
+          },
+          {
+            "client_id": 16,
+            "triple_count": 6987,
+            "head_entity_count": 985,
+            "entity_count": 1269,
+            "relation_count": 34
+          },
+          {
+            "client_id": 17,
+            "triple_count": 6995,
+            "head_entity_count": 1308,
+            "entity_count": 2233,
+            "relation_count": 63
+          },
+          {
+            "client_id": 18,
+            "triple_count": 7203,
+            "head_entity_count": 513,
+            "entity_count": 2908,
+            "relation_count": 24
+          },
+          {
+            "client_id": 19,
+            "triple_count": 7373,
+            "head_entity_count": 184,
+            "entity_count": 2396,
+            "relation_count": 16
+          },
+          {
+            "client_id": 20,
+            "triple_count": 6987,
+            "head_entity_count": 959,
+            "entity_count": 2569,
+            "relation_count": 19
+          },
+          {
+            "client_id": 21,
+            "triple_count": 7593,
+            "head_entity_count": 37,
+            "entity_count": 2265,
+            "relation_count": 10
+          },
+          {
+            "client_id": 22,
+            "triple_count": 7676,
+            "head_entity_count": 1188,
+            "entity_count": 2006,
+            "relation_count": 18
+          },
+          {
+            "client_id": 23,
+            "triple_count": 7721,
+            "head_entity_count": 139,
+            "entity_count": 1193,
+            "relation_count": 15
+          },
+          {
+            "client_id": 24,
+            "triple_count": 7092,
+            "head_entity_count": 399,
+            "entity_count": 1502,
+            "relation_count": 33
+          },
+          {
+            "client_id": 25,
+            "triple_count": 7445,
+            "head_entity_count": 548,
+            "entity_count": 1728,
+            "relation_count": 25
+          },
+          {
+            "client_id": 26,
+            "triple_count": 7722,
+            "head_entity_count": 169,
+            "entity_count": 1019,
+            "relation_count": 31
+          },
+          {
+            "client_id": 27,
+            "triple_count": 7621,
+            "head_entity_count": 423,
+            "entity_count": 2236,
+            "relation_count": 16
+          },
+          {
+            "client_id": 28,
+            "triple_count": 7426,
+            "head_entity_count": 836,
+            "entity_count": 1782,
+            "relation_count": 15
+          },
+          {
+            "client_id": 29,
+            "triple_count": 6990,
+            "head_entity_count": 1968,
+            "entity_count": 2639,
+            "relation_count": 69
+          },
+          {
+            "client_id": 30,
+            "triple_count": 6987,
+            "head_entity_count": 1319,
+            "entity_count": 2749,
+            "relation_count": 57
+          },
+          {
+            "client_id": 31,
+            "triple_count": 7722,
+            "head_entity_count": 252,
+            "entity_count": 1448,
+            "relation_count": 37
+          },
+          {
+            "client_id": 32,
+            "triple_count": 6987,
+            "head_entity_count": 1563,
+            "entity_count": 2398,
+            "relation_count": 93
+          },
+          {
+            "client_id": 33,
+            "triple_count": 6987,
+            "head_entity_count": 4505,
+            "entity_count": 5034,
+            "relation_count": 81
+          },
+          {
+            "client_id": 34,
+            "triple_count": 7350,
+            "head_entity_count": 546,
+            "entity_count": 2142,
+            "relation_count": 16
+          },
+          {
+            "client_id": 35,
+            "triple_count": 6987,
+            "head_entity_count": 2000,
+            "entity_count": 2606,
+            "relation_count": 60
+          },
+          {
+            "client_id": 36,
+            "triple_count": 7694,
+            "head_entity_count": 221,
+            "entity_count": 2534,
+            "relation_count": 18
+          }
+        ],
+        "semantic_domain_count": 30,
+        "triple_weighted_dominant_domain_purity": 0.9197104165518255,
+        "triple_weighted_primary_domain_fraction": 0.9197104165518255,
+        "mean_normalized_domain_entropy": 0.1758511226471539,
+        "mean_relation_js_divergence": 0.4987119536131555,
+        "local_entity_reuse_ratio": 6.7689456598798525,
+        "mean_largest_component_entity_fraction": 0.9752323127558066,
+        "semantic_clients": [
+          {
+            "client_id": 0,
+            "primary_domain": "base",
+            "dominant_domain": "base",
+            "dominant_domain_purity": 0.9838271074853299,
+            "primary_domain_fraction": 0.9838271074853299,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.07908203701472429,
+            "relation_js_divergence": 0.6193939446854158,
+            "local_entity_reuse_ratio": 6.1128608923884515,
+            "largest_component_entity_fraction": 0.968941382327209
+          },
+          {
+            "client_id": 1,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 0.9947780678851175,
+            "primary_domain_fraction": 0.9947780678851175,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.047102465906796044,
+            "relation_js_divergence": 0.5921811604514489,
+            "local_entity_reuse_ratio": 6.249033920137398,
+            "largest_component_entity_fraction": 0.9750966079862602
+          },
+          {
+            "client_id": 2,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 0.9948689502149494,
+            "primary_domain_fraction": 0.9948689502149494,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.04641300157388053,
+            "relation_js_divergence": 0.571604132132917,
+            "local_entity_reuse_ratio": 7.671276595744681,
+            "largest_component_entity_fraction": 0.9904255319148936
+          },
+          {
+            "client_id": 3,
+            "primary_domain": "location",
+            "dominant_domain": "location",
+            "dominant_domain_purity": 0.7141932141932142,
+            "primary_domain_fraction": 0.7141932141932142,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.8632428167966383,
+            "relation_js_divergence": 0.5914950337674401,
+            "local_entity_reuse_ratio": 5.472714386959603,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 4,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5959860530711735,
+            "local_entity_reuse_ratio": 4.444377267230955,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 5,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.981092981092981,
+            "primary_domain_fraction": 0.981092981092981,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.13525899843616426,
+            "relation_js_divergence": 0.4096899512572929,
+            "local_entity_reuse_ratio": 5.70520871813816,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 6,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9855445827966223,
+            "primary_domain_fraction": 0.9855445827966223,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.10905836014422073,
+            "relation_js_divergence": 0.4335281121681026,
+            "local_entity_reuse_ratio": 6.059843885516045,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 7,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.945998445998446,
+            "primary_domain_fraction": 0.945998445998446,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.3031580096154967,
+            "relation_js_divergence": 0.47414847032824337,
+            "local_entity_reuse_ratio": 8.407185628742514,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 8,
+            "primary_domain": "olympics",
+            "dominant_domain": "olympics",
+            "dominant_domain_purity": 0.7790040005518003,
+            "primary_domain_fraction": 0.7790040005518003,
+            "domain_count": 5,
+            "normalized_domain_entropy": 0.5026129175751413,
+            "relation_js_divergence": 0.6206417883432253,
+            "local_entity_reuse_ratio": 37.4625322997416,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 9,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.45135950444474193,
+            "local_entity_reuse_ratio": 10.211525423728814,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 10,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9821148825065275,
+            "primary_domain_fraction": 0.9821148825065275,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.12939547411038416,
+            "relation_js_divergence": 0.4966182669956155,
+            "local_entity_reuse_ratio": 8.487534626038782,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 11,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5695461607885224,
+            "local_entity_reuse_ratio": 13.655172413793103,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 12,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9604980678402748,
+            "primary_domain_fraction": 0.9604980678402748,
+            "domain_count": 11,
+            "normalized_domain_entropy": 0.09522184476303762,
+            "relation_js_divergence": 0.3889262825091164,
+            "local_entity_reuse_ratio": 4.0398959236773635,
+            "largest_component_entity_fraction": 0.8823359352413992
+          },
+          {
+            "client_id": 13,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.3907275326262384,
+            "local_entity_reuse_ratio": 7.16991643454039,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 14,
+            "primary_domain": "sports",
+            "dominant_domain": "sports",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.62298137798556,
+            "local_entity_reuse_ratio": 10.489019033674964,
+            "largest_component_entity_fraction": 0.6002928257686676
+          },
+          {
+            "client_id": 15,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9933827421916358,
+            "primary_domain_fraction": 0.9933827421916358,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.05742100272103541,
+            "relation_js_divergence": 0.3736529555002789,
+            "local_entity_reuse_ratio": 6.06177296430004,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 16,
+            "primary_domain": "soccer",
+            "dominant_domain": "soccer",
+            "dominant_domain_purity": 0.7246314584227852,
+            "primary_domain_fraction": 0.7246314584227852,
+            "domain_count": 18,
+            "normalized_domain_entropy": 0.36075321279410927,
+            "relation_js_divergence": 0.6020270144879218,
+            "local_entity_reuse_ratio": 11.011820330969266,
+            "largest_component_entity_fraction": 0.8187549251379038
+          },
+          {
+            "client_id": 17,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 0.7579699785561115,
+            "primary_domain_fraction": 0.7579699785561115,
+            "domain_count": 17,
+            "normalized_domain_entropy": 0.30602188236956096,
+            "relation_js_divergence": 0.5632977915256518,
+            "local_entity_reuse_ratio": 6.265114196148679,
+            "largest_component_entity_fraction": 0.9905956112852664
+          },
+          {
+            "client_id": 18,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9529362765514369,
+            "primary_domain_fraction": 0.9529362765514369,
+            "domain_count": 4,
+            "normalized_domain_entropy": 0.1711818367149667,
+            "relation_js_divergence": 0.4986364676513759,
+            "local_entity_reuse_ratio": 4.953920220082531,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 19,
+            "primary_domain": "education",
+            "dominant_domain": "education",
+            "dominant_domain_purity": 0.9900990099009901,
+            "primary_domain_fraction": 0.9900990099009901,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.08013604733127526,
+            "relation_js_divergence": 0.5987029498040176,
+            "local_entity_reuse_ratio": 6.154424040066778,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 20,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9924144840417919,
+            "primary_domain_fraction": 0.9924144840417919,
+            "domain_count": 3,
+            "normalized_domain_entropy": 0.04427679870848215,
+            "relation_js_divergence": 0.3937140786112964,
+            "local_entity_reuse_ratio": 5.439470611132736,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 21,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.8274726721980772,
+            "primary_domain_fraction": 0.8274726721980772,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.6634537080147351,
+            "relation_js_divergence": 0.541053877010819,
+            "local_entity_reuse_ratio": 6.704635761589404,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 22,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.5007638352784396,
+            "local_entity_reuse_ratio": 7.653040877367896,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 23,
+            "primary_domain": "music",
+            "dominant_domain": "music",
+            "dominant_domain_purity": 0.9932651210983033,
+            "primary_domain_fraction": 0.9932651210983033,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.05826989066470613,
+            "relation_js_divergence": 0.5601780233806684,
+            "local_entity_reuse_ratio": 12.943839061190276,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 24,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.4688760006648124,
+            "local_entity_reuse_ratio": 9.44340878828229,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 25,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9304231027535259,
+            "primary_domain_fraction": 0.9304231027535259,
+            "domain_count": 4,
+            "normalized_domain_entropy": 0.2174720323528291,
+            "relation_js_divergence": 0.49178936250348704,
+            "local_entity_reuse_ratio": 8.616898148148149,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 26,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9948199948199948,
+            "primary_domain_fraction": 0.9948199948199948,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.046784681338758155,
+            "relation_js_divergence": 0.4719604095659651,
+            "local_entity_reuse_ratio": 15.15603532875368,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 27,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.40493754680159044,
+            "local_entity_reuse_ratio": 6.816636851520572,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 28,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.40592963705003476,
+            "local_entity_reuse_ratio": 8.334455667789001,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 29,
+            "primary_domain": "people",
+            "dominant_domain": "people",
+            "dominant_domain_purity": 0.9218884120171674,
+            "primary_domain_fraction": 0.9218884120171674,
+            "domain_count": 18,
+            "normalized_domain_entropy": 0.15245236097057635,
+            "relation_js_divergence": 0.458514466586734,
+            "local_entity_reuse_ratio": 5.297461159530125,
+            "largest_component_entity_fraction": 0.9795377036756348
+          },
+          {
+            "client_id": 30,
+            "primary_domain": "tv",
+            "dominant_domain": "tv",
+            "dominant_domain_purity": 0.6404751681694576,
+            "primary_domain_fraction": 0.6404751681694576,
+            "domain_count": 19,
+            "normalized_domain_entropy": 0.507906197490337,
+            "relation_js_divergence": 0.5692310657129152,
+            "local_entity_reuse_ratio": 5.083303019279738,
+            "largest_component_entity_fraction": 0.9519825391051291
+          },
+          {
+            "client_id": 31,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.9932659932659933,
+            "primary_domain_fraction": 0.9932659932659933,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.058263607152566885,
+            "relation_js_divergence": 0.434320941169639,
+            "local_entity_reuse_ratio": 10.665745856353592,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 32,
+            "primary_domain": "film",
+            "dominant_domain": "film",
+            "dominant_domain_purity": 0.7800200372119651,
+            "primary_domain_fraction": 0.7800200372119651,
+            "domain_count": 17,
+            "normalized_domain_entropy": 0.31505728056025323,
+            "relation_js_divergence": 0.3950137289221277,
+            "local_entity_reuse_ratio": 5.827356130108424,
+            "largest_component_entity_fraction": 0.9937447873227689
+          },
+          {
+            "client_id": 33,
+            "primary_domain": "common",
+            "dominant_domain": "common",
+            "dominant_domain_purity": 0.5169600686990125,
+            "primary_domain_fraction": 0.5169600686990125,
+            "domain_count": 20,
+            "normalized_domain_entropy": 0.658306065493386,
+            "relation_js_divergence": 0.5277871715152905,
+            "local_entity_reuse_ratio": 2.7759237187127535,
+            "largest_component_entity_fraction": 0.9606674612634089
+          },
+          {
+            "client_id": 34,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 1.0,
+            "primary_domain_fraction": 1.0,
+            "domain_count": 1,
+            "normalized_domain_entropy": 0.0,
+            "relation_js_divergence": 0.39184332334990896,
+            "local_entity_reuse_ratio": 6.862745098039215,
+            "largest_component_entity_fraction": 1.0
+          },
+          {
+            "client_id": 35,
+            "primary_domain": "organization",
+            "dominant_domain": "organization",
+            "dominant_domain_purity": 0.6184342350078718,
+            "primary_domain_fraction": 0.6184342350078718,
+            "domain_count": 15,
+            "normalized_domain_entropy": 0.4572619251349899,
+            "relation_js_divergence": 0.5782336571816988,
+            "local_entity_reuse_ratio": 5.3622409823484265,
+            "largest_component_entity_fraction": 0.9712202609363009
+          },
+          {
+            "client_id": 36,
+            "primary_domain": "award",
+            "dominant_domain": "award",
+            "dominant_domain_purity": 0.9955809721861191,
+            "primary_domain_fraction": 0.9955809721861191,
+            "domain_count": 2,
+            "normalized_domain_entropy": 0.040927082195642915,
+            "relation_js_divergence": 0.39305020785703,
+            "local_entity_reuse_ratio": 6.072612470402525,
+            "largest_component_entity_fraction": 1.0
+          }
+        ],
+        "domain_extractor": "freebase_top_level",
+        "domain_head_packet_count": 33155,
+        "client_primary_domains": [
+          "base",
+          "location",
+          "music",
+          "location",
+          "film",
+          "award",
+          "film",
+          "film",
+          "olympics",
+          "film",
+          "people",
+          "music",
+          "award",
+          "award",
+          "sports",
+          "award",
+          "soccer",
+          "education",
+          "people",
+          "education",
+          "award",
+          "award",
+          "people",
+          "music",
+          "film",
+          "people",
+          "film",
+          "award",
+          "award",
+          "people",
+          "tv",
+          "film",
+          "film",
+          "common",
+          "award",
+          "organization",
+          "award"
+        ],
+        "load_tolerance": 0.05,
+        "search_restarts": 8,
+        "search_seed": 2025
+      },
+      "checks": {
+        "triple_completeness": true,
+        "client_count": true,
+        "nonempty_clients": true,
+        "load_tolerance": true,
+        "domain_head_packet_exclusive": true,
+        "semantic_purity_improvement": true,
+        "relation_js_divergence_improvement": true,
+        "local_entity_reuse_improvement": true
+      }
+    }
+  },
+  "unique_partition_hashes": true,
+  "reproduction": {
+    "42": {
+      "partition_hash": "fe461e19b484201766e19cb00b12eae026ac58de09a793f6044b47aa3ac54db2",
+      "expected_partition_hash": "fe461e19b484201766e19cb00b12eae026ac58de09a793f6044b47aa3ac54db2",
+      "passed": true
+    },
+    "2024": {
+      "partition_hash": "f1e9e43026b3135018d4ba4ccf1d6eb56803ab9d1d1116af27959085494d7749",
+      "expected_partition_hash": "f1e9e43026b3135018d4ba4ccf1d6eb56803ab9d1d1116af27959085494d7749",
+      "passed": true
+    },
+    "2025": {
+      "partition_hash": "30fda49ed4cd3cd8b25db9e0faf59161f96f1e3e95d4a08b345ca091af74ef3f",
+      "expected_partition_hash": "30fda49ed4cd3cd8b25db9e0faf59161f96f1e3e95d4a08b345ca091af74ef3f",
+      "passed": true
+    }
+  }
+}
