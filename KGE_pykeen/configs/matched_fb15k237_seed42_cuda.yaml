@@ -1,0 +1,42 @@
+common_args:
+  random_seed: 42
+  comparison_mode: "matched_recipe"
+
+data_args:
+  dataset: "fb15k-237"
+  # Reuse the verified local FB15k-237 files.
+  data_dir: "../HFLSnF_KG_v3/data/FB15k-237"
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  local_objective: "bidirectional_self_adversarial"
+  fede_gamma: 9.0
+  adversarial_temperature: 1.0
+  epochs: 380
+  batch_size: 1024
+  learning_rate: 0.00005
+  lr: 0.00005
+  margin: 1.0
+  negative_sample_count: 256
+  eval_every: 10
+  validation_max_triples: 4096
+  validation_selection: "relation_stratified"
+  final_validation_max_triples: 0
+  test_max_triples: 0
+  evaluation_query_batch_size: 64
+  evaluation_candidate_batch_size: 8192
+  profile_training_timing: false
+  early_stopping_patience: 0
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+tracking_args:
+  run_name: "kge_pykeen_matched_recipe_fb15k237_seed42_cuda"
+  result_root: "results"
