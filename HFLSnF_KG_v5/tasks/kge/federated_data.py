@@ -20,6 +20,12 @@ BALANCED_HEAD_ENTITY_OVERLAP_TARGET = (
 SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED = (
     "semantic_domain_graph_local_balanced"
 )
+DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED = (
+    "domain_head_graph_local_no_primary_balanced"
+)
+SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED = (
+    "semantic_domain_no_graph_local_balanced"
+)
 RELATION_STRATIFIED_TRIPLE_BALANCED = (
     "relation_stratified_triple_balanced"
 )
@@ -27,7 +33,9 @@ SUPPORTED_PARTITION_STRATEGIES = frozenset(
     {
         BALANCED_HEAD_ENTITY,
         BALANCED_HEAD_ENTITY_OVERLAP_TARGET,
+        DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
         SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED,
+        SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
         RELATION_STRATIFIED_TRIPLE_BALANCED,
     }
 )
@@ -216,6 +224,79 @@ class FederatedKnowledgeGraphData:
                 self.partition_metadata["client_primary_domains"]
             ) != len(self.partitions):
                 raise ValueError("客户端主域数量必须与客户端数量一致")
+        if normalized_strategy in {
+            DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
+            SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
+        }:
+            if not isinstance(self.partition_metadata, dict):
+                raise ValueError("机制消融划分缺少分区元数据")
+            required_fields = (
+                "domain_extractor",
+                "domain_head_packet_count",
+                "packet_unit",
+                "has_primary_domain",
+                "uses_entity_locality_objective",
+                "assignment_objective_order",
+                "client_primary_domains",
+            )
+            if any(
+                field not in self.partition_metadata
+                for field in required_fields
+            ):
+                raise ValueError("机制消融划分元数据字段不完整")
+            if self.partition_metadata["packet_unit"] != (
+                "semantic_domain_head_entity"
+            ):
+                raise ValueError("机制消融分包单位必须是语义域加头实体")
+            if (
+                not isinstance(
+                    self.partition_metadata["domain_head_packet_count"],
+                    int,
+                )
+                or self.partition_metadata["domain_head_packet_count"] <= 0
+            ):
+                raise ValueError("机制消融分包数量必须为正整数")
+            primary_domains = self.partition_metadata[
+                "client_primary_domains"
+            ]
+            if normalized_strategy == (
+                DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED
+            ):
+                if self.partition_metadata["has_primary_domain"] is not False:
+                    raise ValueError("消融A不得声明客户端主域")
+                if primary_domains is not None:
+                    raise ValueError("消融A客户端主域必须为null")
+                if self.partition_metadata[
+                    "uses_entity_locality_objective"
+                ] is not True:
+                    raise ValueError("消融A必须保留实体图局部目标")
+                if self.partition_metadata[
+                    "assignment_objective_order"
+                ] != [
+                    "new_entity_count",
+                    "current_load",
+                    "seeded_tie_rank",
+                ]:
+                    raise ValueError("消融A包分配目标顺序不正确")
+            else:
+                if self.partition_metadata["has_primary_domain"] is not True:
+                    raise ValueError("消融B必须声明客户端主域")
+                if not isinstance(primary_domains, list) or len(
+                    primary_domains
+                ) != len(self.partitions):
+                    raise ValueError("消融B客户端主域数量不正确")
+                if self.partition_metadata[
+                    "uses_entity_locality_objective"
+                ] is not False:
+                    raise ValueError("消融B不得使用实体图局部目标")
+                if self.partition_metadata[
+                    "assignment_objective_order"
+                ] != [
+                    "primary_domain_mismatch",
+                    "current_load",
+                    "seeded_tie_rank",
+                ]:
+                    raise ValueError("消融B包分配目标顺序不正确")
 
     @property
     def client_count(self) -> int:

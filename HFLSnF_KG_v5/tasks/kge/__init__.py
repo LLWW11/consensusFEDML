@@ -18,12 +18,18 @@ from .evaluator import FilteredRankingEvaluator
 from .federated_data import (
     BALANCED_HEAD_ENTITY,
     BALANCED_HEAD_ENTITY_OVERLAP_TARGET,
+    DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
     SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED,
+    SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
     FederatedKnowledgeGraphData,
     KnowledgeGraphClientPartition,
     calibrate_entity_overlap_levels,
     partition_train_triples_by_head,
     partition_train_triples_by_overlap_target,
+)
+from .graph_semantic_mechanism_partition import (
+    partition_train_triples_by_graph_local_no_primary,
+    partition_train_triples_by_semantic_domain_no_graph_local,
 )
 from .graph_semantic_partition import (
     DOMAIN_EXTRACTOR,
@@ -50,7 +56,9 @@ __all__ = [
     "BALANCED_HEAD_ENTITY",
     "BALANCED_HEAD_ENTITY_OVERLAP_TARGET",
     "DOMAIN_EXTRACTOR",
+    "DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED",
     "SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED",
+    "SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED",
     "FederatedKnowledgeGraphData",
     "FilteredNegativeSampler",
     "FilteredRankingEvaluator",
@@ -69,7 +77,9 @@ __all__ = [
     "load_project_checkpoint",
     "metrics_from_ranks",
     "partition_train_triples_by_head",
+    "partition_train_triples_by_graph_local_no_primary",
     "partition_train_triples_by_overlap_target",
+    "partition_train_triples_by_semantic_domain_no_graph_local",
     "partition_train_triples_by_semantic_domain_graph_local",
     "relation_domains",
     "run_best_checkpoint_official_evaluation",

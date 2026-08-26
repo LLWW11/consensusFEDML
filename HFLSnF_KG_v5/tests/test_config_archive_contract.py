@@ -55,6 +55,12 @@ EXPECTED_STOCHASTIC_FILES = {
     for seed in (42, 2024, 2025)
 }
 
+EXPECTED_GRAPH_SEMANTIC_MECHANISM_ABLATION_FILES = {
+    "{}_hflsnf_seed{}_150round_cuda.yaml".format(arm, seed)
+    for arm in ("graph_only", "semantic_only")
+    for seed in (42, 2024, 2025)
+}
+
 EXPECTED_ARCHIVE_COUNTS = {
     "fedadam_stage1": 8,
     "fedadam_stage2_screen": 8,
@@ -154,6 +160,12 @@ class ConfigArchiveContractTest(unittest.TestCase):
             path.name
             for path in (CONFIG_DIR / "graph_semantic").glob("*.yaml")
         }
+        mechanism_ablation_yaml = {
+            path.name
+            for path in (
+                CONFIG_DIR / "graph_semantic_mechanism_ablation"
+            ).glob("*.yaml")
+        }
         self.assertEqual(dynamic_yaml, EXPECTED_DYNAMIC_FILES)
         self.assertEqual(stochastic_yaml, EXPECTED_STOCHASTIC_FILES)
         self.assertEqual(len(overlap_yaml), 9)
@@ -163,6 +175,10 @@ class ConfigArchiveContractTest(unittest.TestCase):
                 "graph_semantic_hflsnf_seed{}_150round_cuda.yaml".format(seed)
                 for seed in (42, 2024, 2025)
             },
+        )
+        self.assertEqual(
+            mechanism_ablation_yaml,
+            EXPECTED_GRAPH_SEMANTIC_MECHANISM_ABLATION_FILES,
         )
 
         archive_root = CONFIG_DIR / "zOld"
@@ -174,8 +190,8 @@ class ConfigArchiveContractTest(unittest.TestCase):
 
         # 文件名在整个配置树中保持唯一，避免按名称查找时出现歧义。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
-        self.assertEqual(len(all_yaml), 65)
-        self.assertEqual(len({path.name for path in all_yaml}), 65)
+        self.assertEqual(len(all_yaml), 71)
+        self.assertEqual(len({path.name for path in all_yaml}), 71)
         self.assertTrue((CONFIG_DIR / "README.md").is_file())
         self.assertTrue((archive_root / "README.md").is_file())
         for path in all_yaml:

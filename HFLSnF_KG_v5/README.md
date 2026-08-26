@@ -16,7 +16,8 @@ FB15k-237没有真实机构所有权标签，因此V5是现实代理实验，不
 - 正式种子：42、2024、2025；
 - 每个种子：8次确定性搜索重启并独立复算；
 - 正式分区合同：已通过；
-- 新增150轮CUDA训练：尚未在本机启动。
+- 完整V5三种子150轮CUDA训练与官方全量评估：已通过并冻结；
+- 语义—图局部性双消融：计划新增A/B两个实验臂，每臂三个种子。
 
 本机 `D:\Anaconda3\envs\py37` 为PyTorch CPU环境，只用于校准、测试和冒烟。正式配置保留 `require_cuda: true`。
 
@@ -48,6 +49,16 @@ python -m HFLSnF_KG_v5.run_graph_semantic_ablation official3 --batch "<batch_sum
 python -m HFLSnF_KG_v5.run_graph_semantic_ablation report --batch "<batch_summary.json>"
 ```
 
+双消融实现完成后，先校验六个新分区，再在CUDA环境运行六组正式训练：
+
+```powershell
+python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation validate
+python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation formal150
+python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation formal150 --resume "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation official6 --batch "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation report --batch "<batch_summary.json>"
+```
+
 ## 关键目录
 
 - `configs/graph_semantic/`：三份正式YAML、冻结校准合同和内置历史参考；
@@ -55,8 +66,12 @@ python -m HFLSnF_KG_v5.run_graph_semantic_ablation report --batch "<batch_summar
 - `tasks/kge/graph_semantic_ablation.py`：配置、基线、V5内置历史参考和结果合同；
 - `run_graph_semantic_ablation.py`：训练恢复、官方测试和报告；
 - `results/graph_semantic/`：新实验结果，默认不进入Git。
+- `configs/graph_semantic_mechanism_ablation/`：A/B六份正式配置、校准合同和完整V5冻结参考；
+- `results/graph_semantic_mechanism_ablation/`：A/B正式结果，默认不进入Git。
 
 详细预注册内容见[图语义感知划分实验计划](图语义感知划分实验计划.md)，完整训练和聚合数据流见[实验流程说明](实验流程说明.md)。
+
+语义主域与实体图局部性的删除式消融见[图语义机制双消融实验计划](图语义机制双消融实验计划.md)。
 
 ## 冻结边界
 

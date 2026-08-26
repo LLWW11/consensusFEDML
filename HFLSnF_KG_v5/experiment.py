@@ -10,12 +10,16 @@ from .tasks.kge import (
     BALANCED_HEAD_ENTITY,
     BALANCED_HEAD_ENTITY_OVERLAP_TARGET,
     DOMAIN_EXTRACTOR,
+    DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
     SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED,
+    SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
     TransE,
     build_synthetic_knowledge_graph,
     load_fb15k237,
     partition_train_triples_by_head,
+    partition_train_triples_by_graph_local_no_primary,
     partition_train_triples_by_overlap_target,
+    partition_train_triples_by_semantic_domain_no_graph_local,
     partition_train_triples_by_semantic_domain_graph_local,
 )
 
@@ -136,12 +140,54 @@ def build_federated_data(args, dataset):
                 getattr(args, "partition_search_restarts", 8)
             ),
         )
+    if strategy in {
+        DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
+        SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
+    }:
+        extractor = str(
+            getattr(args, "partition_domain_extractor", DOMAIN_EXTRACTOR)
+        ).strip().lower()
+        if extractor != DOMAIN_EXTRACTOR:
+            raise ValueError(
+                "partition_domain_extractor必须是{}".format(
+                    DOMAIN_EXTRACTOR
+                )
+            )
+        search_seed = int(
+            getattr(
+                args,
+                "partition_search_seed",
+                partition_arguments["seed"],
+            )
+        )
+        if search_seed != partition_arguments["seed"]:
+            raise ValueError(
+                "机制消融partition_search_seed必须与random_seed一致"
+            )
+        ablation_arguments = {
+            **partition_arguments,
+            "load_tolerance": float(
+                getattr(args, "partition_load_tolerance", 0.05)
+            ),
+            "search_restarts": int(
+                getattr(args, "partition_search_restarts", 8)
+            ),
+        }
+        if strategy == DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED:
+            return partition_train_triples_by_graph_local_no_primary(
+                **ablation_arguments
+            )
+        return partition_train_triples_by_semantic_domain_no_graph_local(
+            **ablation_arguments
+        )
     raise ValueError(
-        "不支持的partition_strategy={}；当前支持{}、{}和{}".format(
+        "不支持的partition_strategy={}；当前支持{}、{}、{}、{}和{}".format(
             strategy,
             BALANCED_HEAD_ENTITY,
             BALANCED_HEAD_ENTITY_OVERLAP_TARGET,
             SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED,
+            DOMAIN_HEAD_GRAPH_LOCAL_NO_PRIMARY_BALANCED,
+            SEMANTIC_DOMAIN_NO_GRAPH_LOCAL_BALANCED,
         )
     )
 
