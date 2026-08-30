@@ -54,7 +54,7 @@ python -m KGE_central.run
 KGE_central/configs/centralized_fb15k237_strong_transe_cuda.yaml
 ```
 
-该配置强制要求CUDA，不允许静默降级到CPU。配方为种子42、256维、L1距离、380个epoch、批量1024、256个负样本、学习率`5e-5`、双向自对抗目标、关系分层验证子集和完整验证/测试。
+该配置强制要求CUDA，不允许静默降级到CPU。当前对齐配方为种子42、256维、L1距离、450个epoch、每3个epoch使用关系分层验证子集选模、批量1024、256个负样本、学习率`5e-5`、双向自对抗目标，以及训练结束后的完整验证和完整测试。
 
 FB15k-237默认复用：
 
@@ -95,7 +95,8 @@ python -m KGE_central.run `
 - `random_seed: 42`
 - `embedding_dim: 256`
 - `distance_norm: 1`
-- `epochs: 380`
+- `epochs: 450`
+- `eval_every: 3`
 - `batch_size: 1024`
 - `learning_rate: 0.00005`
 - `negative_sample_count: 256`

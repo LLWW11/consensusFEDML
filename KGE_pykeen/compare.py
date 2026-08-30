@@ -15,6 +15,7 @@ COMMON_CONFIG_FIELDS = (
     "embedding_dim",
     "distance_norm",
     "epochs",
+    "eval_every",
     "batch_size",
     "learning_rate",
     "negative_sample_count",

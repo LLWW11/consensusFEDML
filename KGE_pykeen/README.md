@@ -31,7 +31,7 @@ native正式实验：
 python -m KGE_pykeen.run --config KGE_pykeen/configs/native_fb15k237_seed42_cuda.yaml
 ```
 
-两份配置共同固定种子42、256维、L1距离、380个epoch、批量1024、Adam学习率`5e-5`、256个负样本、gamma 9.0和对抗温度1.0，不创建逆关系。
+两份配置共同固定种子42、256维、L1距离、450个epoch、每3个epoch验证选模、批量1024、Adam学习率`5e-5`、256个负样本、gamma 9.0和对抗温度1.0，不创建逆关系。matched与native的选模时点均为epoch 3、6、9直至450，完整测试仅在训练结束并恢复最佳模型后执行。
 
 ## 结果产物
 

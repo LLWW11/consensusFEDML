@@ -15,14 +15,14 @@ train_args:
   local_objective: "bidirectional_self_adversarial"
   fede_gamma: 9.0
   adversarial_temperature: 1.0
-  # Based on the 0.386967 full-test MRR recipe with more frequent evaluation.
-  epochs: 380
+  # Align all three centralized runs to 450 epochs and 3-epoch validation.
+  epochs: 450
   batch_size: 1024
   learning_rate: 0.00005
   lr: 0.00005
   margin: 1.0
   negative_sample_count: 256
-  eval_every: 10
+  eval_every: 3
   validation_max_triples: 4096
   validation_selection: "relation_stratified"
   final_validation_max_triples: 0

@@ -12,7 +12,7 @@ import torch
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from .runtime import as_bool
+from .runtime import as_bool, should_run_selection_evaluation
 from .utils import clone_state_dict
 from .data import KnowledgeGraphDataset
 from .evaluator import FilteredRankingEvaluator
@@ -521,10 +521,9 @@ class CentralizedTransETrainer:
                     monitoring_metrics = self._evaluate_validation(
                         self.monitor_validation_max_triples
                     )
-                should_evaluate = (
-                    epoch == 1
-                    or epoch % self.eval_every == 0
-                    or epoch == self.epochs
+                should_evaluate = should_run_selection_evaluation(
+                    epoch,
+                    self.eval_every,
                 )
                 validation_metrics = None
                 if should_evaluate:

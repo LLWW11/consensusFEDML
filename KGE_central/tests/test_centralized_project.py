@@ -8,6 +8,7 @@ from pathlib import Path
 
 from KGE_central.configuration import PACKAGE_DIR, load_flat_config
 from KGE_central.experiment import run_experiment
+from KGE_central.runtime import should_run_selection_evaluation
 
 
 class CentralizedProjectTest(unittest.TestCase):
@@ -29,11 +30,11 @@ class CentralizedProjectTest(unittest.TestCase):
             "local_objective": "bidirectional_self_adversarial",
             "fede_gamma": 9.0,
             "adversarial_temperature": 1.0,
-            "epochs": 380,
+            "epochs": 450,
             "batch_size": 1024,
             "learning_rate": 0.00005,
             "negative_sample_count": 256,
-            "eval_every": 10,
+            "eval_every": 3,
             "validation_max_triples": 4096,
             "validation_selection": "relation_stratified",
             "final_validation_max_triples": 0,
@@ -46,6 +47,19 @@ class CentralizedProjectTest(unittest.TestCase):
         }
         for field, value in expected.items():
             self.assertEqual(config[field], value)
+
+    def test_selection_schedule_uses_150_aligned_points(self) -> None:
+        """确认450轮训练只在3的倍数epoch执行150次验证选模。"""
+
+        evaluation_epochs = [
+            epoch
+            for epoch in range(1, 451)
+            if should_run_selection_evaluation(epoch, 3)
+        ]
+        self.assertEqual(evaluation_epochs, list(range(3, 451, 3)))
+        self.assertNotIn(1, evaluation_epochs)
+        self.assertEqual(evaluation_epochs[-1], 450)
+        self.assertEqual(len(evaluation_epochs), 150)
 
     def test_cpu_smoke_writes_complete_centralized_artifacts(self) -> None:
         """确认合成数据训练能够保存最佳模型和完整结果合同。"""

@@ -27,6 +27,22 @@ def as_bool(value: object) -> bool:
     raise ValueError("无法解析布尔值：{}".format(value))
 
 
+def should_run_selection_evaluation(
+    epoch: int,
+    eval_every: int,
+) -> bool:
+    """判断当前epoch是否到达严格的周期性验证选模时点。"""
+
+    normalized_epoch = int(epoch)
+    normalized_interval = int(eval_every)
+    if normalized_epoch <= 0:
+        raise ValueError("epoch必须大于0")
+    if normalized_interval <= 0:
+        raise ValueError("eval_every必须大于0")
+    # 只在完整周期点选模，避免epoch 1或最终轮特例破坏三组对齐。
+    return normalized_epoch % normalized_interval == 0
+
+
 def seed_everything(seed: int) -> None:
     """固定Python、NumPy、PyTorch CPU和CUDA随机种子。"""
 

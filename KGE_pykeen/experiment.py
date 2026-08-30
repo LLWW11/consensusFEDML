@@ -67,6 +67,7 @@ def _comparison_contract(
             "embedding_dim",
             "distance_norm",
             "epochs",
+            "eval_every",
             "batch_size",
             "learning_rate",
             "negative_sample_count",
@@ -76,7 +77,8 @@ def _comparison_contract(
         "strict_all_true_negative_filtering": matched,
         "batch_alternating_head_tail_corruption": matched,
         "frequency_subsampling_weights": matched,
-        "epoch_one_validation_selection": matched,
+        "epoch_one_validation_selection": False,
+        "selection_evaluation_schedule": "eval_every_multiples",
         "canonical_optimistic_filtered_evaluation": True,
         "native_semantic_differences": (
             []
