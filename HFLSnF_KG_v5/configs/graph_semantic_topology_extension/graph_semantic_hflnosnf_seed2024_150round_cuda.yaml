@@ -1,0 +1,80 @@
+# V5 graph-semantic HFLnoSnF topology comparison.
+common_args:
+  training_type: "simulation"
+  random_seed: 2024
+
+data_args:
+  dataset: "fb15k-237"
+  data_dir: "data/FB15k-237"
+  partition_strategy: "semantic_domain_graph_local_balanced"
+  partition_domain_extractor: "freebase_top_level"
+  partition_load_tolerance: 0.05
+  partition_search_seed: 2024
+  partition_search_restarts: 8
+
+model_args:
+  model: "transe"
+  embedding_dim: 256
+  distance_norm: 1
+
+train_args:
+  # Keep all non-topology settings paired with the same-seed HFLSnF run.
+  federated_optimizer: "DynamicTopologyTransE"
+  ablation_suite: "v5_graph_semantic_topology_extension_fedadam_formal150"
+  ablation_arm: "graph_semantic_hflnosnf_seed2024"
+  comparison_scenario: "V5-HFLnoSnF-GraphSemantic-Seed2024-Formal150"
+  client_num_in_total: 37
+  client_num_per_round: 37
+  topology_type: "matlab_direct"
+  topology_architecture: "hfl"
+  topology_snf: false
+  topology_edge_mode: "fixed"
+  edge_num: 6
+  dynamic_group_mat_file: "../Topo_opt/postprocess/result-U-6fixedge_epoch200_hard_varAlpha_0p1_trainable.mat"
+  topology_util: 0.6
+  topology_schedule_policy: "strict"
+  aggregation_mode: "row_count_weighted"
+  server_optimizer: "fedadam"
+  server_learning_rate: 0.05
+  server_beta1: 0.9
+  server_beta2: 0.99
+  server_tau: 0.001
+  server_bias_correction: false
+  local_objective: "bidirectional_self_adversarial"
+  fede_gamma: 9.0
+  adversarial_temperature: 1.0
+  expected_partition_hash: "f1e9e43026b3135018d4ba4ccf1d6eb56803ab9d1d1116af27959085494d7749"
+  expected_topology_schedule_hash: "0c7b70472476933389e1b8347a1583dbb0c847ae74a6469704a8cf09d025cabc"
+  comm_round: 150
+  epochs: 3
+  batch_size: 1024
+  client_optimizer: "adam"
+  client_optimizer_state_mode: "reset"
+  learning_rate: 0.00005
+  lr: 0.00005
+  margin: 1.0
+  negative_sample_count: 256
+  eval_every: 1
+  validation_max_triples: 4096
+  validation_selection: "relation_stratified"
+  final_validation_max_triples: 4096
+  test_max_triples: 0
+  # Defer test evaluation until validation-only selection is complete.
+  evaluate_test_after_training: false
+  evaluation_query_batch_size: 64
+  evaluation_candidate_batch_size: 8192
+  profile_training_timing: false
+
+device_args:
+  using_gpu: true
+  require_cuda: true
+  gpu_id: 0
+
+comm_args:
+  backend: "sp"
+
+tracking_args:
+  enable_wandb: false
+  using_mlops: false
+  run_name: "hflsnf_kg_v5_graph_semantic_hflnosnf_seed2024_150round_cuda"
+  result_root: "results/graph_semantic_topology_extension"
