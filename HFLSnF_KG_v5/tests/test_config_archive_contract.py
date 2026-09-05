@@ -60,6 +60,19 @@ EXPECTED_GRAPH_SEMANTIC_MECHANISM_ABLATION_FILES = {
     for arm in ("graph_only", "semantic_only")
     for seed in (42, 2024, 2025)
 }
+EXPECTED_GRAPH_SEMANTIC_TOPOLOGY_EXTENSION_FILES = {
+    "graph_semantic_{}_seed{}_150round_cuda.yaml".format(arm, seed)
+    for arm in ("hflnosnf", "flnosnf")
+    for seed in (42, 2024, 2025)
+}
+
+EXPECTED_GRAPH_SEMANTIC_FEDAVG_FILES = {
+    "graph_semantic_fedavg_{}_seed{}_150round_cuda.yaml".format(arm, seed)
+    for arm in ("hflsnf", "hflnosnf", "flnosnf")
+    for seed in (42, 2024, 2025)
+}
+
+
 
 EXPECTED_ARCHIVE_COUNTS = {
     "fedadam_stage1": 8,
@@ -166,6 +179,18 @@ class ConfigArchiveContractTest(unittest.TestCase):
                 CONFIG_DIR / "graph_semantic_mechanism_ablation"
             ).glob("*.yaml")
         }
+        topology_extension_yaml = {
+            path.name
+            for path in (
+                CONFIG_DIR / "graph_semantic_topology_extension"
+            ).glob("*.yaml")
+        }
+        fedavg_yaml = {
+            path.name
+            for path in (
+                CONFIG_DIR / "graph_semantic_fedavg_comparison"
+            ).glob("*.yaml")
+        }
         self.assertEqual(dynamic_yaml, EXPECTED_DYNAMIC_FILES)
         self.assertEqual(stochastic_yaml, EXPECTED_STOCHASTIC_FILES)
         self.assertEqual(len(overlap_yaml), 9)
@@ -180,6 +205,14 @@ class ConfigArchiveContractTest(unittest.TestCase):
             mechanism_ablation_yaml,
             EXPECTED_GRAPH_SEMANTIC_MECHANISM_ABLATION_FILES,
         )
+        self.assertEqual(
+            topology_extension_yaml,
+            EXPECTED_GRAPH_SEMANTIC_TOPOLOGY_EXTENSION_FILES,
+        )
+        self.assertEqual(
+            fedavg_yaml,
+            EXPECTED_GRAPH_SEMANTIC_FEDAVG_FILES,
+        )
 
         archive_root = CONFIG_DIR / "zOld"
         archive_yaml = tuple(sorted(archive_root.rglob("*.yaml")))
@@ -190,8 +223,8 @@ class ConfigArchiveContractTest(unittest.TestCase):
 
         # 文件名在整个配置树中保持唯一，避免按名称查找时出现歧义。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
-        self.assertEqual(len(all_yaml), 71)
-        self.assertEqual(len({path.name for path in all_yaml}), 71)
+        self.assertEqual(len(all_yaml), 86)
+        self.assertEqual(len({path.name for path in all_yaml}), 86)
         self.assertTrue((CONFIG_DIR / "README.md").is_file())
         self.assertTrue((archive_root / "README.md").is_file())
         for path in all_yaml:

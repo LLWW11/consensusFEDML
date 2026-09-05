@@ -19,6 +19,7 @@ FB15k-237没有真实机构所有权标签，因此V5是现实代理实验，不
 - 完整V5三种子150轮CUDA训练与官方全量评估：已通过并冻结；
 - 语义—图局部性双消融：A/B两个实验臂、每臂三个种子的正式实验已完成；
 - 图语义拓扑对照扩展：已加入HFLnoSnF与FLnoSnF两个组别，每组使用42、2024、2025三个种子，共新增6次正式训练。
+- 无FedAdam三拓扑对照：已预注册HFLSnF、HFLnoSnF和FLnoSnF各三个种子的逐行FedAvg九实验，正式CUDA训练尚未执行。
 
 本机 `D:\Anaconda3\envs\py37` 为PyTorch CPU环境，只用于校准、测试和冒烟。正式配置保留 `require_cuda: true`。
 
@@ -68,6 +69,16 @@ python -m HFLSnF_KG_v5.run_graph_semantic_topology_extension formal6
 python -m HFLSnF_KG_v5.run_graph_semantic_topology_extension formal6 --resume "<batch_summary.json>"
 ```
 
+无FedAdam三拓扑九实验先校验配置，再在CUDA环境执行训练、完整官方测试和报告：
+
+```powershell
+D:\Anaconda3\envs\py37\python.exe -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison validate
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison formal9
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison formal9 --resume "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison official9 --batch "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison report --batch "<batch_summary.json>"
+```
+
 ## 关键目录
 
 - `configs/graph_semantic/`：三份正式YAML、冻结校准合同和内置历史参考；
@@ -80,12 +91,17 @@ python -m HFLSnF_KG_v5.run_graph_semantic_topology_extension formal6 --resume "<
 - `configs/graph_semantic_topology_extension/`：HFLnoSnF与FLnoSnF六份图语义正式配置；
 - `run_graph_semantic_topology_extension.py`：六实验校验、失败停止和恢复入口；
 - `results/graph_semantic_topology_extension/`：六次新增训练的隔离结果目录。
+- `configs/graph_semantic_fedavg_comparison/`：三拓扑、三种子的九份FedAvg正式配置；
+- `run_graph_semantic_fedavg_comparison.py`：九实验校验、训练恢复、官方测试和报告入口；
+- `results/graph_semantic_fedavg_comparison/`：FedAvg九实验的隔离结果目录。
 
 详细预注册内容见[图语义感知划分实验计划](图语义感知划分实验计划.md)，完整训练和聚合数据流见[实验流程说明](实验流程说明.md)。
 
 语义主域与实体图局部性的删除式消融见[图语义机制双消融实验计划](图语义机制双消融实验计划.md)。
 
 HFLnoSnF与FLnoSnF的三种子扩展见[图语义拓扑对照六实验计划](图语义拓扑对照六实验计划.md)。
+
+关闭服务器端FedAdam后的三拓扑九实验见[图语义FedAvg三拓扑九实验计划](图语义FedAvg三拓扑九实验计划.md)。
 
 ## 冻结边界
 
