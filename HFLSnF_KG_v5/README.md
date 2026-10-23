@@ -103,6 +103,53 @@ HFLnoSnF与FLnoSnF的三种子扩展见[图语义拓扑对照六实验计划](�
 
 关闭服务器端FedAdam后的三拓扑九实验见[图语义FedAvg三拓扑九实验计划](图语义FedAvg三拓扑九实验计划.md)。
 
+## FedAvg四学习率独立实验
+
+新增HFLSnF、种子42的`5e-5、1e-4、2e-4、5e-4`四组客户端学习率对照。四组从同一初始化独立运行150轮，沿用原FedAvg训练配方；数值不稳定停止当前组并继续，其他执行异常停止批次。正式配置要求CUDA，正式训练由GPU机器执行。
+
+在仓库根目录运行：
+
+```powershell
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_lr_sweep validate
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_lr_sweep formal4
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_lr_sweep formal4 --resume "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_lr_sweep report --batch "<batch_summary.json>"
+```
+
+新增配置位于`configs/graph_semantic_fedavg_lr_sweep/`，结果隔离至`results/graph_semantic_fedavg_lr_sweep/`。完成后自动导出验证曲线统计的JSON、CSV和中文报告，不运行测试集评估。恢复跳过已经通过或已判数值不稳定的组，其余组从第1轮重新训练。
+
+完整监测口径、环境要求和报告说明见[图语义FedAvg四学习率实验说明](图语义FedAvg四学习率实验说明.md)。
+
+## FedAvg种子42三拓扑实验
+
+固定本地学习率`5e-4`、种子42，依次独立重跑HFLSnF、HFLnoSnF、FLnoSnF三组150轮。沿用客户端Adam/reset和图语义配方，保留数值监测与批次恢复，不启动其他种子。
+
+```powershell
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_seed42 validate
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_seed42 formal3
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_seed42 formal3 --resume "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_seed42 report --batch "<batch_summary.json>"
+```
+
+正式训练要求CUDA。结果隔离至`results/graph_semantic_fedavg_seed42_lr5e-4/`，自动汇总验证曲线、配对差及参与预算，不执行测试集评估。新批次三组均从第1轮重新训练，不复用学习率扫描的HFLSnF模型。
+
+完整说明见[图语义FedAvg种子42三拓扑实验说明](图语义FedAvg种子42三拓扑实验说明.md)。
+
+## FedAvg三种子乘三拓扑九实验
+
+固定本地学习率`5e-4`，直接运行`42、2024、2025`三个种子各自的HFLSnF、HFLnoSnF、FLnoSnF，共九组，每组150轮：
+
+```powershell
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_multiseed validate
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_multiseed formal9
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_multiseed formal9 --resume "<batch_summary.json>"
+python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_multiseed report --batch "<batch_summary.json>"
+```
+
+新批次九组全部独立重跑，结果位于`results/graph_semantic_fedavg_multiseed_lr5e-4/`，自动生成各组曲线、同种子配对差及跨种子均值和样本标准差。保留CUDA要求、数值监测与批次恢复，不执行测试集评估。旧三组入口仍可使用，旧清单不能直接扩充为新九组清单。
+
+完整说明见[图语义FedAvg三种子九实验说明](图语义FedAvg三种子九实验说明.md)。
+
 ## 冻结边界
 
 V5中复制的三种子原始结果与V4原件哈希一致，只作为基线。不得修改历史结果、配置快照、模型检查点或V5内置的十二格冻结参考。历史配置中的V3/V4身份字段属于来源凭据，不批量改名。

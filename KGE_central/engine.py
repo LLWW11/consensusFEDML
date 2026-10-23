@@ -6,6 +6,7 @@ from .data import (
     KnowledgeGraphDataset,
     build_synthetic_knowledge_graph,
     load_fb15k237,
+    load_wn18rr,
 )
 from .model import TransE
 from .trainer import (
@@ -18,4 +19,5 @@ __all__ = [
     "TransE",
     "build_synthetic_knowledge_graph",
     "load_fb15k237",
+    "load_wn18rr",
 ]

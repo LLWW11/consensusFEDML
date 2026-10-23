@@ -7,7 +7,7 @@
 | KGE_central职责 | 已验证来源 |
 |---|---|
 | TransE模型 | `KGE_central/model.py`，恢复自`HFLSnF_KG_v3/tasks/kge/model.py` |
-| FB15k-237加载 | `KGE_central/data.py`，恢复自`HFLSnF_KG_v3/tasks/kge/data.py` |
+| 双数据集加载 | `KGE_central/data.py`，保留恢复自V3的解析与编号，增加WN18RR入口并共享标准文本加载 |
 | 集中式训练与选模 | `KGE_central/trainer.py`，恢复自`HFLSnF_KG_v3/tasks/kge/trainer.py` |
 | 精确filtered评估 | `KGE_central/evaluator.py`，恢复自`HFLSnF_KG_v3/tasks/kge/evaluator.py` |
 | 批量头尾排名内核 | `KGE_central/directional.py`，恢复自V3同名文件 |
@@ -18,3 +18,5 @@
 | 独立训练入口 | `KGE_central/experiment.py`与`run.py` |
 
 `KGE_central/engine.py`是算法内核的显式边界。集中式入口不会导入`HFLSnF_KG_v3`、FedML Runner、客户端划分或拓扑调度。
+
+双数据集扩展只调整配置选择和数据入口。未填写路径时复用V5数据目录，显式路径仍优先；模型、负采样、损失、训练选模和排名评估的数学定义保持原样。

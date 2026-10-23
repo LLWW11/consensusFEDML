@@ -10,6 +10,33 @@ import yaml
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_DIRS = {
+    "fb15k-237": "../HFLSnF_KG_v5/data/FB15k-237",
+    "wn18rr": "../HFLSnF_KG_v5/data/wn18rr",
+}
+
+
+def normalize_dataset_name(value: object) -> str:
+    """规范化受支持的数据集名称，并兼容已有配置别名。"""
+
+    name = str(value).strip().lower()
+    aliases = {"fb15k237": "fb15k-237", "synthetic_kg": "synthetic-kg"}
+    name = aliases.get(name, name)
+    if name not in {"fb15k-237", "wn18rr", "synthetic-kg"}:
+        raise ValueError("dataset必须是fb15k-237、wn18rr或synthetic-kg")
+    return name
+
+
+def resolve_dataset_path(config: Mapping[str, object]) -> Path:
+    """优先使用显式路径，否则按数据集选择默认目录；不回退数据源。"""
+
+    name = normalize_dataset_name(config["dataset"])
+    value = config.get("data_dir")
+    if value is None or not str(value).strip():
+        if name not in DEFAULT_DATA_DIRS:
+            raise ValueError("合成数据在内存构造，没有默认数据目录")
+        value = DEFAULT_DATA_DIRS[name]
+    return resolve_project_path(value)
 
 
 def load_flat_config(config_path: Path) -> Dict[str, object]:
@@ -29,6 +56,13 @@ def load_flat_config(config_path: Path) -> Dict[str, object]:
         flattened.update(section)
     flattened["config_file"] = str(config_path)
     validate_config(flattened)
+    flattened["dataset"] = normalize_dataset_name(flattened["dataset"])
+    if flattened["dataset"] != "synthetic-kg":
+        # 快照保存实际使用的目录，便于在其他机器追溯数据来源。
+        flattened["data_dir"] = str(resolve_dataset_path(flattened))
+    flattened["run_name"] = str(flattened["run_name"]).replace(
+        "{dataset}", flattened["dataset"]
+    )
     return flattened
 
 
@@ -53,13 +87,7 @@ def validate_config(config: Mapping[str, object]) -> None:
     missing = [field for field in required if field not in config]
     if missing:
         raise ValueError("集中式配置缺少字段：{}".format(missing))
-    if str(config["dataset"]).strip().lower() not in {
-        "fb15k-237",
-        "fb15k237",
-        "synthetic-kg",
-        "synthetic_kg",
-    }:
-        raise ValueError("dataset必须是fb15k-237或synthetic-kg")
+    normalize_dataset_name(config["dataset"])
     for field in (
         "embedding_dim",
         "epochs",

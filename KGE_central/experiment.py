@@ -11,13 +11,15 @@ import torch
 from .configuration import (
     as_namespace,
     load_flat_config,
-    resolve_project_path,
+    normalize_dataset_name,
+    resolve_dataset_path,
 )
 from .engine import (
     CentralizedTransETrainer,
     TransE,
     build_synthetic_knowledge_graph,
     load_fb15k237,
+    load_wn18rr,
 )
 from .runtime import (
     create_result_directory,
@@ -28,13 +30,13 @@ from .runtime import (
 
 
 def _load_dataset(config: Dict[str, object]):
-    """按配置加载FB15k-237或无需外部文件的合成知识图谱。"""
+    """按规范名称分派真实数据加载器，或构造内存合成图谱。"""
 
-    dataset_name = str(config["dataset"]).strip().lower()
-    if dataset_name in {"synthetic-kg", "synthetic_kg"}:
+    dataset_name = normalize_dataset_name(config["dataset"])
+    if dataset_name == "synthetic-kg":
         return build_synthetic_knowledge_graph()
-    data_dir = resolve_project_path(config["data_dir"])
-    return load_fb15k237(data_dir)
+    loaders = {"fb15k-237": load_fb15k237, "wn18rr": load_wn18rr}
+    return loaders[dataset_name](resolve_dataset_path(config))
 
 
 def _state_dict_sha256(model: torch.nn.Module) -> str:

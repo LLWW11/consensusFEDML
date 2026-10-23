@@ -1,4 +1,4 @@
-"""FB15k-237三元组读取、全局编号和数据完整性校验。"""
+"""知识图谱三元组读取、全局编号和数据完整性校验。"""
 
 from __future__ import annotations
 
@@ -192,16 +192,30 @@ def build_knowledge_graph_dataset(
     )
 
 
-def load_fb15k237(data_dir: Path) -> KnowledgeGraphDataset:
-    """从标准train.txt、valid.txt和test.txt目录读取FB15k-237。"""
+def _load_standard_dataset(
+    dataset_name: str, data_dir: Path
+) -> KnowledgeGraphDataset:
+    """从标准三份文本构建数据集，保留字符串标识和原始划分。"""
 
     data_dir = Path(data_dir).expanduser().resolve()
     train_triples = _read_text_triples(data_dir / "train.txt")
     valid_triples = _read_text_triples(data_dir / "valid.txt")
     test_triples = _read_text_triples(data_dir / "test.txt")
     return build_knowledge_graph_dataset(
-        "fb15k-237", train_triples, valid_triples, test_triples
+        dataset_name, train_triples, valid_triples, test_triples
     )
+
+
+def load_fb15k237(data_dir: Path) -> KnowledgeGraphDataset:
+    """读取FB15k-237，保持原有接口及首次出现顺序编号。"""
+
+    return _load_standard_dataset("fb15k-237", data_dir)
+
+
+def load_wn18rr(data_dir: Path) -> KnowledgeGraphDataset:
+    """读取WN18RR，保留前导零及仅在验证或测试出现的实体。"""
+
+    return _load_standard_dataset("wn18rr", data_dir)
 
 
 def build_synthetic_knowledge_graph() -> KnowledgeGraphDataset:
