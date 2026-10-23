@@ -6,6 +6,9 @@ from typing import Dict
 
 import torch
 
+from .tasks.kge.data import load_dataset
+from .tasks.kge.graph_semantic_partition import resolve_domain_extractor
+
 from .tasks.kge import (
     BALANCED_HEAD_ENTITY,
     BALANCED_HEAD_ENTITY_OVERLAP_TARGET,
@@ -25,25 +28,9 @@ from .tasks.kge import (
 
 
 def load_configured_dataset(args):
-    """根据FedML配置加载合成知识图谱或标准FB15k-237。"""
+    """加载所选真实或合成图谱，未指定路径时使用本项目数据目录。"""
 
-    name = str(getattr(args, "dataset", "")).strip().lower()
-    if name in {"synthetic-kg", "synthetic_kg"}:
-        return build_synthetic_knowledge_graph()
-    if name in {"fb15k-237", "fb15k237"}:
-        # 仅真实训练的数据路径解析需要FedML运行时，分区单测无需加载它。
-        from .runtime import resolve_package_path
-
-        return load_fb15k237(
-            resolve_package_path(
-                getattr(args, "data_dir", "data/FB15k-237")
-            )
-        )
-    raise ValueError(
-        "dataset必须是synthetic-kg或fb15k-237，实际为{}".format(
-            name
-        )
-    )
+    return load_dataset(getattr(args, "dataset", ""), getattr(args, "data_dir", None))
 
 
 def build_transe(
@@ -111,15 +98,9 @@ def build_federated_data(args, dataset):
             strict=True,
         )
     if strategy == SEMANTIC_DOMAIN_GRAPH_LOCAL_BALANCED:
-        extractor = str(
-            getattr(args, "partition_domain_extractor", DOMAIN_EXTRACTOR)
-        ).strip().lower()
-        if extractor != DOMAIN_EXTRACTOR:
-            raise ValueError(
-                "partition_domain_extractor必须是{}".format(
-                    DOMAIN_EXTRACTOR
-                )
-            )
+        extractor = resolve_domain_extractor(
+            dataset, getattr(args, "partition_domain_extractor", "auto")
+        )
         search_seed = int(
             getattr(
                 args,
@@ -133,6 +114,7 @@ def build_federated_data(args, dataset):
             )
         return partition_train_triples_by_semantic_domain_graph_local(
             **partition_arguments,
+            domain_extractor=extractor,
             load_tolerance=float(
                 getattr(args, "partition_load_tolerance", 0.05)
             ),

@@ -5,6 +5,8 @@ from .data import (
     build_knowledge_graph_dataset,
     build_synthetic_knowledge_graph,
     load_fb15k237,
+    load_wn18rr,
+    load_dataset,
 )
 from .directional import (
     BatchedDirectionalEvaluator,
@@ -74,6 +76,8 @@ __all__ = [
     "calibrate_entity_overlap_levels",
     "freebase_relation_domain",
     "load_fb15k237",
+    "load_wn18rr",
+    "load_dataset",
     "load_project_checkpoint",
     "metrics_from_ranks",
     "partition_train_triples_by_head",

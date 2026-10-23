@@ -1,0 +1,569 @@
+test_file_layout_and_all_yaml_are_readable (test_config_archive_contract.ConfigArchiveContractTest)
+确认动态和随机配置分目录保存且历史归档计数不变。 ... FAIL
+test_final_configs_match_fixed_contract (test_config_archive_contract.ConfigArchiveContractTest)
+确认九份主配置仅按实验臂、种子及其派生身份发生变化。 ... ok
+test_historical_entry_points_reference_archived_configs (test_config_archive_contract.ConfigArchiveContractTest)
+确认全部旧任务入口都已切换到正确的zOld分类。 ... ok
+test_directional_diagnostic_writes_complete_artifacts (test_directional_evaluation.Stage1DirectionalTest)
+确认诊断同时输出头、尾、综合指标和逐查询文件。 ... ok
+test_configs_use_only_the_0p5_mat_path (test_dynamic_mat_varalpha0p5.DynamicMatVarAlpha05Test)
+确认新配置独立引用0p5文件且不覆盖原0p1配置。 ... ok
+test_first_150_rounds_are_nonempty_and_match_hashes (test_dynamic_mat_varalpha0p5.DynamicMatVarAlpha05Test)
+确认四个场景前150轮无空轮且统计与固化哈希一致。 ... ok
+test_four_configs_pass_contract (test_dynamic_mat_varalpha0p5.DynamicMatVarAlpha05Test)
+确认四份0p5正式YAML及其150轮调度合同全部通过。 ... ok
+test_mat_file_exists (test_dynamic_mat_varalpha0p5.DynamicMatVarAlpha05Test)
+确认同步服务器前0p5 MAT文件位于约定包内路径。 ... ok
+test_batch_all_success_preserves_order_and_contracts (test_fedadam_stage1.FedAdamStage1Test)
+模拟八组全成功并确认批次状态、顺序和结果合同文件。 ... ok
+test_eight_configs_only_change_expected_fields (test_fedadam_stage1.FedAdamStage1Test)
+确认八份YAML满足单因素合同及参数组优先的执行顺序。 ... ok
+test_failure_stops_and_resume_skips_passed_entry (test_fedadam_stage1.FedAdamStage1Test)
+模拟第二组失败，再确认恢复时不重复首组并新增失败组尝试。 ... ok
+test_first_40_rounds_are_nonempty_and_match_hashes (test_fedadam_stage1.FedAdamStage1Test)
+确认两种实验臂前40轮无空参与且哈希与统计合同一致。 ... ok
+test_resume_rejects_manifest_bound_to_pre_archive_path (test_fedadam_stage1.FedAdamStage1Test)
+确认归档前旧配置路径不会被静默替换后继续恢复。 ... ok
+test_fedadam_stage2 (unittest.loader._FailedTest) ... ERROR
+test_batch_all_success_preserves_order_and_contracts (test_final_dynamic_fedadam.FinalDynamicFedAdamTest)
+模拟九组全成功并确认seed优先顺序和合同文件。 ... ok
+test_failure_stops_and_resume_skips_passed (test_final_dynamic_fedadam.FinalDynamicFedAdamTest)
+模拟第二组失败并确认恢复跳过首组且重试失败项目。 ... ok
+test_nine_configs_follow_seed_first_order (test_final_dynamic_fedadam.FinalDynamicFedAdamTest)
+确认三seed乘三实验臂的配置合同与运行顺序。 ... ok
+test_schedules_are_nonempty_and_cover_all_clients (test_final_dynamic_fedadam.FinalDynamicFedAdamTest)
+确认三臂无空轮并锁定硬覆盖后的全客户端覆盖。 ... ok
+test_resume_skips_passed_entry_and_finishes_remaining_entries (test_final_stochastic_fedadam.FinalStochasticBatchTest)
+确认恢复时跳过已通过项目并继续完成其余八项。 ... ok
+test_every_round_uses_exact_budget_and_balanced_groups (test_final_stochastic_fedadam.FinalStochasticTopologyTest)
+确认150轮人数、组数、互斥覆盖和组规模均符合合同。 ... ok
+test_nine_configs_pass_without_constructing_mat_provider (test_final_stochastic_fedadam.FinalStochasticTopologyTest)
+确认配置合同不需要构造MAT拓扑提供器。 ... ok
+test_provider_is_reproducible_and_has_no_mat_source (test_final_stochastic_fedadam.FinalStochasticTopologyTest)
+确认相同种子可复现、不同种子不同且元数据没有MAT依赖。 ... ok
+test_dynamic_mat_replay_preserves_raw_schedule (test_fixed_count_four_scenarios.FixedCountTopologyAndConfigTest)
+确认四组直接回放MAT原始人数、分组和调度哈希。 ... ok
+test_every_round_uses_exact_yaml_participant_count (test_fixed_count_four_scenarios.FixedCountTopologyAndConfigTest)
+确认四个场景前150轮人数和组数都严格固定。 ... ok
+test_four_formal_configs_and_smoke_config_pass (test_fixed_count_four_scenarios.FixedCountTopologyAndConfigTest)
+确认固定、动态正式YAML和唯一烟雾配置通过校验。 ... ok
+test_no_snf_round_robin_is_deterministic_and_balanced (test_fixed_count_four_scenarios.FixedCountTopologyAndConfigTest)
+确认noSnF不读MAT且150轮长期参与频次近似均衡。 ... ok
+test_snf_projection_retains_source_signal (test_fixed_count_four_scenarios.FixedCountTopologyAndConfigTest)
+确认SnF在源人数不超目标时完整保留MAT选中客户端。 ... ok
+test_report_merges_three_new_and_twelve_v4_units (test_graph_semantic_ablation.GraphSemanticAblationTest)
+报告必须形成6个主比较和15个背景实验单元。 ... ok
+test_scenarios_and_configs_are_frozen (test_graph_semantic_ablation.GraphSemanticAblationTest)
+三个场景必须按种子顺序绑定正式策略和哈希。 ... ok
+test_training_failure_stops_after_first_entry (test_graph_semantic_ablation.GraphSemanticAblationTest)
+首个训练失败时必须写入恢复状态并停止后续种子。 ... ok
+test_v4_reference_hashes_pass (test_graph_semantic_ablation.GraphSemanticAblationTest)
+三份V5内置参考必须保持固定哈希且不访问V4目录。 ... ok
+test_configs_are_exact_fedavg_derivatives (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+九份YAML只允许服务器优化器和审计身份发生变化。 ... ok
+test_duplicate_new_result_directories_are_rejected (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+一次训练若产生两个新目录必须拒绝绑定任意一个。 ... ok
+test_first_failure_stops_remaining_runs (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+首个训练失败后必须保留恢复状态并停止其余八项。 ... ok
+test_nine_scenarios_follow_seed_first_order (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+九场景必须按种子优先且每种子包含三个拓扑臂。 ... ok
+test_official_summary_must_bind_best_checkpoint (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+官方测试必须绑定训练阶段按验证MRR选出的最佳检查点。 ... ok
+test_official_summary_rejects_non_finite_metrics (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+官方测试合同必须拒绝NaN和无穷大指标。 ... ok
+test_result_contract_rejects_wrong_partition_and_topology (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+错误分区哈希或拓扑哈希必须使正式结果合同失败。 ... ok
+test_round_audit_accepts_direct_fedavg (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+合法审计必须证明候选状态由云端直接采用。 ... ok
+test_round_audit_rejects_fedadam_residue (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+非零步数、动量哈希或候选状态不等必须导致合同失败。 ... ok
+test_seed42_gate_requires_all_three_arms (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+三个seed42场景未全部通过时不得开放后续种子。 ... ok
+test_three_topology_contracts_remain_distinct (test_graph_semantic_fedavg_comparison.GraphSemanticFedAvgComparisonTest)
+HFLSnF、HFLnoSnF和FLnoSnF必须保留冻结拓扑差异。 ... ok
+test_cpu_formal_entry_fails_before_creating_manifest (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+CUDA不可用时不得创建正式批次，也不得进行分区复算或训练。 ... ok
+test_curve_statistics_and_partial_report_have_explicit_meaning (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+最佳值、150轮值、总体标准差和绝对回撤必须来自实际曲线。 ... ok
+test_exit_race_does_not_hide_numerical_failure (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+进程在检查与终止之间退出时，清理不能覆盖原始不稳定原因。 ... ok
+test_failed_batch_restarts_only_unfinished_groups (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+开始阶段一实验：hflsnf_lr0p1_tau0p001
+hflsnf_lr0p1_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p1_tau0p001
+hflnosnf_lr0p1_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p05_tau0p001
+hflsnf_lr0p05_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p05_tau0p001
+hflnosnf_lr0p05_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p03_tau0p001
+hflsnf_lr0p03_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p03_tau0p001
+hflnosnf_lr0p03_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p05_tau0p01
+hflsnf_lr0p05_tau0p01结果合同：passed
+开始阶段一实验：hflnosnf_lr0p05_tau0p01
+hflnosnf_lr0p05_tau0p01结果合同：passed
+FedAdam阶段一八组实验全部完成
+批次清单：C:\Users\lw\AppData\Local\Temp\tmpv_zslqtq\fedadam_stage1_batch_20261016_171311_742860\batch_summary.json
+开始阶段一实验：hflsnf_lr0p1_tau0p001
+hflsnf_lr0p1_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p1_tau0p001
+阶段一批次已停止：Stage1RunError: 模拟训练失败
+恢复命令：
+python -m HFLSnF_KG_v3.run_fedadam_stage1 formal40 --resume C:\Users\lw\AppData\Local\Temp\tmput8e07_h\fedadam_stage1_batch_20261016_171313_853595\batch_summary.json
+跳过已通过实验：hflsnf_lr0p1_tau0p001
+开始阶段一实验：hflnosnf_lr0p1_tau0p001
+hflnosnf_lr0p1_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p05_tau0p001
+hflsnf_lr0p05_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p05_tau0p001
+hflnosnf_lr0p05_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p03_tau0p001
+hflsnf_lr0p03_tau0p001结果合同：passed
+开始阶段一实验：hflnosnf_lr0p03_tau0p001
+hflnosnf_lr0p03_tau0p001结果合同：passed
+开始阶段一实验：hflsnf_lr0p05_tau0p01
+hflsnf_lr0p05_tau0p01结果合同：passed
+开始阶段一实验：hflnosnf_lr0p05_tau0p01
+hflnosnf_lr0p05_tau0p01结果合同：passed
+FedAdam阶段一八组实验全部完成
+批次清单：C:\Users\lw\AppData\Local\Temp\tmput8e07_h\fedadam_stage1_batch_20261016_171313_853595\batch_summary.json
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed42
+final_hflsnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed42
+final_hflnosnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed42
+final_flnosnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed2024
+final_hflsnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed2024
+final_hflnosnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed2024
+final_flnosnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed2025
+final_hflsnf_u0p6_bcfalse_seed2025结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed2025
+final_hflnosnf_u0p6_bcfalse_seed2025结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed2025
+final_flnosnf_u0p6_bcfalse_seed2025结果合同：passed
+最终动态拓扑FedAdam九组实验全部完成
+批次清单：C:\Users\lw\AppData\Local\Temp\tmp04sf9vwo\final_dynamic_fedadam_batch_20261016_171314_860773\batch_summary.json
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed42
+final_hflsnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed42
+实验失败并已停止：final_hflnosnf_u0p6_bcfalse_seed42
+错误：FinalDynamicRunError: 模拟训练失败
+恢复命令：python -m HFLSnF_KG_v3.run_final_dynamic_fedadam formal150 --resume "C:\Users\lw\AppData\Local\Temp\tmpmwz00kg8\final_dynamic_fedadam_batch_20261016_171315_003905\batch_summary.json"
+跳过已通过实验：final_hflsnf_u0p6_bcfalse_seed42
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed42
+final_hflnosnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed42
+final_flnosnf_u0p6_bcfalse_seed42结果合同：passed
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed2024
+final_hflsnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed2024
+final_hflnosnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed2024
+final_flnosnf_u0p6_bcfalse_seed2024结果合同：passed
+开始最终实验：final_hflsnf_u0p6_bcfalse_seed2025
+final_hflsnf_u0p6_bcfalse_seed2025结果合同：passed
+开始最终实验：final_hflnosnf_u0p6_bcfalse_seed2025
+final_hflnosnf_u0p6_bcfalse_seed2025结果合同：passed
+开始最终实验：final_flnosnf_u0p6_bcfalse_seed2025
+final_flnosnf_u0p6_bcfalse_seed2025结果合同：passed
+最终动态拓扑FedAdam九组实验全部完成
+批次清单：C:\Users\lw\AppData\Local\Temp\tmpmwz00kg8\final_dynamic_fedadam_batch_20261016_171315_003905\batch_summary.json
+跳过已通过实验：final_stochastic_hflsnf_profile_seed42
+开始最终随机实验：final_stochastic_hflnosnf_profile_seed42
+开始最终随机实验：final_stochastic_flnosnf_profile_seed42
+开始最终随机实验：final_stochastic_hflsnf_profile_seed2024
+开始最终随机实验：final_stochastic_hflnosnf_profile_seed2024
+开始最终随机实验：final_stochastic_flnosnf_profile_seed2024
+开始最终随机实验：final_stochastic_hflsnf_profile_seed2025
+开始最终随机实验：final_stochastic_hflnosnf_profile_seed2025
+开始最终随机实验：final_stochastic_flnosnf_profile_seed2025
+最终随机拓扑FedAdam九组实验全部完成
+批次清单：C:\Users\lw\AppData\Local\Temp\tmpanjcuqgd\final_stochastic_fedadam_batch_20261016_171319_939957\batch_summary.json
+图语义报告：D:\1\1myworkcode\HFLSnF_KG_v5\results\graph_semantic\tmpav0vhdtw\analysis\图语义划分实验报告.md
+开始V5图语义实验：graph_semantic_seed42
+实验失败并停止：graph_semantic_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_graph_semantic_ablation formal150 --resume "unused_batch_summary.json"
+开始图语义FedAvg实验：graph_semantic_fedavg_hflsnf_seed42
+实验失败并停止：graph_semantic_fedavg_hflsnf_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_graph_semantic_fedavg_comparison formal9 --resume "unused.json"
+开始lr5e-5，学习率=5e-05，日志=C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\logs\lr5e-5_attempt1.log
+开始lr1e-4，学习率=0.0001，日志=C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\logs\lr1e-4_attempt1.log
+批次停止：模拟CUDA错误；恢复清单：C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\batch_summary.json
+跳过已结束候选：lr5e-5 (passed)
+开始lr1e-4，学习率=0.0001，日志=C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\logs\lr1e-4_attempt2.log
+开始lr2e-4，学习率=0.0002，日志=C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\logs\lr2e-4_attempt1.log
+开始lr5e-4，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpzeciz54q\logs\lr5e-4_attempt1.log
+执行失败停止后，恢复从未完成组重跑并保留独立尝试日志。 ... ok
+test_formal_cannot_skip_partition_recompute (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+正式入口必须拒绝仅静态校验的启动方式。 ... usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal4,report}
+python.exe -m unittest: error: 只有validate允许跳过分区复算
+ok
+test_four_configs_change_only_rates_and_identity (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+四组必须从同一来源派生，并重跑包含5e-5的完整矩阵。 ... ok
+test_keyboard_interrupt_records_recoverable_state (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+开始lr5e-5，学习率=5e-05，日志=C:\Users\lw\AppData\Local\Temp\tmpkp92_10j\logs\lr5e-5_attempt1.log
+已保存中断状态：C:\Users\lw\AppData\Local\Temp\tmpkp92_10j\batch_summary.json
+用户中断不得继续下一组，清单保留已开始的尝试。 ... ok
+test_last_round_written_on_process_exit_is_checked (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+lr5e-5：第1轮，验证MRR=0.2，损失=1.0
+退出瞬间写出的非有限记录不能漏过最后一次监测。 ... ok
+test_manifest_rejects_rate_binding_and_checkpoint_changes (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+恢复必须拒绝学习率身份变化及已完成检查点被替换。 ... ok
+test_monitor_allows_fluctuation_and_unused_timing_nan (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+验证MRR回落与未开启剖析的NaN不能终止候选。 ... ok
+test_monitor_rejects_each_nonfinite_loss_or_validation_field (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+损失、MRR或其他验证数值出现NaN或无穷必须识别为不稳定。 ... ok
+test_nonfinite_subprocess_is_stopped_and_bound (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+模拟子进程输出非有限完整轮，必须停止该进程并保留目录。 ... ok
+test_partial_csv_is_not_a_nonfinite_round (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+正在写入的非有限末行必须等待完整换行后才能判定。 ... ok
+test_report_exports_complete_and_unstable_candidates (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+报告：C:\Users\lw\AppData\Local\Temp\tmpd2d1opsm\analysis\FedAvg四学习率实验报告.md
+导出报告必须区分150轮模型和不稳定前缀，并保留JSON与CSV数值。 ... ok
+test_result_contract_rejects_effective_learning_rate_mismatch (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+配置正确但实际训练汇总学习率不同仍必须拒绝正式结果。 ... ok
+test_stop_process_kills_only_after_termination_timeout (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+子进程不响应终止时才强制结束，并等待其退出。 ... ok
+test_unstable_continues_and_resume_skips_finished_entries (test_graph_semantic_fedavg_lr_sweep.LearningRateSweepTest)
+开始lr5e-5，学习率=5e-05，日志=C:\Users\lw\AppData\Local\Temp\tmpocu7a6v4\logs\lr5e-5_attempt1.log
+开始lr1e-4，学习率=0.0001，日志=C:\Users\lw\AppData\Local\Temp\tmpocu7a6v4\logs\lr1e-4_attempt1.log
+lr1e-4数值不稳定，继续下一组：模拟非有限损失
+开始lr2e-4，学习率=0.0002，日志=C:\Users\lw\AppData\Local\Temp\tmpocu7a6v4\logs\lr2e-4_attempt1.log
+开始lr5e-4，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpocu7a6v4\logs\lr5e-4_attempt1.log
+跳过已结束候选：lr5e-5 (passed)
+跳过已结束候选：lr1e-4 (unstable)
+跳过已结束候选：lr2e-4 (passed)
+跳过已结束候选：lr5e-4 (passed)
+不稳定组之后继续执行，恢复不能重跑已完成或已判不稳定组。 ... ok
+test_config_validation_recomputes_each_seed_once (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+每个种子只复算一次共同分区，不错误复用seed42分区。 ... ok
+test_cpu_formal9_refuses_before_creating_batch (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+无CUDA时明确拒绝九组正式训练，禁止CPU回退。 ... ok
+test_each_seed_result_requires_its_own_initialization_hash (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+模拟完整逐轮合同，2024和2025不能错误使用42的初始模型哈希。 ... ok
+test_failure_then_resume_skips_completed_seed_and_runs_remaining_five (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+开始hflsnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflsnf_seed42_attempt1.log
+开始hflnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflnosnf_seed42_attempt1.log
+开始flnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\flnosnf_seed42_attempt1.log
+开始hflsnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflsnf_seed2024_attempt1.log
+开始hflnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflnosnf_seed2024_attempt1.log
+批次停止：模拟第五组失败；恢复清单：C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\batch_summary.json
+跳过已结束候选：hflsnf_seed42 (passed)
+跳过已结束候选：hflnosnf_seed42 (passed)
+跳过已结束候选：flnosnf_seed42 (passed)
+跳过已结束候选：hflsnf_seed2024 (passed)
+开始hflnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflnosnf_seed2024_attempt2.log
+开始flnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\flnosnf_seed2024_attempt1.log
+开始hflsnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflsnf_seed2025_attempt1.log
+开始hflnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\hflnosnf_seed2025_attempt1.log
+开始flnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\logs\flnosnf_seed2025_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmp6gh00dpq\analysis\FedAvg三种子三拓扑九实验报告.md
+第五组失败后恢复，仅重跑该组及后续组，保留独立尝试日志。 ... ok
+test_formal9_cannot_skip_real_partitions_or_use_invalid_options (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+正式入口不能跳过三分区复算，参数不得静默错用其他批次命令。 ... usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal9,report}
+python.exe -m unittest: error: 只有validate允许跳过分区复算
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal9,report}
+python.exe -m unittest: error: argument action: invalid choice: 'formal3' (choose from 'validate', 'formal9', 'report')
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal9,report}
+python.exe -m unittest: error: --resume仅用于formal9
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal9,report}
+python.exe -m unittest: error: report需要--batch
+ok
+test_full_report_uses_sample_std_and_same_seed_pairing (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+开始hflsnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflsnf_seed42_attempt1.log
+开始hflnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflnosnf_seed42_attempt1.log
+开始flnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\flnosnf_seed42_attempt1.log
+开始hflsnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflsnf_seed2024_attempt1.log
+开始hflnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflnosnf_seed2024_attempt1.log
+开始flnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\flnosnf_seed2024_attempt1.log
+开始hflsnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflsnf_seed2025_attempt1.log
+开始hflnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\hflnosnf_seed2025_attempt1.log
+开始flnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\logs\flnosnf_seed2025_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmpe05ao4s5\analysis\FedAvg三种子三拓扑九实验报告.md
+九组不得按拓扑名称覆盖，跨种子标准差与配对差必须正确。 ... ok
+test_nine_configs_have_frozen_recipe_and_matching_seed_partition (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+矩阵为三个种子乘三个拓扑，各配置只改变来源学习率及身份。 ... ok
+test_restore_rejects_three_group_batch_and_changed_seed_binding (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+不能把三组清单扩充为九组恢复，也不能替换某种子的分区绑定。 ... ok
+test_unstable_seed_does_not_become_partial_three_seed_average (test_graph_semantic_fedavg_multiseed.MultiSeedTopologyTest)
+开始hflsnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflsnf_seed42_attempt1.log
+开始hflnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflnosnf_seed42_attempt1.log
+开始flnosnf_seed42，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\flnosnf_seed42_attempt1.log
+开始hflsnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflsnf_seed2024_attempt1.log
+开始hflnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflnosnf_seed2024_attempt1.log
+hflnosnf_seed2024数值不稳定，继续下一组：非有限MRR
+开始flnosnf_seed2024，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\flnosnf_seed2024_attempt1.log
+开始hflsnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflsnf_seed2025_attempt1.log
+开始hflnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\hflnosnf_seed2025_attempt1.log
+开始flnosnf_seed2025，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\logs\flnosnf_seed2025_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\analysis\FedAvg三种子三拓扑九实验报告.md
+跳过已结束候选：hflsnf_seed42 (passed)
+跳过已结束候选：hflnosnf_seed42 (passed)
+跳过已结束候选：flnosnf_seed42 (passed)
+跳过已结束候选：hflsnf_seed2024 (passed)
+跳过已结束候选：hflnosnf_seed2024 (unstable)
+跳过已结束候选：flnosnf_seed2024 (passed)
+跳过已结束候选：hflsnf_seed2025 (passed)
+跳过已结束候选：hflnosnf_seed2025 (passed)
+跳过已结束候选：flnosnf_seed2025 (passed)
+报告：C:\Users\lw\AppData\Local\Temp\tmpi8vzufmt\analysis\FedAvg三种子三拓扑九实验报告.md
+不稳定组之后仍执行，缺少一种子时不把两种子均值冒充完整统计。 ... ok
+test_aggregates_use_three_seed_sample_std (test_graph_semantic_fedavg_report.GraphSemanticFedAvgReportTest)
+每个拓扑必须按三种子计算均值和样本标准差。 ... ok
+test_markdown_contains_all_three_topologies (test_graph_semantic_fedavg_report.GraphSemanticFedAvgReportTest)
+中文报告必须成功渲染三个规范拓扑名称。 ... ok
+test_paired_differences_follow_declared_direction (test_graph_semantic_fedavg_report.GraphSemanticFedAvgReportTest)
+三种配对差必须使用左组减右组并保留逐种子结果。 ... ok
+test_resume_skips_passed_and_finishes_remaining_entries (test_graph_semantic_fedavg_resume.GraphSemanticFedAvgResumeTest)
+恢复批次不得重跑已通过项，并应完成剩余八项。 ... ok
+test_all_topology_result_contracts_bind_rate_partition_and_schedule (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+模拟完整逐轮审计，三个拓扑都接受正确结果并拒绝错配结果。 ... ok
+test_cpu_formal_refuses_before_validation_or_batch_creation (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+没有CUDA时不得创建批次、复算分区或启动训练。 ... ok
+test_each_schedule_is_checked_against_its_own_contract (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+不能要求不同拓扑调度相同，也不能接受与本臂合同不符的调度。 ... ok
+test_failure_then_resume_only_restarts_unfinished_topologies (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+跳过已通过实验：graph_semantic_fedavg_hflsnf_seed42
+开始图语义FedAvg实验：graph_semantic_fedavg_hflnosnf_seed42
+graph_semantic_fedavg_hflnosnf_seed42结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_flnosnf_seed42
+graph_semantic_fedavg_flnosnf_seed42结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_hflsnf_seed2024
+graph_semantic_fedavg_hflsnf_seed2024结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_hflnosnf_seed2024
+graph_semantic_fedavg_hflnosnf_seed2024结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_flnosnf_seed2024
+graph_semantic_fedavg_flnosnf_seed2024结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_hflsnf_seed2025
+graph_semantic_fedavg_hflsnf_seed2025结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_hflnosnf_seed2025
+graph_semantic_fedavg_hflnosnf_seed2025结果合同：passed
+开始图语义FedAvg实验：graph_semantic_fedavg_flnosnf_seed2025
+graph_semantic_fedavg_flnosnf_seed2025结果合同：passed
+图语义FedAvg九次训练全部完成
+开始hflsnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\logs\hflsnf_attempt1.log
+开始hflnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\logs\hflnosnf_attempt1.log
+批次停止：模拟子进程异常；恢复清单：C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\batch_summary.json
+跳过已结束候选：hflsnf (passed)
+开始hflnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\logs\hflnosnf_attempt2.log
+开始flnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\logs\flnosnf_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmpkiv60svj\analysis\FedAvg种子42三拓扑实验报告.md
+第二组失败停止批次，恢复跳过第一组并独立重跑剩余两组。 ... ok
+test_formal_cli_rejects_skip_recompute_and_other_seeds (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+正式命令不能跳过真实分区，也不支持静默扩展到其他种子。 ... usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal3,report}
+python.exe -m unittest: error: 只有validate允许跳过分区复算
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal3,report}
+python.exe -m unittest: error: unrecognized arguments: --seed 2024
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal3,report}
+python.exe -m unittest: error: argument action: invalid choice: 'formal9' (choose from 'validate', 'formal3', 'report')
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal3,report}
+python.exe -m unittest: error: --resume仅用于formal3
+usage: python.exe -m unittest [-h] [--resume RESUME] [--batch BATCH]
+                              [--skip-partition-recompute]
+                              {validate,formal3,report}
+python.exe -m unittest: error: report需要--batch
+ok
+test_invalid_config_stops_before_creating_batch (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+seed42三拓扑配置合同：failed；真实分区复算：True
+配置合同失败必须阻止批次创建和任何训练子进程。 ... ok
+test_manifest_rejects_other_suite_reordering_and_topology_tampering (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+不能恢复学习率扫描清单、交换拓扑顺序或替换冻结调度身份。 ... ok
+test_report_contains_budget_and_signed_differences_without_order_requirement (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+开始hflsnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpyrusgg2u\logs\hflsnf_attempt1.log
+开始hflnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpyrusgg2u\logs\hflnosnf_attempt1.log
+开始flnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpyrusgg2u\logs\flnosnf_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmpyrusgg2u\analysis\FedAvg种子42三拓扑实验报告.md
+允许任何有效MRR排序，报告配对差与预算必须按对应臂计算。 ... ok
+test_three_configs_share_recipe_except_topology_and_identity (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+三组只使用seed42和5e-4，同源配置不被修改且新批次不引用旧结果。 ... ok
+test_topology_subprocess_uses_own_config_and_stops_nonfinite_loss (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+模拟真实子进程接口，验证本臂输出查找和非有限轮终止接线。 ... ok
+test_unstable_continues_and_is_excluded_from_paired_comparison (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+开始hflsnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpl2dszhol\logs\hflsnf_attempt1.log
+开始hflnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpl2dszhol\logs\hflnosnf_attempt1.log
+hflnosnf数值不稳定，继续下一组：模拟非有限MRR
+开始flnosnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpl2dszhol\logs\flnosnf_attempt1.log
+报告：C:\Users\lw\AppData\Local\Temp\tmpl2dszhol\analysis\FedAvg种子42三拓扑实验报告.md
+跳过已结束候选：hflsnf (passed)
+跳过已结束候选：hflnosnf (unstable)
+跳过已结束候选：flnosnf (passed)
+报告：C:\Users\lw\AppData\Local\Temp\tmpl2dszhol\analysis\FedAvg种子42三拓扑实验报告.md
+非有限候选停止但不影响下一组，有限前缀不能参与完整配对差。 ... ok
+test_user_interrupt_records_state_and_does_not_run_next_group (test_graph_semantic_fedavg_seed42.Seed42TopologyTest)
+开始hflsnf，学习率=0.0005，日志=C:\Users\lw\AppData\Local\Temp\tmpc0ayu8yd\logs\hflsnf_attempt1.log
+已保存中断状态：C:\Users\lw\AppData\Local\Temp\tmpc0ayu8yd\batch_summary.json
+中断保留恢复清单，不启动后续组。 ... ok
+test_full_v5_reference_hashes_pass (test_graph_semantic_mechanism_ablation.GraphSemanticMechanismAblationTest)
+五份完整V5参考必须位于隔离目录并保持固定哈希。 ... ok
+test_report_builds_nine_unit_paired_comparison (test_graph_semantic_mechanism_ablation.GraphSemanticMechanismAblationTest)
+报告必须合并F/A/B九单元并计算两种MRR边际差。 ... ok
+test_scenarios_and_configs_are_frozen (test_graph_semantic_mechanism_ablation.GraphSemanticMechanismAblationTest)
+六个场景必须按A/B交替顺序绑定正式策略和哈希。 ... ok
+test_training_failure_stops_after_first_entry (test_graph_semantic_mechanism_ablation.GraphSemanticMechanismAblationTest)
+A42训练失败时必须写入恢复状态并停止其余五项。 ... ok
+test_ablation_partitions_are_deterministic_and_complete (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+A/B必须可复现、完整、非空且保持域-头实体包互斥。 ... ok
+test_experiment_dispatches_both_ablation_strategies (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+统一实验入口必须按配置构造A/B两个划分。 ... ok
+test_graph_only_assignment_does_not_read_domain_labels (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+固定包结构后，改变域标签不得改变消融A的包归属。 ... ok
+test_metadata_and_primary_domain_quota_contract (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+A必须无主域，B的主域名额必须与完整V5一致。 ... ok
+test_metadata_rejects_objective_order_drift (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+公共数据合同必须拒绝A的分配目标顺序被替换。 ... ok
+test_semantic_only_assignment_does_not_read_entity_sets (test_graph_semantic_mechanism_partition.GraphSemanticMechanismPartitionTest)
+固定域和行号后，改变实体集合不得改变消融B的包归属。 ... ok
+test_experiment_builds_configured_partition (test_graph_semantic_partition.GraphSemanticPartitionTest)
+统一实验入口必须识别新策略及其公开配置字段。 ... ok
+test_freebase_domain_extractor (test_graph_semantic_partition.GraphSemanticPartitionTest)
+顶级域和user归并规则必须稳定。 ... ok
+test_partition_is_complete_deterministic_and_packet_exclusive (test_graph_semantic_partition.GraphSemanticPartitionTest)
+分区必须完整、可复现且不拆分域-头实体包。 ... ok
+test_arm_topology_fields_are_distinct (test_graph_semantic_topology_extension.GraphSemanticTopologyExtensionTest)
+HFLnoSnF保留边缘层，FLnoSnF必须移除边缘层。 ... ok
+test_configs_are_full_paired_derivatives (test_graph_semantic_topology_extension.GraphSemanticTopologyExtensionTest)
+每份实际YAML必须等于同种子HFLSnF配置的受控派生。 ... ok
+test_first_failure_stops_remaining_runs (test_graph_semantic_topology_extension.GraphSemanticTopologyExtensionTest)
+首个训练失败后必须保留恢复状态并停止其余五项。 ... ok
+test_six_scenarios_follow_seed_first_order (test_graph_semantic_topology_extension.GraphSemanticTopologyExtensionTest)
+六场景必须按种子优先且每种子包含两个拓扑臂。 ... ok
+test_configs_only_change_count_and_identity_fields (test_hflkge_client_count_ablation.HFLKGEClientCountAblationTest)
+确认行为配置完全一致且每份调度哈希正确。 ... ok
+test_every_round_uses_exact_count_and_six_groups (test_hflkge_client_count_ablation.HFLKGEClientCountAblationTest)
+确认前150轮严格使用五档人数并平均分入六个HFL组。 ... ok
+test_random_mode_does_not_read_mat_topology (test_hflkge_client_count_ablation.HFLKGEClientCountAblationTest)
+确认六组随机人数实验不依赖SnF或MAT客户端选择结果。 ... ok
+test_random_participants_change_and_are_reproducible (test_hflkge_client_count_ablation.HFLKGEClientCountAblationTest)
+确认参与集合逐轮变化、覆盖全部客户端且同一种子可复现。 ... ok
+test_analysis_only_mat_cannot_be_loaded_as_training_schedule (test_multi_topology_dataset.MultiTopologyDatasetTest)
+禁止将未重建映射的统计文件绕过检查直接用于训练。 ... ok
+test_batch_failure_resume_and_checkpoint_tampering (test_multi_topology_dataset.MultiTopologyDatasetTest)
+双消融报告：D:\1\1myworkcode\HFLSnF_KG_v5\results\graph_semantic_mechanism_ablation\tmp5_3eyck3\analysis\语义图局部性双消融实验报告.md
+开始V5双消融实验：graph_only_seed42
+实验失败并停止：graph_only_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_graph_semantic_mechanism_ablation formal150 --resume "unused.json"
+开始V5图语义拓扑实验：graph_semantic_hflnosnf_seed42
+实验失败并停止：graph_semantic_hflnosnf_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_graph_semantic_topology_extension formal6 --resume "unused.json"
+批次完成：C:\Users\lw\AppData\Local\Temp\tmpxg1bsbh1\batch_20261016_171339_495660\batch_summary.json
+模拟中途失败、跳过完成组及检查点改变时拒绝续用。 ... ok
+test_default_three_configs_share_recipe_and_use_18_clients (test_multi_topology_dataset.MultiTopologyDatasetTest)
+三方法按指定顺序运行，且沿用当前V5训练配方。 ... ok
+test_model_hash_matches_actual_dynamic_trainer_format (test_multi_topology_dataset.MultiTopologyDatasetTest)
+防止预检哈希与正式训练的模型指纹格式不一致。 ... ok
+test_nonfinite_metrics_and_cuda_fallback_are_rejected (test_multi_topology_dataset.MultiTopologyDatasetTest)
+出现非有限验证指标停止；无显卡时不复算或创建正式批次。 ... ok
+test_real_open_maps_exactly_match_controlled_counts (test_multi_topology_dataset.MultiTopologyDatasetTest)
+三方法全1000轮人数一致，实际150轮覆盖全部客户端。 ... ok
+test_reconstruction_preserves_counts_and_unique_legal_ids (test_multi_topology_dataset.MultiTopologyDatasetTest)
+增减人数时保持源组关系，无重复并通过低参与者补位。 ... ok
+test_switching_network_and_dataset_derives_scale_and_paths (test_multi_topology_dataset.MultiTopologyDatasetTest)
+仅改选择字段可切回37客户端城域网和自由知识库数据。 ... ok
+test_three_methods_train_and_restore_on_tiny_wn18rr (test_multi_topology_dataset.MultiTopologyDatasetTest)
+[动态联邦TransE] 方案=hflsnf epoch=1/2 MAT行=0 参与客户端=18 动态分组=4 加权损失=1.517130 聚合权重=72 耗时=0.06s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflsnf epoch=2/2 MAT行=1 参与客户端=18 动态分组=4 加权损失=1.544889 聚合权重=72 耗时=0.05s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflnosnf epoch=1/2 MAT行=0 参与客户端=12 动态分组=3 加权损失=1.481175 聚合权重=48 耗时=0.04s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflnosnf epoch=2/2 MAT行=1 参与客户端=12 动态分组=4 加权损失=1.475408 聚合权重=48 耗时=0.03s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=flnosnf epoch=1/2 MAT行=0 参与客户端=5 动态分组=1 加权损失=1.567214 聚合权重=20 耗时=0.02s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=flnosnf epoch=2/2 MAT行=1 参与客户端=5 动态分组=1 加权损失=1.398220 聚合权重=20 耗时=0.01s 验证MRR=0.039231 验证Hits@3=0.000000
+用真实OPEN映射完成CPU小图训练、验证选模及独立完整测试。 ... ok
+test_wn18rr_text_loading_keeps_leading_zeros_and_evaluation_entities (test_multi_topology_dataset.MultiTopologyDatasetTest)
+真实文本读取不依赖字典，也不丢弃评估独有实体。 ... ok
+test_wn18rr_uses_relation_domains_and_preserves_packets (test_multi_topology_dataset.MultiTopologyDatasetTest)
+关系域改变来源定义，域头包与负载算法保持原框架。 ... ok
+test_best_checkpoint_full_test_writes_contract (test_official_evaluation.OfficialEvaluationTest)
+确认全部测试事实、头尾指标和中文报告均被写出。 ... ok
+test_completed_directional_summary_is_reused (test_official_evaluation.OfficialEvaluationTest)
+确认合同失败后的重跑复用同检查点的完整方向评估结果。 ... ok
+test_nan_centralized_reference_is_optional (test_official_evaluation.OfficialEvaluationTest)
+确认训练摘要中的NaN参考值不会阻断正式评估合同。 ... ok
+test_batch_binds_original_hashes_and_pilot_order (test_overlap_ablation.OverlapAblationContractTest)
+确认批次预锁定原始初始化哈希并把seed42排在最前。 ... ok
+test_failure_stops_and_resume_skips_passed_entry (test_overlap_ablation.OverlapAblationContractTest)
+确认失败立即停止，恢复时从首个未通过seed42场景继续。 ... ok
+test_formal_contract_and_scenario_order (test_overlap_ablation.OverlapAblationContractTest)
+确认正式合同已复现且场景按seed优先、档位次序排列。 ... ok
+test_nine_configs_match_contract_without_recompute (test_overlap_ablation.OverlapAblationContractTest)
+确认九份YAML、基线和拓扑合同通过快速只读校验。 ... ok
+test_official_units_include_three_baselines_and_nine_new_runs (test_overlap_ablation.OverlapAblationContractTest)
+确认完整官方测试清单严格包含十二个实验单元。 ... ok
+test_summary_uses_sample_std_and_paired_mrr_delta (test_overlap_ablation.OverlapAblationContractTest)
+确认四条件汇总使用样本标准差和同种子MRR配对差。 ... ok
+test_calibration_returns_three_levels_without_training (test_overlap_partition_calibration.OverlapPartitionCalibrationTest)
+确认校准器返回基线、共同区间和低中高三个档位。 ... ok
+test_normalized_overlap_matches_replication_formula (test_overlap_partition_calibration.OverlapPartitionCalibrationTest)
+确认摘要中的主指标严格满足复制因子归一化公式。 ... ok
+test_target_partition_is_deterministic_and_complete (test_overlap_partition_calibration.OverlapPartitionCalibrationTest)
+确认同一搜索种子可复现且满足三元组与头实体合同。 ... ok
+test_hierarchical_merge_equals_direct_count_weighting (test_row_count_aggregation.RowCountWeightedAggregationTest)
+确认边缘统计合并与全部客户端一次性计数加权完全等价。 ... ok
+test_manual_count_weighted_rows_and_fallback (test_row_count_aggregation.RowCountWeightedAggregationTest)
+逐元素核对手工计数加权结果和无人更新行回退。 ... ok
+test_missing_row_counts_fail_fast (test_row_count_aggregation.RowCountWeightedAggregationTest)
+确认客户端漏传行出现次数时聚合在训练前明确失败。 ... ok
+test_inactive_row_keeps_old_moments_across_steps (test_server_fedadam.RowWiseFedAdamOptimizerTest)
+确认下一轮未参与的行不会被历史动量继续推动。 ... ok
+test_one_step_updates_only_active_rows (test_server_fedadam.RowWiseFedAdamOptimizerTest)
+确认首步只更新掩码内行且动量状态可审计。 ... ok
+
+======================================================================
+ERROR: test_fedadam_stage2 (unittest.loader._FailedTest)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_fedadam_stage2
+Traceback (most recent call last):
+  File "D:\Anaconda3\envs\py37\lib\unittest\loader.py", line 436, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "D:\Anaconda3\envs\py37\lib\unittest\loader.py", line 377, in _get_module_from_name
+    __import__(name)
+  File "D:\1\1myworkcode\HFLSnF_KG_v5\tests\test_fedadam_stage2.py", line 12, in <module>
+    from HFLSnF_KG_v5.run_fedadam_stage2 import (
+  File "D:\1\1myworkcode\HFLSnF_KG_v5\run_fedadam_stage2.py", line 14, in <module>
+    from .reports.gen_fedadam_stage2_report import write_phase_artifacts
+ModuleNotFoundError: No module named 'HFLSnF_KG_v5.reports.gen_fedadam_stage2_report'
+
+
+======================================================================
+FAIL: test_file_layout_and_all_yaml_are_readable (test_config_archive_contract.ConfigArchiveContractTest)
+确认动态和随机配置分目录保存且历史归档计数不变。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\1\1myworkcode\HFLSnF_KG_v5\tests\test_config_archive_contract.py", line 226, in test_file_layout_and_all_yaml_are_readable
+    self.assertEqual(len(all_yaml), 86)
+AssertionError: 105 != 86
+
+----------------------------------------------------------------------
+Ran 133 tests in 167.199s
+
+FAILED (failures=1, errors=1)
+复用已完成的方向评估摘要：C:\Users\lw\AppData\Local\Temp\tmph8lp964a\official\directional_summary.json
+开始V4重叠率实验：overlap_low_seed42
+实验失败并停止：overlap_low_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_overlap_ablation formal150 --resume "batch.json"
+跳过已通过实验：overlap_low_seed42
+开始V4重叠率实验：overlap_medium_seed42
+实验失败并停止：overlap_medium_seed42
+恢复命令：python -m HFLSnF_KG_v5.run_overlap_ablation formal150 --resume "batch.json"

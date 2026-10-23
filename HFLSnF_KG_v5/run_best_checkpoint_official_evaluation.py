@@ -1,4 +1,4 @@
-"""运行V5或冻结基线最佳检查点的完整FB15k-237官方测试。"""
+"""运行所选知识图谱上最佳检查点的完整官方测试。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 import torch
 
 from .tasks.kge import (
-    load_fb15k237,
+    load_dataset,
     run_best_checkpoint_official_evaluation,
 )
 
@@ -46,9 +46,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     """创建最佳检查点完整官方测试参数解析器。"""
 
     parser = argparse.ArgumentParser(
-        description="对V5或冻结基线最佳检查点执行全部FB15k-237官方测试"
+        description="对所选数据集的最佳检查点执行完整官方测试"
     )
-    parser.add_argument("--data-dir", type=Path, default=Path("data/FB15k-237"))
+    parser.add_argument("--dataset", default="fb15k-237", help="fb15k-237或wn18rr")
+    parser.add_argument("--data-dir", type=Path, help="可选覆盖数据目录，默认按数据集选择")
     parser.add_argument(
         "--result-dir",
         type=Path,
@@ -70,7 +71,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     args = build_argument_parser().parse_args(argv)
     device = resolve_device(args.using_gpu, args.gpu_id, args.require_cuda)
-    dataset = load_fb15k237(resolve_package_path(str(args.data_dir)))
+    dataset = load_dataset(args.dataset, args.data_dir)
     result_dir = resolve_package_path(str(args.result_dir))
     output_dir = (
         Path(args.output_dir).expanduser().resolve()

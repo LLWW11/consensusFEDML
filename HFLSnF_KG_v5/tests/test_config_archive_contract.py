@@ -221,10 +221,19 @@ class ConfigArchiveContractTest(unittest.TestCase):
             actual_count = len(tuple((archive_root / directory).glob("*.yaml")))
             self.assertEqual(actual_count, expected_count, directory)
 
-        # 文件名在整个配置树中保持唯一，避免按名称查找时出现歧义。
+        # 历史配置名保持唯一；新实验通过完整相对路径区分同名配方。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
-        self.assertEqual(len(all_yaml), 86)
-        self.assertEqual(len({path.name for path in all_yaml}), 86)
+        # 冻结历史配置保持86份，独立实验目录按已注册规模增加。
+        additions = {"graph_semantic_fedavg_lr_sweep": 4, "graph_semantic_fedavg_multiseed_lr5e-4": 9, "graph_semantic_fedavg_seed42_lr5e-4": 3, "multi_topology_dataset": 3}
+        for name, count in additions.items():
+            self.assertEqual(len(tuple((CONFIG_DIR / name).glob("*.yaml"))), count, name)
+        expected_total = 86 + sum(additions.values())
+        self.assertEqual(len(all_yaml), expected_total)
+        historical = [path for path in all_yaml if path.relative_to(CONFIG_DIR).parts[0] not in additions]
+        self.assertEqual(len(historical), 86)
+        self.assertEqual(len({path.name for path in historical}), 86)
+        multi_names = {path.name for path in (CONFIG_DIR / "multi_topology_dataset").glob("*.yaml")}
+        self.assertTrue(all(sum(path.name == name for path in all_yaml) == 1 for name in multi_names))
         self.assertTrue((CONFIG_DIR / "README.md").is_file())
         self.assertTrue((archive_root / "README.md").is_file())
         for path in all_yaml:

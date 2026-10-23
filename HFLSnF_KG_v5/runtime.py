@@ -35,6 +35,9 @@ def initialize_fedml_runtime():
         FEDML_TRAINING_PLATFORM_SIMULATION,
         FEDML_SIMULATION_TYPE_SP,
     )
+    from .selection import apply_experiment_selection
+
+    args = apply_experiment_selection(args)
     seed_everything(int(args.random_seed))
     return args
 

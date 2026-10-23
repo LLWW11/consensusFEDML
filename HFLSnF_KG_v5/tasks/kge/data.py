@@ -1,4 +1,4 @@
-"""FB15k-237三元组读取、全局编号和数据完整性校验。"""
+"""多数据集三元组读取、全局编号和数据完整性校验。"""
 
 from __future__ import annotations
 
@@ -202,6 +202,43 @@ def load_fb15k237(data_dir: Path) -> KnowledgeGraphDataset:
     return build_knowledge_graph_dataset(
         "fb15k-237", train_triples, valid_triples, test_triples
     )
+
+
+def load_wn18rr(data_dir: Path) -> KnowledgeGraphDataset:
+    """读取WN18RR原始划分，保留字符串前导零及评估独有实体。"""
+
+    directory = Path(data_dir).expanduser().resolve()
+    return build_knowledge_graph_dataset(
+        "wn18rr", _read_text_triples(directory / "train.txt"),
+        _read_text_triples(directory / "valid.txt"),
+        _read_text_triples(directory / "test.txt"),
+    )
+
+
+def normalize_dataset_name(value: object) -> str:
+    """规范数据集名称，保留自由知识库与合成数据的旧别名。"""
+
+    name = str(value).strip().lower()
+    name = {"fb15k237": "fb15k-237", "synthetic_kg": "synthetic-kg"}.get(name, name)
+    if name not in {"fb15k-237", "wn18rr", "synthetic-kg"}:
+        raise ValueError("dataset必须是fb15k-237、wn18rr或synthetic-kg")
+    return name
+
+
+def load_dataset(dataset_name: str, data_dir=None) -> KnowledgeGraphDataset:
+    """按名称及可选覆盖目录加载图谱，不依赖FedML或其他版本工程。"""
+
+    name = normalize_dataset_name(dataset_name)
+    if name == "synthetic-kg":
+        return build_synthetic_knowledge_graph()
+    package = Path(__file__).resolve().parents[2]
+    if data_dir is None or not str(data_dir).strip():
+        data_dir = "data/" + {"fb15k-237": "FB15k-237", "wn18rr": "wn18rr"}[name]
+    directory = Path(str(data_dir)).expanduser()
+    if not directory.is_absolute():
+        directory = package / directory
+    loaders = {"fb15k-237": load_fb15k237, "wn18rr": load_wn18rr}
+    return loaders[name](directory)
 
 
 def build_synthetic_knowledge_graph() -> KnowledgeGraphDataset:

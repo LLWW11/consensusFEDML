@@ -198,6 +198,8 @@ class MatlabTopologySchedule:
                 )
             )
         self._data = loadmat(self.mat_path, simplify_cells=True)
+        if bool(self._data.get("variance_control_analysis_only", False)):
+            raise ValueError("该MAT仅包含人数统计收缩，映射未重建，不能直接用于训练")
         self._load_common_metadata()
         self._select_scenario_fields()
         self._rounds = tuple(self._build_round(round_index) for round_index in range(self.round_count))
@@ -431,7 +433,7 @@ class MatlabTopologySchedule:
     def to_metadata(self):
         """返回可写入结果目录的拓扑实验元数据。"""
         participant_counts = [item.participant_count for item in self._rounds]
-        return {
+        metadata = {
             "mat_file": self.mat_path,
             "schema_version": str(self._data.get("schema_version", "unknown")),
             "scenario": self.scenario_name,
@@ -461,3 +463,9 @@ class MatlabTopologySchedule:
             "participant_count_max": max(participant_counts),
             "participant_count_mean": float(np.mean(participant_counts)),
         }
+        # 新调度披露统计重建来源；未增加标记的历史文件保持原元数据。
+        for key in ("schedule_provenance", "physical_feasibility_validated", "mapping_reconstruction_seed", "variance_control_source_sha256", "TopoOption", "training_varAlpha"):
+            if key in self._data:
+                value = self._data[key]
+                metadata[key] = value.item() if isinstance(value, np.generic) else value
+        return metadata

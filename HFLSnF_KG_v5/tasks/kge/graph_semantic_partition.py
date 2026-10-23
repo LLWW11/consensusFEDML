@@ -6,7 +6,7 @@ import hashlib
 import math
 from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Sequence, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import torch
@@ -23,6 +23,7 @@ from .federated_data import (
 
 
 DOMAIN_EXTRACTOR = "freebase_top_level"
+RELATION_NAME_EXTRACTOR = "relation_name"
 _RESTART_PRIME = 104729
 
 
@@ -54,9 +55,24 @@ def freebase_relation_domain(relation_name: str) -> str:
     return parts[0]
 
 
-def relation_domains(dataset: KnowledgeGraphDataset) -> Dict[int, str]:
-    """返回关系编号到顶级语义域的完整映射。"""
+def resolve_domain_extractor(dataset: KnowledgeGraphDataset, extractor=None) -> str:
+    """选择明确的语义域定义，词汇图谱默认采用关系语义域。"""
 
+    name = str(dataset.dataset_name).strip().lower()
+    selected = str(extractor or "auto").strip().lower()
+    if selected == "auto":
+        selected = RELATION_NAME_EXTRACTOR if name == "wn18rr" else DOMAIN_EXTRACTOR
+    if selected not in {DOMAIN_EXTRACTOR, RELATION_NAME_EXTRACTOR}:
+        raise ValueError("partition_domain_extractor必须是auto、freebase_top_level或relation_name")
+    if name == "wn18rr" and selected == DOMAIN_EXTRACTOR:
+        raise ValueError("WN18RR不包含Freebase语义域路径，请使用relation_name")
+    return selected
+
+
+def relation_domains(dataset: KnowledgeGraphDataset, domain_extractor=None) -> Dict[int, str]:
+    """按数据集语义定义返回关系编号到语义域的完整映射。"""
+
+    extractor = resolve_domain_extractor(dataset, domain_extractor)
     inverse = {
         int(relation_id): str(relation_name)
         for relation_name, relation_id in dataset.relation_to_id.items()
@@ -65,7 +81,8 @@ def relation_domains(dataset: KnowledgeGraphDataset) -> Dict[int, str]:
     if set(inverse) != expected:
         raise ValueError("关系编号必须从0开始连续排列")
     return {
-        relation_id: freebase_relation_domain(inverse[relation_id])
+        relation_id: (freebase_relation_domain(inverse[relation_id])
+                      if extractor == DOMAIN_EXTRACTOR else inverse[relation_id].strip())
         for relation_id in sorted(inverse)
     }
 
@@ -399,12 +416,13 @@ def semantic_graph_statistics(
     dataset: KnowledgeGraphDataset,
     partitions: Sequence[KnowledgeGraphClientPartition],
     primary_domains: Sequence[str],
+    domain_extractor=None,
 ) -> Dict[str, object]:
     """汇总语义纯度、关系异构性和局部图结构指标。"""
 
     if len(partitions) != len(primary_domains):
         raise ValueError("主域数量必须与客户端分区数量一致")
-    domain_by_relation = relation_domains(dataset)
+    domain_by_relation = relation_domains(dataset, domain_extractor)
     global_relation_counts = torch.bincount(
         dataset.train_triples[:, 1],
         minlength=dataset.num_relations,
@@ -507,6 +525,7 @@ def _partition_candidate(
     seed: int,
     load_tolerance: float,
     search_restarts: int,
+    domain_extractor=None,
 ) -> FederatedKnowledgeGraphData:
     """把一次包分配转换为带图语义统计的正式分区候选。"""
 
@@ -516,10 +535,11 @@ def _partition_candidate(
         dataset,
         partitions,
         primary_domains,
+        domain_extractor,
     )
     metadata.update(
         {
-            "domain_extractor": DOMAIN_EXTRACTOR,
+            "domain_extractor": resolve_domain_extractor(dataset, domain_extractor),
             "domain_head_packet_count": len(packets),
             "client_primary_domains": list(primary_domains),
             "load_tolerance": float(load_tolerance),
@@ -616,6 +636,7 @@ def partition_train_triples_by_semantic_domain_graph_local(
     seed: int,
     load_tolerance: float = 0.05,
     search_restarts: int = 8,
+    domain_extractor: Optional[str] = None,
 ) -> FederatedKnowledgeGraphData:
     """构造语义域主导、实体图局部且负载均衡的客户端分区。"""
 
@@ -629,7 +650,7 @@ def partition_train_triples_by_semantic_domain_graph_local(
         raise ValueError("load_tolerance必须位于[0, 1)")
     if search_restarts <= 0:
         raise ValueError("search_restarts必须大于0")
-    domains = relation_domains(dataset)
+    domains = relation_domains(dataset, domain_extractor)
     packets = _build_semantic_packets(dataset, domains)
     if client_count > len(packets):
         raise ValueError("客户端数量不能超过域-头实体包数量")
@@ -675,6 +696,7 @@ def partition_train_triples_by_semantic_domain_graph_local(
         seed=seed,
         load_tolerance=load_tolerance,
         search_restarts=search_restarts,
+        domain_extractor=domain_extractor,
     )
     if best.partition_hash != str(score[4]):
         raise RuntimeError("图语义候选快速哈希与正式分区哈希不一致")

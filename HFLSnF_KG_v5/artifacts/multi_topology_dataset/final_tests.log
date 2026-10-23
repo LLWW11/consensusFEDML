@@ -1,0 +1,44 @@
+test_analysis_only_mat_cannot_be_loaded_as_training_schedule (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+禁止将未重建映射的统计文件绕过检查直接用于训练。 ... ok
+test_bad_explicit_data_path_and_duplicate_files_are_rejected (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+显式错误路径不换数据源，缺文件与重复事实均报错。 ... ok
+test_batch_failure_resume_and_checkpoint_tampering (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+批次完成：C:\Users\lw\AppData\Local\Temp\tmptc61vig_\batch_20261016_171908_159073\batch_summary.json
+模拟中途失败、跳过完成组及检查点改变时拒绝续用。 ... ok
+test_default_three_configs_share_recipe_and_use_18_clients (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+三方法按指定顺序运行，且沿用当前V5训练配方。 ... ok
+test_model_hash_matches_actual_dynamic_trainer_format (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+防止预检哈希与正式训练的模型指纹格式不一致。 ... ok
+test_nonfinite_metrics_and_cuda_fallback_are_rejected (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+出现非有限验证指标停止；无显卡时不复算或创建正式批次。 ... ok
+test_real_open_maps_exactly_match_controlled_counts (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+三方法全1000轮人数一致，实际150轮覆盖全部客户端。 ... ok
+test_reconstruction_preserves_counts_and_unique_legal_ids (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+增减人数时保持源组关系，无重复并通过低参与者补位。 ... ok
+test_result_validation_checks_best_round_and_frozen_inputs (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+使用模拟CUDA结果验证验收逻辑，不代表本机执行过GPU训练。 ... ok
+test_switching_network_and_dataset_derives_scale_and_paths (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+仅改选择字段可切回37客户端城域网和自由知识库数据。 ... ok
+test_three_methods_train_and_restore_on_tiny_wn18rr (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+[动态联邦TransE] 方案=hflsnf epoch=1/2 MAT行=0 参与客户端=18 动态分组=4 加权损失=1.517130 聚合权重=72 耗时=0.05s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflsnf epoch=2/2 MAT行=1 参与客户端=18 动态分组=4 加权损失=1.544889 聚合权重=72 耗时=0.04s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflnosnf epoch=1/2 MAT行=0 参与客户端=12 动态分组=3 加权损失=1.481175 聚合权重=48 耗时=0.03s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=hflnosnf epoch=2/2 MAT行=1 参与客户端=12 动态分组=4 加权损失=1.475408 聚合权重=48 耗时=0.03s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=flnosnf epoch=1/2 MAT行=0 参与客户端=5 动态分组=1 加权损失=1.567214 聚合权重=20 耗时=0.02s 验证MRR=0.039231 验证Hits@3=0.000000
+[动态联邦TransE] 方案=flnosnf epoch=2/2 MAT行=1 参与客户端=5 动态分组=1 加权损失=1.398220 聚合权重=20 耗时=0.02s 验证MRR=0.039231 验证Hits@3=0.000000
+用真实OPEN映射完成CPU小图训练、验证选模及独立完整测试。 ... ok
+test_wn18rr_text_loading_keeps_leading_zeros_and_evaluation_entities (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+真实文本读取不依赖字典，也不丢弃评估独有实体。 ... ok
+test_wn18rr_uses_relation_domains_and_preserves_packets (HFLSnF_KG_v5.tests.test_multi_topology_dataset.MultiTopologyDatasetTest)
+关系域改变来源定义，域头包与负载算法保持原框架。 ... ok
+test_file_layout_and_all_yaml_are_readable (HFLSnF_KG_v5.tests.test_config_archive_contract.ConfigArchiveContractTest)
+确认动态和随机配置分目录保存且历史归档计数不变。 ... ok
+test_final_configs_match_fixed_contract (HFLSnF_KG_v5.tests.test_config_archive_contract.ConfigArchiveContractTest)
+确认九份主配置仅按实验臂、种子及其派生身份发生变化。 ... ok
+test_historical_entry_points_reference_archived_configs (HFLSnF_KG_v5.tests.test_config_archive_contract.ConfigArchiveContractTest)
+确认全部旧任务入口都已切换到正确的zOld分类。 ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 9.656s
+
+OK
