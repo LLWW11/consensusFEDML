@@ -1,6 +1,7 @@
 """验证多数据集、可选语义域和OPEN受控调度接入。"""
 
 import csv
+import io
 import json
 import math
 import tempfile
@@ -18,10 +19,10 @@ from HFLSnF_KG_v5.core.controlled_schedule import rebuild_groups
 from HFLSnF_KG_v5.core.matlab_topology_schedule import MatlabTopologySchedule
 from HFLSnF_KG_v5.experiment import build_federated_data, load_configured_dataset
 from HFLSnF_KG_v5.multi_experiment import build_provider, load_configuration, model_hash, schedule_statistics
-from HFLSnF_KG_v5.run_multi_topology_dataset import DEFAULT_CONFIGS, binding, check_finite, effective_configuration, main, run_batch, validate_result
+from HFLSnF_KG_v5.run_multi_topology_dataset import DEFAULT_CONFIGS, binding, check_finite, default_configurations, effective_configuration, main, run_batch, validate_result
 from HFLSnF_KG_v5.selection import PACKAGE_DIR
 from HFLSnF_KG_v5.tasks.kge.data import build_knowledge_graph_dataset, load_dataset
-from HFLSnF_KG_v5.tasks.kge.graph_semantic_partition import relation_domains
+from HFLSnF_KG_v5.tasks.kge.graph_semantic_partition import relation_domains, resolve_domain_extractor
 
 
 def small_wordnet(heads=24):
@@ -145,6 +146,39 @@ class MultiTopologyDatasetTest(unittest.TestCase):
             self.assertIn("open_wn18rr", args.run_name)
             self.assertNotIn("{", args.result_root)
             self.assertFalse(args.evaluate_test_after_training)
+
+    def test_open_fb15k237_profiles_only_change_dataset(self):
+        """新的三方法配置仅切换数据集，其余配方与OPEN词汇图谱对照一致。"""
+
+        paths = default_configurations("FB15K237")
+        self.assertEqual(DEFAULT_CONFIGS, default_configurations("wn18rr"))
+        for source, target in zip(DEFAULT_CONFIGS, paths):
+            previous = yaml.safe_load(source.read_text(encoding="utf-8"))
+            current = yaml.safe_load(target.read_text(encoding="utf-8"))
+            self.assertEqual(current["data_args"].pop("dataset"), "fb15k-237")
+            previous["data_args"].pop("dataset")
+            self.assertEqual(previous, current)
+            args = load_configuration(target)
+            self.assertEqual(args.client_num_in_total, 18)
+            self.assertEqual(args.network_topology, "open")
+            self.assertEqual(args.dataset, "fb15k-237")
+            self.assertTrue(args.data_dir.endswith("FB15k-237"))
+            self.assertIn("open_fb15k-237_seed42", args.result_root)
+            self.assertEqual(resolve_domain_extractor(SimpleNamespace(dataset_name=args.dataset), args.partition_domain_extractor), "freebase_top_level")
+        with self.assertRaises(ValueError):
+            default_configurations("synthetic-kg")
+
+    def test_dataset_cli_selects_profiles_and_separates_validation_output(self):
+        """命令行别名选择正确配置，独立保存新预检且拒绝混用自定义配置。"""
+
+        with mock.patch("HFLSnF_KG_v5.run_multi_topology_dataset.validate_configurations", return_value={"status": "passed"}) as validate, mock.patch("HFLSnF_KG_v5.run_multi_topology_dataset.write_json") as write:
+            self.assertEqual(main(["validate", "--dataset", "FB15K237"]), 0)
+            validate.assert_called_once_with(default_configurations("fb15k-237"))
+            self.assertEqual(write.call_args[0][0].name, "validation_open_fb15k-237_seed42.json")
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as raised:
+                main(["validate", "--dataset", "fb15k-237", "--configs", str(DEFAULT_CONFIGS[0])])
+            self.assertEqual(raised.exception.code, 2)
 
     def test_switching_network_and_dataset_derives_scale_and_paths(self):
         """仅改选择字段可切回37客户端城域网和自由知识库数据。"""

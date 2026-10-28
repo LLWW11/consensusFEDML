@@ -18,9 +18,21 @@ import yaml
 from .core.controlled_schedule import prepare_open_schedule
 from .multi_experiment import file_sha256, validate_configurations
 from .selection import PACKAGE_DIR, package_path
+from .tasks.kge.data import normalize_dataset_name
 
 
-DEFAULT_CONFIGS = [PACKAGE_DIR / "configs/multi_topology_dataset" / ("open_wn18rr_" + arm + "_seed42.yaml") for arm in ("hflsnf", "hflnosnf", "flnosnf")]
+def default_configurations(dataset):
+    """选择OPEN种子42的三方法内置配置，数据集别名统一规范化。"""
+
+    name = normalize_dataset_name(dataset)
+    stems = {"wn18rr": "wn18rr", "fb15k-237": "fb15k237"}
+    if name not in stems:
+        raise ValueError("内置OPEN实验仅支持wn18rr和fb15k-237")
+    return [PACKAGE_DIR / "configs/multi_topology_dataset" / ("open_" + stems[name] + "_" + arm + "_seed42.yaml")
+            for arm in ("hflsnf", "hflnosnf", "flnosnf")]
+
+
+DEFAULT_CONFIGS = default_configurations("wn18rr")
 DEFAULT_SOURCE = PACKAGE_DIR.parent / "Topo_other/OPEN/Result_JICN3/variance_control/jieguo_OPEN_epoch1000_varAlpha_0p1_analysis.mat"
 DEFAULT_SCHEDULE = PACKAGE_DIR / "artifacts/topologies/open_varalpha0p1_reconstructed.mat"
 
@@ -223,7 +235,10 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "validate", "formal3", "report"))
-    parser.add_argument("--configs", nargs="+", type=Path, default=DEFAULT_CONFIGS)
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--dataset", type=normalize_dataset_name, choices=("wn18rr", "fb15k-237"),
+                           help="选择内置OPEN种子42三方法配置，默认wn18rr")
+    selection.add_argument("--configs", nargs="+", type=Path, help="显式指定自定义配置，与--dataset互斥")
     parser.add_argument("--source-mat", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output-mat", type=Path, default=DEFAULT_SCHEDULE)
     parser.add_argument("--resume", type=Path)
@@ -248,9 +263,12 @@ def main(argv=None):
             raise RuntimeError("正式联邦训练要求CUDA，禁止退回CPU；未创建正式批次")
         import fedml
 
-    validation = validate_configurations(args.configs)
+    config_paths = args.configs if args.configs is not None else (default_configurations(args.dataset) if args.dataset else DEFAULT_CONFIGS)
+    validation = validate_configurations(config_paths)
     if args.action == "validate":
-        destination = PACKAGE_DIR / "artifacts/multi_topology_dataset/validation.json"
+        # 显式数据集实验独立保存预检，保留原默认入口及WN18RR历史文件。
+        filename = "validation_open_{}_seed42.json".format(args.dataset) if args.dataset else "validation.json"
+        destination = PACKAGE_DIR / "artifacts/multi_topology_dataset" / filename
         write_json(destination, validation)
         print("真实分区及调度校验通过：{}".format(destination))
     else:

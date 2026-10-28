@@ -1,0 +1,62 @@
+# Select dataset and network_topology; paths and client counts default from the selected topology.
+# OPEN replays reconstructed participation counts, not a physically reoptimized schedule.
+comm_args:
+  backend: sp
+common_args:
+  random_seed: 42
+  training_type: simulation
+data_args:
+  dataset: fb15k-237
+  partition_domain_extractor: auto
+  partition_load_tolerance: 0.05
+  partition_search_restarts: 8
+  partition_search_seed: 42
+  partition_strategy: semantic_domain_graph_local_balanced
+device_args:
+  gpu_id: 0
+  require_cuda: true
+  using_gpu: true
+model_args:
+  distance_norm: 1
+  embedding_dim: 256
+  model: transe
+tracking_args:
+  enable_wandb: false
+  result_root: results/multi_topology_dataset/{network_topology}_{dataset}_seed{random_seed}
+  run_name: v5_{network_topology}_{dataset}_hflsnf_seed{random_seed}
+  using_mlops: false
+train_args:
+  ablation_arm: hflsnf
+  ablation_suite: v5_multi_topology_dataset_seed42_formal150
+  adversarial_temperature: 1.0
+  aggregation_mode: row_count_weighted
+  batch_size: 1024
+  client_optimizer: adam
+  client_optimizer_state_mode: reset
+  comm_round: 150
+  comparison_scenario: hflsnf
+  epochs: 3
+  eval_every: 1
+  evaluate_test_after_training: false
+  evaluation_candidate_batch_size: 8192
+  evaluation_query_batch_size: 64
+  fede_gamma: 9.0
+  federated_optimizer: DynamicTopologyTransE
+  final_validation_max_triples: 4096
+  learning_rate: 0.0005
+  local_objective: bidirectional_self_adversarial
+  lr: 0.0005
+  margin: 1.0
+  negative_sample_count: 256
+  profile_training_timing: false
+  server_optimizer: fedavg
+  test_max_triples: 0
+  topology_architecture: hfl
+  topology_edge_mode: fixed
+  topology_schedule_policy: strict
+  topology_snf: true
+  topology_type: matlab_direct
+  topology_util: 0.6
+  validation_max_triples: 4096
+  validation_selection: relation_stratified
+  network_topology: open

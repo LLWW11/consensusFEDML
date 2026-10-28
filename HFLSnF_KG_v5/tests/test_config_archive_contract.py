@@ -224,7 +224,7 @@ class ConfigArchiveContractTest(unittest.TestCase):
         # 历史配置名保持唯一；新实验通过完整相对路径区分同名配方。
         all_yaml = tuple(sorted(CONFIG_DIR.rglob("*.yaml")))
         # 冻结历史配置保持86份，独立实验目录按已注册规模增加。
-        additions = {"graph_semantic_fedavg_lr_sweep": 4, "graph_semantic_fedavg_multiseed_lr5e-4": 9, "graph_semantic_fedavg_seed42_lr5e-4": 3, "multi_topology_dataset": 3}
+        additions = {"graph_semantic_fedavg_lr_sweep": 4, "graph_semantic_fedavg_multiseed_lr5e-4": 9, "graph_semantic_fedavg_seed42_lr5e-4": 3, "multi_topology_dataset": 6}
         for name, count in additions.items():
             self.assertEqual(len(tuple((CONFIG_DIR / name).glob("*.yaml"))), count, name)
         expected_total = 86 + sum(additions.values())
